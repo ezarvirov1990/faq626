@@ -2,7 +2,10 @@
 // Касание — наше исходящее действие: сообщение менеджера/бота в чат Открытой линии или звонок.
 // Сообщения клиента касанием не считаются; если клиент написал позже нашего касания — clientWaiting.
 
+import { mskDayStart, untouchedMoves, taskState } from "./tasks.js";
+
 const HOUR = 3600e3;
+const DAY = 24 * HOUR;
 const OUTGOING_MARK = /^\s*=+\s*Исходящее сообщение/;
 // Служебные пометки Wazzup: сообщение не доставлено (лимит «Маркетинг», 24-часовая сессия, спам…),
 // клиент изменил/удалил сообщение, пропущенный звонок. Не касание и не входящее от клиента.
@@ -20,6 +23,8 @@ export function loadConfig(env) {
     thresholdHours: Number(env.THRESHOLD_HOURS || 48),
     // У сделок другой ритм работы: в список попадают только те, где нас не было больше месяца
     dealThresholdDays: Number(env.DEAL_THRESHOLD_DAYS || 30),
+    // Чьи переносы сроков задач не показываем (руководитель)
+    taskMoveExclude: (env.TASK_MOVE_EXCLUDE ?? "77").split(",").map((s) => Number(s.trim())).filter(Boolean),
     refreshMinutes: Number(env.REFRESH_MINUTES || 15),
   };
 }
@@ -137,6 +142,9 @@ export async function collectSnapshot(bx, config) {
       cmds["call_" + it.ID] =
         `crm.activity.list?filter[OWNER_TYPE_ID]=${spec.ownerTypeId}&filter[OWNER_ID]=${it.ID}&filter[TYPE_ID]=2` +
         `&order[CREATED]=DESC&select[]=ID&select[]=CREATED`;
+      cmds["task_" + it.ID] =
+        `crm.activity.list?filter[OWNER_TYPE_ID]=${spec.ownerTypeId}&filter[OWNER_ID]=${it.ID}&filter[PROVIDER_ID]=CRM_TASKS_TASK` +
+        `&filter[COMPLETED]=N&select[]=ID&select[]=DEADLINE`;
     }
     const res = await bx.batch(cmds);
     batchErrors += res.errors;
@@ -159,6 +167,7 @@ export async function collectSnapshot(bx, config) {
   for (const c of chatIds) {
     const m = msgs.out["msg_" + c];
     let ours = 0, client = 0;
+    const oursTimes = [];
     if (m) {
       const isClient = new Map((m.users || []).map((u) => [String(u.id), Boolean(u.connector)]));
       for (const x of m.messages || []) {
@@ -168,14 +177,16 @@ export async function collectSnapshot(bx, config) {
         // Wazzup пишет наши исходящие (с телефона, из WhatsApp) от имени клиента с такой пометкой
         const outgoing = OUTGOING_MARK.test(x.text || "");
         if (isClient.get(String(x.author_id)) && !outgoing) client = Math.max(client, t);
-        else ours = Math.max(ours, t);
+        else { ours = Math.max(ours, t); oursTimes.push(t); }
       }
     }
-    lastByChat.set(c, { ours, client });
+    lastByChat.set(c, { ours, client, oursTimes });
   }
 
   // 3) Итог по каждому виду
   const views = {};
+  const taskItems = [];
+  const openItems = new Map(); // "L_123" / "D_456" → лид/сделка для вкладки «Задачи»
   for (const { spec, stages, items, chatsOf, calls } of loaded) {
     const openByManager = {};
     const rows = [];
@@ -184,13 +195,26 @@ export async function collectSnapshot(bx, config) {
       openByManager[managerId] = (openByManager[managerId] || 0) + 1;
 
       let lastOurMsg = 0, lastClient = 0;
+      const touches = [];
       for (const c of chatsOf.get(it.ID)) {
         const l = lastByChat.get(c);
         lastOurMsg = Math.max(lastOurMsg, l.ours);
         lastClient = Math.max(lastClient, l.client);
+        touches.push(...l.oursTimes);
       }
       const itemCalls = calls["call_" + it.ID] || [];
       const lastCall = itemCalls.length ? Date.parse(itemCalls[0].CREATED) : 0;
+      touches.push(...itemCalls.map((x) => Date.parse(x.CREATED)));
+
+      const stage = stages[it[spec.stageField]] || it[spec.stageField];
+      const ts = taskState(calls["task_" + it.ID] || [], now);
+      if (ts.kind !== "ok") {
+        taskItems.push({
+          entity: spec.entity, id: Number(it.ID), stage, managerId, kind: ts.kind,
+          deadline: ts.deadline ? new Date(ts.deadline).toISOString() : null,
+        });
+      }
+      openItems.set(spec.crmType[0] + "_" + it.ID, { entity: spec.entity, id: Number(it.ID), stage, managerId, touches });
 
       const lastTouch = Math.max(lastOurMsg, lastCall);
       const created = Date.parse(it.DATE_CREATE);
@@ -199,7 +223,7 @@ export async function collectSnapshot(bx, config) {
 
       rows.push({
         id: Number(it.ID),
-        stage: stages[it[spec.stageField]] || it[spec.stageField],
+        stage,
         managerId,
         created: new Date(created).toISOString(),
         silentSince: new Date(silentSince).toISOString(),
@@ -219,11 +243,49 @@ export async function collectSnapshot(bx, config) {
     };
   }
 
+  // 4) Переносы сроков задач за вчера и сегодня (по Москве) по нашим открытым лидам и сделкам.
+  // Изменённые задачи ищем по делам CRM: у задачи при переносе срока обновляется и её дело,
+  // а tasks.task.list с фильтром по дате изменения отвечает в 10 раз медленнее.
+  const movesSince = mskDayStart(now) - DAY;
+  const changed = await bx.list("crm.activity.list", {
+    filter: { ">=LAST_UPDATED": new Date(movesSince).toISOString(), PROVIDER_ID: "CRM_TASKS_TASK", OWNER_TYPE_ID: [1, 2] },
+    select: ["ID", "OWNER_TYPE_ID", "OWNER_ID", "ASSOCIATED_ENTITY_ID", "SUBJECT", "CREATED", "RESPONSIBLE_ID"],
+  });
+  const ourTasks = new Map(); // id задачи → { task, item }
+  for (const a of changed) {
+    const item = openItems.get((Number(a.OWNER_TYPE_ID) === 1 ? "L_" : "D_") + a.OWNER_ID);
+    if (item && !ourTasks.has(a.ASSOCIATED_ENTITY_ID)) ourTasks.set(a.ASSOCIATED_ENTITY_ID, { task: a, item });
+  }
+  const histCmds = {};
+  for (const id of ourTasks.keys()) histCmds["hist_" + id] = `tasks.task.history.list?taskId=${id}&filter[FIELD]=DEADLINE`;
+  const hist = await bx.batch(histCmds);
+  batchErrors += hist.errors;
+
+  const iso = (ms) => (ms ? new Date(ms).toISOString() : null);
+  const moves = [];
+  for (const [id, { task, item }] of ourTasks) {
+    const recent = ((hist.out["hist_" + id] || {}).list || [])
+      .map((h) => ({ at: Date.parse(h.createdDate), userId: Number(h.user && h.user.id), from: Number((h.value || {}).from) * 1000, to: Number((h.value || {}).to) * 1000 }))
+      .filter((m) => m.at >= movesSince && managers.has(m.userId) && !config.taskMoveExclude.includes(m.userId));
+    for (const m of untouchedMoves(recent, item.touches, Date.parse(task.CREATED))) {
+      moves.push({
+        entity: item.entity, id: item.id, stage: item.stage, ownerId: item.managerId,
+        taskId: Number(id), taskTitle: task.SUBJECT, responsibleId: Number(task.RESPONSIBLE_ID),
+        managerId: m.userId, at: iso(m.at), from: iso(m.from), to: iso(m.to), lastTouch: iso(m.lastTouch),
+      });
+    }
+  }
+
   return {
     updatedAt: new Date(now).toISOString(),
     portal: bx.portal,
     batchErrors,
     managers: [...managers.values()].sort((a, b) => a.name.localeCompare(b.name, "ru")),
     views,
+    tasks: {
+      movesSince: new Date(movesSince).toISOString(),
+      moves: moves.sort((a, b) => b.at.localeCompare(a.at)),
+      items: taskItems,
+    },
   };
 }

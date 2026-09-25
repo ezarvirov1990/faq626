@@ -127,6 +127,10 @@ a:hover { text-decoration: underline; }
 .chip { font-size: 12px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .chip.wait { border-color: var(--crit); color: var(--crit); font-weight: 600; }
 .muted { color: var(--muted); }
+.stack { display: grid; gap: 16px; }
+[hidden] { display: none !important; }
+table.moves th:nth-child(1) { width: 170px; } table.moves th:nth-child(2) { width: auto; } table.moves th:nth-child(3) { width: 120px; } table.moves th:nth-child(4) { width: 270px; } table.moves th:nth-child(5) { width: 150px; }
+table.moves { min-width: 900px; }
 
 .empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); }
 .note { font-size: 13px; color: var(--muted); max-width: 70ch; margin: 0; }
@@ -146,9 +150,9 @@ a:hover { text-decoration: underline; }
 
   <section class="stats" aria-label="Сводка">
     <div class="stat crit"><b id="s-total">—</b><span id="s-total-l">без касаний</span></div>
-    <div class="stat crit"><b id="s-wait">—</b><span>клиент написал и ждёт ответа</span></div>
+    <div class="stat crit"><b id="s-wait">—</b><span id="s-wait-l">клиент написал и ждёт ответа</span></div>
     <div class="stat warn"><b id="s-week">—</b><span id="s-crit-l">без касаний больше 7 суток</span></div>
-    <div class="stat"><b id="s-mgr">—</b><span>менеджеров с просрочкой</span></div>
+    <div class="stat"><b id="s-mgr">—</b><span id="s-mgr-l">менеджеров с просрочкой</span></div>
   </section>
 
   <div class="toolbar">
@@ -157,7 +161,7 @@ a:hover { text-decoration: underline; }
       <button type="button" data-grp="МСК" aria-pressed="false">МСК</button>
       <button type="button" data-grp="НСК" aria-pressed="false">НСК</button>
     </div>
-    <label class="check"><input type="checkbox" id="only-wait"> Только где клиент ждёт ответа</label>
+    <label class="check" id="only-wait-box"><input type="checkbox" id="only-wait"> Только где клиент ждёт ответа</label>
   </div>
 
   <section>
@@ -172,7 +176,7 @@ a:hover { text-decoration: underline; }
 
   <section id="list"></section>
 
-  <p class="note">Касание — наше исходящее действие: сообщение менеджера или бота в чат Открытой линии либо звонок. Сообщения клиента касанием не считаются: если клиент написал, а мы молчим, запись отмечена «клиент ждёт ответа». Данные из Bitrix24 обновляются раз в 15 минут; время без касаний отсчитывается в реальном времени.</p>
+  <p class="note" id="note">Касание — наше исходящее действие: сообщение менеджера или бота в чат Открытой линии либо звонок. Сообщения клиента касанием не считаются: если клиент написал, а мы молчим, запись отмечена «клиент ждёт ответа». Данные из Bitrix24 обновляются раз в 15 минут; время без касаний отсчитывается в реальном времени.</p>
 </div>
 
 <!-- В локальной версии сюда вшивается снимок; на сервере пусто и страница берёт данные из api/snapshot -->
@@ -241,13 +245,117 @@ a:hover { text-decoration: underline; }
     fresh.title = "Снимок из Bitrix24: " + fmt.format(new Date(state.snap.updatedAt)) + " МСК" + (collectError ? "\nОшибка сбора: " + collectError : "");
   }
 
+  const NOTE_TOUCH = $("note").textContent;
+  const NOTE_TASKS = "Перенос без касания — срок задачи по лиду или сделке перенесли, а в тот же день до переноса не было ни нашего звонка, ни нашего сообщения клиенту. Перенос записан на того, кто его сделал; правка срока в первые 10 минут после постановки задачи не считается. Просрочка — у открытой задачи срок прошёл больше 48 часов назад. Данные из Bitrix24 обновляются раз в 15 минут.";
+  const DAY_MS = 24 * HOUR;
+  const card = (x) => el("a", { href: state.snap.portal + "/crm/" + x.entity + "/details/" + x.id + "/", target: "_blank", rel: "noopener", text: (x.entity === "deal" ? "Сделка #" : "Лид #") + x.id });
+  const LEADS = ["лид", "лида", "лидов"], DEALS = ["сделка", "сделки", "сделок"];
+  const both = (ls, e1) => {
+    const l = ls.filter((x) => x.entity === "lead").length, d = ls.length - l;
+    return [l ? l + " " + plural(l, LEADS) : "", d ? d + " " + plural(d, DEALS) : ""].filter(Boolean).join(" · ") || e1;
+  };
+
+  function taskTable(head, rows, cls) {
+    return el("div", { class: "tbl-wrap" }, el("table", cls ? { class: cls } : {},
+      el("thead", {}, el("tr", {}, ...head.map((h) => el("th", { text: h })))),
+      el("tbody", {}, ...rows)));
+  }
+
+  function renderTasks(snap, managers, mgrById, inGrp, now) {
+    const T = snap.tasks;
+    const moves = T.moves.filter((x) => inGrp(mgrById.get(x.managerId)));
+    const items = T.items.filter((x) => inGrp(mgrById.get(x.managerId)));
+    const none = items.filter((x) => x.kind === "none");
+    const late = items.filter((x) => x.kind === "overdue");
+    const noneLeads = none.filter((x) => x.entity === "lead").length;
+
+    $("title").textContent = "Задачи";
+    $("sub").textContent = "Группы продаж B2C МСК и НСК · открытые лиды и сделки воронки «" + snap.views.deals.title + "»";
+    $("s-total").textContent = moves.length;
+    $("s-total-l").textContent = plural(moves.length, ["перенос", "переноса", "переносов"]) + " срока без касания за вчера и сегодня";
+    $("s-wait").textContent = noneLeads;
+    $("s-wait-l").textContent = plural(noneLeads, LEADS) + " без задачи";
+    $("s-week").textContent = none.length - noneLeads;
+    $("s-crit-l").textContent = plural(none.length - noneLeads, DEALS) + " без задачи";
+    $("s-mgr").textContent = late.length;
+    $("s-mgr-l").textContent = "с задачей, просроченной больше 2 дней: " + both(late, "нет");
+
+    const of = (arr, id) => arr.filter((x) => x.managerId === id);
+    const score = (id) => of(moves, id).length * 1000 + of(items, id).length;
+    const sorted = [...managers].sort((a, b) => score(b.id) - score(a.id) || a.name.localeCompare(b.name, "ru"));
+    if (state.manager && !score(state.manager)) state.manager = null;
+
+    const box = $("mgrs"); box.replaceChildren();
+    for (const m of sorted) {
+      const mv = of(moves, m.id).length, nn = of(none, m.id), lt = of(late, m.id);
+      const any = mv + nn.length + lt.length;
+      const b = el("button", {
+        type: "button", class: "mgr" + (any ? "" : " zero"), "aria-pressed": String(state.manager === m.id),
+        title: any ? "Показать список" : "Нарушений нет",
+      },
+        el("div", { class: "mgr-top" },
+          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: m.group.replace("Группа продаж ", "") })),
+          el("div", { class: "mgr-count" }, String(mv), el("small", { text: " " + plural(mv, ["перенос", "переноса", "переносов"]) }))),
+        el("div", { class: "mgr-meta" }, el("span", { text: "Без задачи" }), el("span", { text: both(nn, "—") })),
+        el("div", { class: "mgr-meta" }, el("span", { text: "Просрочено" }), el("span", { class: lt.length ? "wait" : "", text: both(lt, "—") })));
+      if (any) b.addEventListener("click", () => {
+        state.manager = state.manager === m.id ? null : m.id;
+        render();
+        if (state.manager) $("list").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+      });
+      box.append(b);
+    }
+
+    const list = $("list"); list.replaceChildren();
+    if (!state.manager) {
+      list.append(el("div", { class: "empty", text: moves.length || items.length ? "Нажмите на менеджера, чтобы увидеть переносы, лиды и сделки без задачи и просрочку." : "Нарушений нет." }));
+      return;
+    }
+    const m = mgrById.get(state.manager);
+    const close = el("button", { type: "button", class: "close", text: "Свернуть" });
+    close.addEventListener("click", () => { state.manager = null; render(); });
+    list.append(el("h2", { text: "Задачи · " + m.name }));
+    const section = (title, count, table) => el("div", { class: "group" },
+      el("div", { class: "group-head" }, el("div", {}, el("b", { text: title }), el("span", { text: "  " + count })), sections.length ? null : close),
+      table);
+    const sections = [];
+
+    const mm = of(moves, m.id);
+    if (mm.length) sections.push(section("Переносы срока без касания", mm.length + " за вчера и сегодня", taskTable(
+      ["Карточка", "Задача", "Перенесено", "Срок: было → стало", "Последнее касание"],
+      mm.map((x) => el("tr", {},
+        el("td", {}, card(x), el("div", { class: "muted", text: x.stage || "" })),
+        el("td", {}, el("a", { href: snap.portal + "/company/personal/user/" + x.responsibleId + "/tasks/task/view/" + x.taskId + "/", target: "_blank", rel: "noopener", text: x.taskTitle || "Задача #" + x.taskId }),
+          x.responsibleId !== x.managerId ? el("div", { class: "muted", text: "задача " + ((mgrById.get(x.responsibleId) || {}).name || "другого сотрудника") }) : null),
+        el("td", { class: "num", text: fmt.format(new Date(x.at)) }),
+        el("td", { class: "num", text: (x.from ? fmt.format(new Date(x.from)) : "без срока") + " → " + (x.to ? fmt.format(new Date(x.to)) : "без срока") }),
+        el("td", { text: x.lastTouch ? fmt.format(new Date(x.lastTouch)) : "не было" }))), "moves")));
+
+    const ln = of(none, m.id);
+    if (ln.length) sections.push(section("Без задачи", both(ln, ""), taskTable(
+      ["Карточка", "Стадия"],
+      ln.map((x) => el("tr", {}, el("td", {}, card(x)), el("td", { text: x.stage || "—" }))))));
+
+    const ll = of(late, m.id).sort((a, b) => a.deadline.localeCompare(b.deadline));
+    if (ll.length) sections.push(section("Задача просрочена больше 2 дней", both(ll, ""), taskTable(
+      ["Карточка", "Стадия", "Просрочено на", "Срок задачи"],
+      ll.map((x) => {
+        const d = Math.floor((now - Date.parse(x.deadline)) / DAY_MS);
+        return el("tr", {}, el("td", {}, card(x)), el("td", { text: x.stage || "—" }),
+          el("td", { class: "num" }, el("span", { class: "pill " + (d >= 7 ? "c" : "h"), text: d + " д" })),
+          el("td", { class: "num", text: fmt.format(new Date(x.deadline)) }));
+      }))));
+
+    list.append(el("div", { class: "stack" }, ...sections));
+  }
+
   function render() {
     for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-pressed", String(b.dataset.grp === state.grp));
     $("only-wait").checked = state.onlyWait;
     renderFresh();
     const snap = state.snap;
     if (!snap || !snap.views) return;
-    if (!snap.views[state.view]) state.view = Object.keys(snap.views)[0];
+    if (state.view === "tasks" ? !snap.tasks : !snap.views[state.view]) state.view = Object.keys(snap.views)[0];
 
     const now = Date.now();
     const mgrById = new Map(snap.managers.map((m) => [m.id, m]));
@@ -265,6 +373,18 @@ a:hover { text-decoration: underline; }
       b.addEventListener("click", () => { state.view = key; save(); render(); });
       tabs.append(b);
     }
+    if (snap.tasks) {
+      const b = el("button", { type: "button", role: "tab", "aria-selected": String(state.view === "tasks"), title: "Переносы срока задачи без касания за вчера и сегодня" },
+        el("span", { text: "Задачи" }), el("span", { class: "cnt", text: String(snap.tasks.moves.filter((x) => inGrp(mgrById.get(x.managerId))).length) }));
+      b.addEventListener("click", () => { state.view = "tasks"; save(); render(); });
+      tabs.append(b);
+    }
+
+    const isTasks = state.view === "tasks";
+    $("only-wait-box").hidden = isTasks;
+    $("legend").hidden = isTasks;
+    $("note").textContent = isTasks ? NOTE_TASKS : NOTE_TOUCH;
+    if (isTasks) return renderTasks(snap, managers, mgrById, inGrp, now);
 
     const view = snap.views[state.view];
     const noun = NOUNS[view.entity] || NOUNS.lead;
@@ -281,8 +401,10 @@ a:hover { text-decoration: underline; }
     $("s-total").textContent = items.length;
     $("s-total-l").textContent = plural(items.length, noun.forms) + " без касаний из " + openTotal + " открытых";
     $("s-wait").textContent = items.filter((x) => x.clientWaiting).length;
+    $("s-wait-l").textContent = "клиент написал и ждёт ответа";
     $("s-week").textContent = items.filter((x) => x.hours >= lv.c).length;
     $("s-mgr").textContent = new Set(items.map((x) => x.managerId)).size;
+    $("s-mgr-l").textContent = "менеджеров с просрочкой";
 
     // карточки менеджеров
     const byMgr = new Map();
