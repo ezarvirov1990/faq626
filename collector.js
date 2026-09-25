@@ -1,9 +1,23 @@
-// Снимок «открытые лиды без нашего касания дольше порога» из Bitrix24.
+// Снимок «открытые лиды и сделки без нашего касания дольше порога» из Bitrix24.
 // Касание — наше исходящее действие: сообщение менеджера/бота в чат Открытой линии или звонок.
 // Сообщения клиента касанием не считаются; если клиент написал позже нашего касания — clientWaiting.
 
 const HOUR = 3600e3;
+const OUTGOING_MARK = /^\s*=+\s*Исходящее сообщение/;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+export function loadConfig(env) {
+  return {
+    port: Number(env.PORT || 3000),
+    webhook: env.BITRIX_WEBHOOK,
+    user: env.DASHBOARD_USER || "mygenetics",
+    password: env.DASHBOARD_PASSWORD,
+    departments: (env.DEPARTMENTS || "256,198").split(",").map((s) => Number(s.trim())).filter(Boolean),
+    dealCategoryId: Number(env.DEAL_CATEGORY_ID || 27),
+    thresholdHours: Number(env.THRESHOLD_HOURS || 48),
+    refreshMinutes: Number(env.REFRESH_MINUTES || 15),
+  };
+}
 
 export function createBitrix(webhook) {
   const base = webhook.endsWith("/") ? webhook : webhook + "/";
@@ -18,13 +32,13 @@ export function createBitrix(webhook) {
           signal: AbortSignal.timeout(60e3),
         });
         const json = await res.json();
-        // QUERY_LIMIT_EXCEEDED и 5xx — временные, повторяем
-        if (json.error === "QUERY_LIMIT_EXCEEDED" || res.status >= 500) throw new Error(json.error || "HTTP " + res.status);
+        // Лимиты и 5xx — временные, повторяем с паузой
+        if (["QUERY_LIMIT_EXCEEDED", "OPERATION_TIME_LIMIT"].includes(json.error) || res.status >= 500) throw new Error(json.error || "HTTP " + res.status);
         if (json.error) throw Object.assign(new Error(`${method}: ${json.error} ${json.error_description || ""}`.trim()), { fatal: true });
         return json;
       } catch (e) {
-        if (e.fatal || attempt >= 3) throw e;
-        await sleep(2000 * attempt);
+        if (e.fatal || attempt >= 4) throw e;
+        await sleep(3000 * attempt);
       }
     }
   }
@@ -59,8 +73,25 @@ export function createBitrix(webhook) {
   return { call, list, batch, portal: new URL(base).origin };
 }
 
-export async function collectSnapshot(bx, { departments, thresholdHours }) {
+// Что и откуда берём для каждого вида
+function entitySpecs(config, dealCategoryName) {
+  return [
+    {
+      key: "leads", entity: "lead", title: "Лиды", crmType: "LEAD", ownerTypeId: 1,
+      listMethod: "crm.lead.list", stageField: "STATUS_ID", stageEntity: "STATUS",
+      filter: { STATUS_SEMANTIC_ID: "P" }, extraSelect: ["HAS_PHONE"],
+    },
+    {
+      key: "deals", entity: "deal", title: dealCategoryName, crmType: "DEAL", ownerTypeId: 2,
+      listMethod: "crm.deal.list", stageField: "STAGE_ID", stageEntity: `DEAL_STAGE_${config.dealCategoryId}`,
+      filter: { CATEGORY_ID: config.dealCategoryId, STAGE_SEMANTIC_ID: "P" }, extraSelect: [],
+    },
+  ];
+}
+
+export async function collectSnapshot(bx, config) {
   const now = Date.now();
+  const { departments, thresholdHours } = config;
 
   // Менеджеры выбранных групп — состав читается при каждом сборе
   const managers = new Map();
@@ -73,84 +104,118 @@ export async function collectSnapshot(bx, { departments, thresholdHours }) {
         id: Number(u.ID),
         name: `${u.NAME || ""} ${u.LAST_NAME || ""}`.trim(),
         group: depInfo ? depInfo.NAME : String(dep),
-        open: 0,
       });
     }
   }
+  const managerIds = [...managers.keys()];
 
-  const stages = {};
-  for (const s of (await bx.call("crm.status.list", { filter: { ENTITY_ID: "STATUS" } })).result) stages[s.STATUS_ID] = s.NAME;
+  const category = (await bx.call("crm.category.get", { entityTypeId: 2, id: config.dealCategoryId })).result.category;
+  const specs = entitySpecs(config, category.name.replace(/^[^\p{L}\p{N}]+/u, "").trim());
 
-  const leads = await bx.list("crm.lead.list", {
-    filter: { STATUS_SEMANTIC_ID: "P", ASSIGNED_BY_ID: [...managers.keys()] },
-    select: ["ID", "STATUS_ID", "ASSIGNED_BY_ID", "DATE_CREATE", "HAS_PHONE"],
-  });
+  // 1) Сущности, их чаты и последний звонок
+  let batchErrors = 0;
+  const loaded = [];
+  for (const spec of specs) {
+    const stages = {};
+    for (const s of (await bx.call("crm.status.list", { filter: { ENTITY_ID: spec.stageEntity } })).result) stages[s.STATUS_ID] = s.NAME;
 
-  // Чаты и последний звонок по каждому лиду
-  const cmds = {};
-  for (const l of leads) {
-    cmds["chat_" + l.ID] = `imopenlines.crm.chat.get?CRM_ENTITY_TYPE=LEAD&CRM_ENTITY=${l.ID}&ACTIVE_ONLY=N`;
-    cmds["call_" + l.ID] =
-      `crm.activity.list?filter[OWNER_TYPE_ID]=1&filter[OWNER_ID]=${l.ID}&filter[TYPE_ID]=2` +
-      `&order[CREATED]=DESC&select[]=ID&select[]=CREATED`;
+    const items = await bx.list(spec.listMethod, {
+      filter: { ...spec.filter, ASSIGNED_BY_ID: managerIds },
+      select: ["ID", spec.stageField, "ASSIGNED_BY_ID", "DATE_CREATE", ...spec.extraSelect],
+    });
+
+    const cmds = {};
+    for (const it of items) {
+      cmds["chat_" + it.ID] = `imopenlines.crm.chat.get?CRM_ENTITY_TYPE=${spec.crmType}&CRM_ENTITY=${it.ID}&ACTIVE_ONLY=N`;
+      cmds["call_" + it.ID] =
+        `crm.activity.list?filter[OWNER_TYPE_ID]=${spec.ownerTypeId}&filter[OWNER_ID]=${it.ID}&filter[TYPE_ID]=2` +
+        `&order[CREATED]=DESC&select[]=ID&select[]=CREATED`;
+    }
+    const res = await bx.batch(cmds);
+    batchErrors += res.errors;
+
+    const chatsOf = new Map();
+    for (const it of items) {
+      chatsOf.set(it.ID, (res.out["chat_" + it.ID] || []).filter((c) => c && c.CHAT_ID).map((c) => String(c.CHAT_ID)));
+    }
+    loaded.push({ spec, stages, items, chatsOf, calls: res.out });
   }
-  const first = await bx.batch(cmds);
 
-  const chatsOf = new Map();
+  // 2) Последние сообщения каждого чата — один раз, даже если чат общий у лида и сделки
+  const chatIds = new Set(loaded.flatMap((l) => [...l.chatsOf.values()].flat()));
   const msgCmds = {};
-  for (const l of leads) {
-    const chats = (first.out["chat_" + l.ID] || []).filter((c) => c && c.CHAT_ID).map((c) => c.CHAT_ID);
-    chatsOf.set(l.ID, chats);
-    for (const c of chats) msgCmds["msg_" + c] = `im.dialog.messages.get?DIALOG_ID=chat${c}&LIMIT=50`;
-  }
-  const second = await bx.batch(msgCmds);
+  for (const c of chatIds) msgCmds["msg_" + c] = `im.dialog.messages.get?DIALOG_ID=chat${c}&LIMIT=50`;
+  const msgs = await bx.batch(msgCmds);
+  batchErrors += msgs.errors;
 
-  const rows = [];
-  for (const l of leads) {
-    let lastOurMsg = 0, lastClient = 0;
-    for (const c of chatsOf.get(l.ID)) {
-      const m = second.out["msg_" + c];
-      if (!m) continue;
+  const lastByChat = new Map();
+  for (const c of chatIds) {
+    const m = msgs.out["msg_" + c];
+    let ours = 0, client = 0;
+    if (m) {
       const isClient = new Map((m.users || []).map((u) => [String(u.id), Boolean(u.connector)]));
       for (const x of m.messages || []) {
         if (Number(x.author_id) === 0) continue; // системные строки
         const t = Date.parse(x.date);
-        if (isClient.get(String(x.author_id))) lastClient = Math.max(lastClient, t);
-        else lastOurMsg = Math.max(lastOurMsg, t);
+        // Wazzup пишет наши исходящие (с телефона, из WhatsApp) от имени клиента с такой пометкой
+        const outgoing = OUTGOING_MARK.test(x.text || "");
+        if (isClient.get(String(x.author_id)) && !outgoing) client = Math.max(client, t);
+        else ours = Math.max(ours, t);
       }
     }
-    const calls = first.out["call_" + l.ID] || [];
-    const lastCall = calls.length ? Date.parse(calls[0].CREATED) : 0;
+    lastByChat.set(c, { ours, client });
+  }
 
-    const lastTouch = Math.max(lastOurMsg, lastCall);
-    const kind = !lastTouch ? null : lastCall > lastOurMsg ? "call" : "msg";
-    const created = Date.parse(l.DATE_CREATE);
-    const silentSince = lastTouch || created;
+  // 3) Итог по каждому виду
+  const views = {};
+  for (const { spec, stages, items, chatsOf, calls } of loaded) {
+    const openByManager = {};
+    const rows = [];
+    for (const it of items) {
+      const managerId = Number(it.ASSIGNED_BY_ID);
+      openByManager[managerId] = (openByManager[managerId] || 0) + 1;
 
-    const mgr = managers.get(Number(l.ASSIGNED_BY_ID));
-    if (mgr) mgr.open++;
-    if (now - silentSince < thresholdHours * HOUR) continue;
+      let lastOurMsg = 0, lastClient = 0;
+      for (const c of chatsOf.get(it.ID)) {
+        const l = lastByChat.get(c);
+        lastOurMsg = Math.max(lastOurMsg, l.ours);
+        lastClient = Math.max(lastClient, l.client);
+      }
+      const itemCalls = calls["call_" + it.ID] || [];
+      const lastCall = itemCalls.length ? Date.parse(itemCalls[0].CREATED) : 0;
 
-    rows.push({
-      id: Number(l.ID),
-      stage: stages[l.STATUS_ID] || l.STATUS_ID,
-      managerId: Number(l.ASSIGNED_BY_ID),
-      created: new Date(created).toISOString(),
-      silentSince: new Date(silentSince).toISOString(),
-      lastTouchKind: kind,
-      clientWaiting: lastClient > lastTouch,
-      hasChat: chatsOf.get(l.ID).length > 0,
-      hasPhone: l.HAS_PHONE === "Y",
-    });
+      const lastTouch = Math.max(lastOurMsg, lastCall);
+      const created = Date.parse(it.DATE_CREATE);
+      const silentSince = lastTouch || created;
+      if (now - silentSince < thresholdHours * HOUR) continue;
+
+      rows.push({
+        id: Number(it.ID),
+        stage: stages[it[spec.stageField]] || it[spec.stageField],
+        managerId,
+        created: new Date(created).toISOString(),
+        silentSince: new Date(silentSince).toISOString(),
+        lastTouchKind: !lastTouch ? null : lastCall > lastOurMsg ? "call" : "msg",
+        clientWaiting: lastClient > lastTouch,
+        hasChat: chatsOf.get(it.ID).length > 0,
+        hasPhone: spec.extraSelect.includes("HAS_PHONE") ? it.HAS_PHONE === "Y" : null,
+      });
+    }
+    views[spec.key] = {
+      title: spec.title,
+      entity: spec.entity,
+      totalOpen: items.length,
+      openByManager,
+      items: rows.sort((a, b) => a.silentSince.localeCompare(b.silentSince)),
+    };
   }
 
   return {
     updatedAt: new Date(now).toISOString(),
     thresholdHours,
     portal: bx.portal,
-    totalOpen: leads.length,
-    batchErrors: first.errors + second.errors,
+    batchErrors,
     managers: [...managers.values()].sort((a, b) => a.name.localeCompare(b.name, "ru")),
-    leads: rows.sort((a, b) => a.silentSince.localeCompare(b.silentSince)),
+    views,
   };
 }

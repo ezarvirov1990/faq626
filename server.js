@@ -2,18 +2,10 @@
 import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { timingSafeEqual } from "node:crypto";
-import { createBitrix, collectSnapshot } from "./collector.js";
+import { createBitrix, collectSnapshot, loadConfig } from "./collector.js";
 
 const env = process.env;
-const config = {
-  port: Number(env.PORT || 3000),
-  webhook: env.BITRIX_WEBHOOK,
-  user: env.DASHBOARD_USER || "mygenetics",
-  password: env.DASHBOARD_PASSWORD,
-  departments: (env.DEPARTMENTS || "256,198").split(",").map((s) => Number(s.trim())).filter(Boolean),
-  thresholdHours: Number(env.THRESHOLD_HOURS || 48),
-  refreshMinutes: Number(env.REFRESH_MINUTES || 15),
-};
+const config = loadConfig(env);
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 const missing = ["BITRIX_WEBHOOK", "DASHBOARD_PASSWORD"].filter((k) => !env[k]);
@@ -33,7 +25,8 @@ async function refresh() {
     if (snap.batchErrors > 0) throw new Error(`Bitrix вернул ошибки в ${snap.batchErrors} запросах`);
     state.snapshot = snap;
     state.lastError = null;
-    log(`collect ok: open=${snap.totalOpen} flagged=${snap.leads.length} in ${Math.round((Date.now() - started) / 1000)}s`);
+    const summary = Object.entries(snap.views).map(([k, v]) => `${k} ${v.items.length}/${v.totalOpen}`).join(", ");
+    log(`collect ok: ${summary} in ${Math.round((Date.now() - started) / 1000)}s`);
   } catch (e) {
     state.lastError = e.message;
     log("collect error:", e.message);

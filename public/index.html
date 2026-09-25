@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Лиды без касаний</title>
+<title>Без касаний B2C</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
@@ -16,6 +16,7 @@
   --line: #DCE2E9;
   --accent: #1F6F8B;
   --accent-soft: #E3EFF3;
+  --on-accent: #FFFFFF;
   --warn: #A86A12;
   --warn-soft: #FBF1DE;
   --high: #C2410C;
@@ -31,7 +32,7 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #0F151C; --surface: #17212B; --ink: #E6EDF3; --muted: #93A1B1; --line: #28343F;
-    --accent: #62B4D0; --accent-soft: #17313B;
+    --accent: #62B4D0; --accent-soft: #17313B; --on-accent: #0F151C;
     --warn: #E3A948; --warn-soft: #3A2E17; --high: #F0874E; --high-soft: #3D2418;
     --crit: #F27272; --crit-soft: #401D1E; --ok: #6BCB92; --ok-soft: #173325;
   }
@@ -39,26 +40,33 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #0F151C; --surface: #17212B; --ink: #E6EDF3; --muted: #93A1B1; --line: #28343F;
-  --accent: #62B4D0; --accent-soft: #17313B;
+  --accent: #62B4D0; --accent-soft: #17313B; --on-accent: #0F151C;
   --warn: #E3A948; --warn-soft: #3A2E17; --high: #F0874E; --high-soft: #3D2418;
   --crit: #F27272; --crit-soft: #401D1E; --ok: #6BCB92; --ok-soft: #173325;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font); }
-.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 48px; display: grid; gap: 28px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 48px; display: grid; gap: 24px; }
 @media (max-width: 480px) { .wrap { padding-inline: 16px; } }
 
 header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
 h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
 .sub { margin: 4px 0 0; color: var(--muted); }
 .fresh { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 500; background: var(--ok-soft); color: var(--ok); }
-.fresh::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.fresh::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
 .fresh.stale { background: var(--warn-soft); color: var(--warn); }
 .fresh.dead { background: var(--crit-soft); color: var(--crit); }
 
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs button { font: inherit; font-size: 16px; font-weight: 600; color: var(--muted); background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 14px 9px; margin-bottom: -1px; cursor: pointer; display: inline-flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tabs .cnt { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; padding: 1px 7px; border-radius: 999px; background: var(--line); color: var(--ink); }
+.tabs button[aria-selected="true"] .cnt { background: var(--crit-soft); color: var(--crit); }
+
 .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 @media (max-width: 760px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.stat { background: var(--surface); padding: 16px 18px; display: grid; gap: 2px; }
+.stat { background: var(--surface); padding: 16px 18px; display: grid; gap: 2px; align-content: start; }
 .stat b { font: 600 30px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
 .stat span { color: var(--muted); font-size: 13px; }
 .stat.crit b { color: var(--crit); }
@@ -68,12 +76,10 @@ h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spa
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
 .seg button { font: inherit; font-size: 14px; border: 0; background: transparent; color: var(--ink); padding: 7px 14px; cursor: pointer; }
 .seg button + button { border-left: 1px solid var(--line); }
-.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
-:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0F151C; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0F151C; } }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
 .check { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
 .check input { width: 16px; height: 16px; accent-color: var(--accent); }
-button:focus-visible, input:focus-visible, a:focus-visible, .mgr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 
@@ -84,27 +90,32 @@ h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em
 .mgr-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .mgr-name { font-weight: 600; }
 .mgr-grp { color: var(--muted); font-size: 12px; }
-.mgr-count { font: 600 20px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.mgr-count { font: 600 20px/1 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .mgr-count small { font: 500 12px var(--mono); color: var(--muted); }
+.mgr-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+.mgr-meta .wait { color: var(--crit); font-weight: 600; }
 .bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--line); }
 .bar i { display: block; height: 100%; }
 .bar .w { background: var(--warn); } .bar .h { background: var(--high); } .bar .c { background: var(--crit); }
 .mgr.zero .mgr-count { color: var(--ok); }
+.mgr.zero { cursor: default; }
+.mgr.zero:hover { border-color: var(--line); }
 
 .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); margin-top: 10px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 10px; height: 10px; border-radius: 2px; }
 
 .group { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.group + .group { margin-top: 14px; }
-.group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
-.group-head b { font-weight: 600; }
+.group-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.group-head b { font-weight: 600; font-size: 16px; }
 .group-head span { color: var(--muted); font-size: 13px; }
+.close { font: inherit; font-size: 13px; color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.close:hover { border-color: var(--accent); }
 .tbl-wrap { overflow-x: auto; }
 table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
 th:nth-child(1) { width: 110px; } th:nth-child(2) { width: 26%; } th:nth-child(3) { width: 130px; } th:nth-child(4) { width: 28%; }
 th { text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); padding: 8px 16px; white-space: nowrap; }
-td { padding: 10px 16px; border-top: 1px solid var(--line); vertical-align: middle; }
+td { padding: 10px 16px; border-top: 1px solid var(--line); vertical-align: middle; overflow-wrap: anywhere; }
 td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 a { color: var(--accent); text-decoration: none; font-weight: 500; }
 a:hover { text-decoration: underline; }
@@ -117,32 +128,34 @@ a:hover { text-decoration: underline; }
 .chip.wait { border-color: var(--crit); color: var(--crit); font-weight: 600; }
 .muted { color: var(--muted); }
 
-.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 28px; text-align: center; color: var(--muted); }
-.note { font-size: 13px; color: var(--muted); max-width: 70ch; }
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); }
+.note { font-size: 13px; color: var(--muted); max-width: 70ch; margin: 0; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div>
-      <h1>Лиды без касаний</h1>
-      <p class="sub" id="sub">Группы продаж B2C МСК и НСК · открытые лиды без нашего касания больше 48 часов</p>
+      <h1 id="title">Лиды без касаний</h1>
+      <p class="sub" id="sub">Группы продаж B2C МСК и НСК · без нашего касания больше 48 часов</p>
     </div>
     <span class="fresh dead" id="fresh">Загружаю данные…</span>
   </header>
 
+  <nav class="tabs" role="tablist" aria-label="Что показывать" id="tabs"></nav>
+
   <section class="stats" aria-label="Сводка">
-    <div class="stat crit"><b id="s-total">—</b><span id="s-total-l">лидов без касаний</span></div>
+    <div class="stat crit"><b id="s-total">—</b><span id="s-total-l">без касаний</span></div>
     <div class="stat crit"><b id="s-wait">—</b><span>клиент написал и ждёт ответа</span></div>
     <div class="stat warn"><b id="s-week">—</b><span>без касаний больше 7 суток</span></div>
-    <div class="stat"><b id="s-mgr">—</b><span>менеджеров с такими лидами</span></div>
+    <div class="stat"><b id="s-mgr">—</b><span>менеджеров с просрочкой</span></div>
   </section>
 
   <div class="toolbar">
     <div class="seg" role="group" aria-label="Группа">
-      <button type="button" data-grp="" aria-pressed="true" id="g-all">Все группы</button>
-      <button type="button" data-grp="МСК" aria-pressed="false" id="g-msk">МСК</button>
-      <button type="button" data-grp="НСК" aria-pressed="false" id="g-nsk">НСК</button>
+      <button type="button" data-grp="" aria-pressed="true">Все группы</button>
+      <button type="button" data-grp="МСК" aria-pressed="false">МСК</button>
+      <button type="button" data-grp="НСК" aria-pressed="false">НСК</button>
     </div>
     <label class="check"><input type="checkbox" id="only-wait"> Только где клиент ждёт ответа</label>
   </div>
@@ -157,21 +170,32 @@ a:hover { text-decoration: underline; }
     </div>
   </section>
 
-  <section>
-    <h2 id="list-title">Лиды</h2>
-    <div id="groups"></div>
-  </section>
+  <section id="list"></section>
 
-  <p class="note">Касание — наше исходящее действие: сообщение менеджера или бота в чат Открытой линии либо звонок. Сообщения клиента касанием не считаются: если клиент написал, а мы молчим, лид отмечен «клиент ждёт». Сервер собирает данные из Bitrix24 раз в 15 минут, страница подтягивает их сама; время без касаний отсчитывается в реальном времени.</p>
+  <p class="note">Касание — наше исходящее действие: сообщение менеджера или бота в чат Открытой линии либо звонок. Сообщения клиента касанием не считаются: если клиент написал, а мы молчим, запись отмечена «клиент ждёт ответа». Данные из Bitrix24 обновляются раз в 15 минут; время без касаний отсчитывается в реальном времени.</p>
 </div>
 
+<!-- В локальной версии сюда вшивается снимок; на сервере пусто и страница берёт данные из api/snapshot -->
+<script type="application/json" id="snapshot"></script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  const state = { snap: null, status: null, loadError: null, grp: "", onlyWait: false, manager: null };
-  try { const s = JSON.parse(localStorage.getItem("ldash") || "{}"); state.grp = s.grp || ""; state.onlyWait = !!s.onlyWait; } catch (e) {}
+  const state = { snap: null, status: null, loadError: null, view: "leads", grp: "", onlyWait: false, manager: null };
+  try {
+    const s = JSON.parse(localStorage.getItem("ldash") || "{}");
+    state.view = s.view || "leads"; state.grp = s.grp || ""; state.onlyWait = !!s.onlyWait;
+  } catch (e) {}
+  function save() { try { localStorage.setItem("ldash", JSON.stringify({ view: state.view, grp: state.grp, onlyWait: state.onlyWait })); } catch (e) {} }
 
   const HOUR = 3600e3;
+  const NOUNS = {
+    lead: { forms: ["лид", "лида", "лидов"], acc: "лиды", col: "Лид", heading: "Лиды без касаний" },
+    deal: { forms: ["сделка", "сделки", "сделок"], acc: "сделки", col: "Сделка", heading: "Сделки без касаний" },
+  };
+  function plural(n, f) {
+    const a = n % 100, b = n % 10;
+    return a > 10 && a < 20 ? f[2] : b === 1 ? f[0] : b >= 2 && b <= 4 ? f[1] : f[2];
+  }
   const sev = (h) => (h >= 168 ? "c" : h >= 72 ? "h" : "w");
   function dur(h) {
     const d = Math.floor(h / 24), r = Math.floor(h % 24);
@@ -195,94 +219,141 @@ a:hover { text-decoration: underline; }
     for (const c of kids) if (c != null) n.append(c);
     return n;
   }
-  function save() { try { localStorage.setItem("ldash", JSON.stringify({ grp: state.grp, onlyWait: state.onlyWait })); } catch (e) {} }
 
-  function render() {
-    const snap = state.snap;
-    for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-pressed", String(b.dataset.grp === state.grp));
-    $("only-wait").checked = state.onlyWait;
+  function renderFresh() {
     const fresh = $("fresh");
     const collectError = state.status && state.status.lastError;
-    if (!snap) {
+    if (!state.snap) {
       fresh.className = "fresh " + (state.loadError || collectError ? "dead" : "stale");
-      fresh.textContent = state.loadError || (collectError ? "Сбор данных не удался: " + collectError : "Первый сбор данных из Bitrix24, около минуты…");
+      fresh.textContent = state.loadError || (collectError ? "Сбор данных не удался: " + collectError : "Первый сбор данных из Bitrix24, пара минут…");
       return;
     }
-    const now = Date.now();
-
-    // свежесть данных
-    const age = now - Date.parse(snap.updatedAt);
+    const age = Date.now() - Date.parse(state.snap.updatedAt);
     fresh.className = "fresh" + (age > 2 * HOUR || state.loadError ? " dead" : age > 30 * 60e3 || collectError ? " stale" : "");
-    fresh.textContent = "Обновлено " + ago(age) + (state.loadError ? " · " + state.loadError : collectError ? " · последний сбор не удался" : "");
-    fresh.title = "Снимок из Bitrix24: " + fmt.format(new Date(snap.updatedAt)) + " МСК" + (collectError ? "\nОшибка сбора: " + collectError : "");
+    fresh.textContent = "Обновлено " + ago(age) + (state.loadError ? " · " + state.loadError : collectError ? " · последний сбор не удался" : age > 2 * HOUR ? " · данные устарели" : "");
+    fresh.title = "Снимок из Bitrix24: " + fmt.format(new Date(state.snap.updatedAt)) + " МСК" + (collectError ? "\nОшибка сбора: " + collectError : "");
+  }
 
+  function render() {
+    for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-pressed", String(b.dataset.grp === state.grp));
+    $("only-wait").checked = state.onlyWait;
+    renderFresh();
+    const snap = state.snap;
+    if (!snap || !snap.views) return;
+    if (!snap.views[state.view]) state.view = Object.keys(snap.views)[0];
+
+    const now = Date.now();
     const mgrById = new Map(snap.managers.map((m) => [m.id, m]));
     const inGrp = (m) => !state.grp || (m && m.group.includes(state.grp));
-    const leads = snap.leads
-      .map((l) => ({ ...l, hours: (now - Date.parse(l.silentSince)) / HOUR }))
-      .filter((l) => inGrp(mgrById.get(l.managerId)) && (!state.onlyWait || l.clientWaiting));
     const managers = snap.managers.filter(inGrp);
-    if (state.manager && !managers.some((m) => m.id === state.manager)) state.manager = null;
+    const pick = (v) => v.items
+      .map((x) => ({ ...x, hours: (now - Date.parse(x.silentSince)) / HOUR }))
+      .filter((x) => inGrp(mgrById.get(x.managerId)) && (!state.onlyWait || x.clientWaiting));
 
-    $("s-total").textContent = leads.length;
-    $("s-total-l").textContent = "лидов без касаний из " + managers.reduce((a, m) => a + m.open, 0) + " открытых";
-    $("s-wait").textContent = leads.filter((l) => l.clientWaiting).length;
-    $("s-week").textContent = leads.filter((l) => l.hours >= 168).length;
-    $("s-mgr").textContent = new Set(leads.map((l) => l.managerId)).size;
+    // вкладки со счётчиками по текущим фильтрам
+    const tabs = $("tabs"); tabs.replaceChildren();
+    for (const [key, v] of Object.entries(snap.views)) {
+      const b = el("button", { type: "button", role: "tab", "aria-selected": String(key === state.view) },
+        el("span", { text: v.title }), el("span", { class: "cnt", text: String(pick(v).length) }));
+      b.addEventListener("click", () => { state.view = key; save(); render(); });
+      tabs.append(b);
+    }
+
+    const view = snap.views[state.view];
+    const noun = NOUNS[view.entity] || NOUNS.lead;
+    const items = pick(view);
+    const open = (id) => view.openByManager[id] || 0;
+
+    $("title").textContent = noun.heading;
+    $("sub").textContent = "Группы продаж B2C МСК и НСК · " + (view.entity === "deal" ? "открытые сделки воронки «" + view.title + "»" : "открытые лиды") + " без нашего касания больше " + snap.thresholdHours + " часов";
+    const openTotal = managers.reduce((a, m) => a + open(m.id), 0);
+    $("s-total").textContent = items.length;
+    $("s-total-l").textContent = plural(items.length, noun.forms) + " без касаний из " + openTotal + " открытых";
+    $("s-wait").textContent = items.filter((x) => x.clientWaiting).length;
+    $("s-week").textContent = items.filter((x) => x.hours >= 168).length;
+    $("s-mgr").textContent = new Set(items.map((x) => x.managerId)).size;
 
     // карточки менеджеров
     const byMgr = new Map();
-    for (const l of leads) { if (!byMgr.has(l.managerId)) byMgr.set(l.managerId, []); byMgr.get(l.managerId).push(l); }
+    for (const x of items) { if (!byMgr.has(x.managerId)) byMgr.set(x.managerId, []); byMgr.get(x.managerId).push(x); }
     const sorted = [...managers].sort((a, b) => (byMgr.get(b.id)?.length || 0) - (byMgr.get(a.id)?.length || 0) || a.name.localeCompare(b.name, "ru"));
+    if (state.manager && !(byMgr.get(state.manager) || []).length) state.manager = null;
+
     const box = $("mgrs"); box.replaceChildren();
     for (const m of sorted) {
       const ls = byMgr.get(m.id) || [];
-      const cnt = { w: 0, h: 0, c: 0 }; ls.forEach((l) => cnt[sev(l.hours)]++);
+      const cnt = { w: 0, h: 0, c: 0 }; ls.forEach((x) => cnt[sev(x.hours)]++);
+      const waiting = ls.filter((x) => x.clientWaiting).length;
       const bar = el("div", { class: "bar", "aria-hidden": "true" });
-      if (ls.length) for (const k of ["c", "h", "w"]) if (cnt[k]) { const i = el("i", { class: k }); i.style.width = (cnt[k] / ls.length) * 100 + "%"; bar.append(i); }
-      const card = el("button", { type: "button", class: "mgr" + (ls.length ? "" : " zero"), "aria-pressed": String(state.manager === m.id), title: ls.length ? "Показать лиды менеджера" : "Лидов без касаний нет" },
+      for (const k of ["c", "h", "w"]) if (cnt[k]) { const i = el("i", { class: k }); i.style.width = (cnt[k] / ls.length) * 100 + "%"; bar.append(i); }
+      const card = el("button", {
+        type: "button", class: "mgr" + (ls.length ? "" : " zero"), "aria-pressed": String(state.manager === m.id),
+        title: ls.length ? "Показать список" : "Просрочек нет",
+      },
         el("div", { class: "mgr-top" },
           el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: m.group.replace("Группа продаж ", "") })),
-          el("div", { class: "mgr-count" }, String(ls.length), el("small", { text: " / " + m.open }))),
-        bar);
-      card.addEventListener("click", () => { state.manager = state.manager === m.id ? null : m.id; render(); if (state.manager) $("list-title").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }); });
+          el("div", { class: "mgr-count" }, String(ls.length), el("small", { text: " / " + open(m.id) }))),
+        bar,
+        el("div", { class: "mgr-meta" },
+          el("span", { text: cnt.c ? cnt.c + " больше 7 суток" : ls.length ? "до 7 суток" : "всё в порядке" }),
+          waiting ? el("span", { class: "wait", text: waiting + " ждут ответа" }) : null));
+      if (ls.length) card.addEventListener("click", () => {
+        state.manager = state.manager === m.id ? null : m.id;
+        render();
+        if (state.manager) $("list").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+      });
       box.append(card);
     }
 
-    // списки лидов по менеджерам
-    const groups = $("groups"); groups.replaceChildren();
-    const shown = sorted.filter((m) => (byMgr.get(m.id) || []).length && (!state.manager || state.manager === m.id));
-    $("list-title").textContent = state.manager ? "Лиды · " + mgrById.get(state.manager).name : "Лиды по менеджерам";
-    if (!shown.length) {
-      groups.append(el("div", { class: "empty", text: state.onlyWait ? "Нет лидов, где клиент ждёт ответа." : "У всех менеджеров были касания за последние " + snap.thresholdHours + " часов." }));
+    // список — только по выбранному менеджеру
+    const list = $("list"); list.replaceChildren();
+    if (!state.manager) {
+      list.append(el("div", { class: "empty", text: items.length
+        ? "Нажмите на менеджера, чтобы увидеть его " + noun.acc + " без касаний."
+        : state.onlyWait ? "Нет записей, где клиент ждёт ответа." : "У всех менеджеров были касания за последние " + snap.thresholdHours + " часов." }));
       return;
     }
-    for (const m of shown) {
-      const ls = byMgr.get(m.id).sort((a, b) => b.hours - a.hours);
-      const tbody = el("tbody");
-      for (const l of ls) {
-        const chips = el("div", { class: "chips" });
-        if (l.clientWaiting) chips.append(el("span", { class: "chip wait", text: "клиент ждёт ответа" }));
-        if (!l.hasChat) chips.append(el("span", { class: "chip", text: l.hasPhone ? "только телефон" : "нет чата и телефона" }));
-        const last = l.lastTouchKind === "call" ? "звонок" : l.lastTouchKind === "msg" ? "сообщение" : "не было";
-        tbody.append(el("tr", {},
-          el("td", {}, el("a", { href: snap.portal + "/crm/lead/details/" + l.id + "/", target: "_blank", rel: "noopener", text: "#" + l.id })),
-          el("td", { text: l.stage || "—" }),
-          el("td", { class: "num" }, el("span", { class: "pill " + sev(l.hours), text: dur(l.hours) })),
-          el("td", {}, el("span", { text: last }), l.lastTouchKind ? el("span", { class: "muted", text: " · " + fmt.format(new Date(l.silentSince)) }) : null),
-          el("td", {}, chips)));
-      }
-      groups.append(el("div", { class: "group" },
-        el("div", { class: "group-head" }, el("b", { text: m.name }), el("span", { text: ls.length + " из " + m.open + " открытых · " + m.group.replace("Группа продаж ", "") })),
-        el("div", { class: "tbl-wrap" }, el("table", {},
-          el("thead", {}, el("tr", {}, el("th", { text: "Лид" }), el("th", { text: "Стадия" }), el("th", { text: "Без касаний" }), el("th", { text: "Последнее касание" }), el("th", { text: "" }))),
-          tbody))));
+    const m = mgrById.get(state.manager);
+    const ls = byMgr.get(m.id).sort((a, b) => b.hours - a.hours);
+    const tbody = el("tbody");
+    for (const x of ls) {
+      const chips = el("div", { class: "chips" });
+      if (x.clientWaiting) chips.append(el("span", { class: "chip wait", text: "клиент ждёт ответа" }));
+      if (!x.hasChat) chips.append(el("span", { class: "chip", text: x.hasPhone === true ? "только телефон" : x.hasPhone === false ? "нет чата и телефона" : "нет чата" }));
+      const last = x.lastTouchKind === "call" ? "звонок" : x.lastTouchKind === "msg" ? "сообщение" : "не было";
+      tbody.append(el("tr", {},
+        el("td", {}, el("a", { href: snap.portal + "/crm/" + view.entity + "/details/" + x.id + "/", target: "_blank", rel: "noopener", text: "#" + x.id })),
+        el("td", { text: x.stage || "—" }),
+        el("td", { class: "num" }, el("span", { class: "pill " + sev(x.hours), text: dur(x.hours) })),
+        el("td", {}, el("span", { text: last }), x.lastTouchKind ? el("span", { class: "muted", text: " · " + fmt.format(new Date(x.silentSince)) }) : null),
+        el("td", {}, chips)));
     }
+    const close = el("button", { type: "button", class: "close", text: "Свернуть" });
+    close.addEventListener("click", () => { state.manager = null; render(); });
+    list.append(el("h2", { text: view.title + " · " + m.name }), el("div", { class: "group" },
+      el("div", { class: "group-head" },
+        el("div", {}, el("b", { text: m.name }), el("span", { text: "  " + ls.length + " из " + open(m.id) + " открытых · " + m.group.replace("Группа продаж ", "") })),
+        close),
+      el("div", { class: "tbl-wrap" }, el("table", {},
+        el("thead", {}, el("tr", {}, el("th", { text: noun.col }), el("th", { text: "Стадия" }), el("th", { text: "Без касаний" }), el("th", { text: "Последнее касание" }), el("th", { text: "" }))),
+        tbody))));
   }
 
   for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => { state.grp = b.dataset.grp; save(); render(); });
   $("only-wait").addEventListener("change", (e) => { state.onlyWait = e.target.checked; save(); render(); });
-  // Сервер собирает данные раз в 15 минут; страница спрашивает раз в минуту и пересчитывает время
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && state.manager) { state.manager = null; render(); } });
+
+  const embedded = $("snapshot").textContent.trim();
+  if (embedded) {
+    // Локальная версия: данные вшиты в файл, перечитываем файл раз в 5 минут
+    try { state.snap = JSON.parse(embedded); } catch (e) { state.loadError = "данные в файле повреждены"; }
+    render();
+    setInterval(render, 60e3);
+    setTimeout(() => location.reload(), 5 * 60e3);
+    return;
+  }
+
+  // Серверная версия: спрашиваем снимок раз в минуту
   async function load() {
     try {
       const res = await fetch("api/snapshot", { cache: "no-store" });
