@@ -4,6 +4,9 @@
 
 const HOUR = 3600e3;
 const OUTGOING_MARK = /^\s*=+\s*Исходящее сообщение/;
+// Служебные пометки Wazzup: сообщение не доставлено (лимит «Маркетинг», 24-часовая сессия, спам…),
+// клиент изменил/удалил сообщение, пропущенный звонок. Не касание и не входящее от клиента.
+const WAZZUP_SYSTEM_MARK = "=== SYSTEM WZ ===";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export function loadConfig(env) {
@@ -156,6 +159,7 @@ export async function collectSnapshot(bx, config) {
       const isClient = new Map((m.users || []).map((u) => [String(u.id), Boolean(u.connector)]));
       for (const x of m.messages || []) {
         if (Number(x.author_id) === 0) continue; // системные строки
+        if ((x.text || "").includes(WAZZUP_SYSTEM_MARK)) continue;
         const t = Date.parse(x.date);
         // Wazzup пишет наши исходящие (с телефона, из WhatsApp) от имени клиента с такой пометкой
         const outgoing = OUTGOING_MARK.test(x.text || "");
