@@ -147,7 +147,7 @@ a:hover { text-decoration: underline; }
   <section class="stats" aria-label="Сводка">
     <div class="stat crit"><b id="s-total">—</b><span id="s-total-l">без касаний</span></div>
     <div class="stat crit"><b id="s-wait">—</b><span>клиент написал и ждёт ответа</span></div>
-    <div class="stat warn"><b id="s-week">—</b><span>без касаний больше 7 суток</span></div>
+    <div class="stat warn"><b id="s-week">—</b><span id="s-crit-l">без касаний больше 7 суток</span></div>
     <div class="stat"><b id="s-mgr">—</b><span>менеджеров с просрочкой</span></div>
   </section>
 
@@ -163,7 +163,7 @@ a:hover { text-decoration: underline; }
   <section>
     <h2>По менеджерам</h2>
     <div class="mgrs" id="mgrs"></div>
-    <div class="legend">
+    <div class="legend" id="legend">
       <span><i style="background:var(--warn)"></i>2–3 суток</span>
       <span><i style="background:var(--high)"></i>3–7 суток</span>
       <span><i style="background:var(--crit)"></i>больше 7 суток</span>
@@ -196,7 +196,14 @@ a:hover { text-decoration: underline; }
     const a = n % 100, b = n % 10;
     return a > 10 && a < 20 ? f[2] : b === 1 ? f[0] : b >= 2 && b <= 4 ? f[1] : f[2];
   }
-  const sev = (h) => (h >= 168 ? "c" : h >= 72 ? "h" : "w");
+  // Уровни просрочки, часов: с какого срока запись «оранжевая» и «красная»
+  const LEVELS = {
+    lead: { h: 72, c: 168, legend: ["2–3 суток", "3–7 суток", "больше 7 суток"], crit: "больше 7 суток", below: "до 7 суток" },
+    deal: { h: 60 * 24, c: 90 * 24, legend: ["30–60 дней", "60–90 дней", "больше 90 дней"], crit: "больше 90 дней", below: "до 90 дней" },
+  };
+  let lv = LEVELS.lead;
+  const sev = (h) => (h >= lv.c ? "c" : h >= lv.h ? "h" : "w");
+  const thr = (h) => (h >= 72 && h % 24 === 0 ? (h / 24) + " " + plural(h / 24, ["дня", "дней", "дней"]) : h + " " + plural(h, ["часа", "часов", "часов"]));
   function dur(h) {
     const d = Math.floor(h / 24), r = Math.floor(h % 24);
     return d ? d + " д " + r + " ч" : r + " ч";
@@ -263,14 +270,18 @@ a:hover { text-decoration: underline; }
     const noun = NOUNS[view.entity] || NOUNS.lead;
     const items = pick(view);
     const open = (id) => view.openByManager[id] || 0;
+    lv = LEVELS[view.entity] || LEVELS.lead;
+    const threshold = view.thresholdHours || snap.thresholdHours;
 
     $("title").textContent = noun.heading;
-    $("sub").textContent = "Группы продаж B2C МСК и НСК · " + (view.entity === "deal" ? "открытые сделки воронки «" + view.title + "»" : "открытые лиды") + " без нашего касания больше " + snap.thresholdHours + " часов";
+    $("sub").textContent = "Группы продаж B2C МСК и НСК · " + (view.entity === "deal" ? "открытые сделки воронки «" + view.title + "»" : "открытые лиды") + " без нашего касания больше " + thr(threshold);
+    $("s-crit-l").textContent = "без касаний " + lv.crit;
+    $("legend").replaceChildren(...["warn", "high", "crit"].map((c, i) => el("span", {}, el("i", { style: "background:var(--" + c + ")" }), lv.legend[i])));
     const openTotal = managers.reduce((a, m) => a + open(m.id), 0);
     $("s-total").textContent = items.length;
     $("s-total-l").textContent = plural(items.length, noun.forms) + " без касаний из " + openTotal + " открытых";
     $("s-wait").textContent = items.filter((x) => x.clientWaiting).length;
-    $("s-week").textContent = items.filter((x) => x.hours >= 168).length;
+    $("s-week").textContent = items.filter((x) => x.hours >= lv.c).length;
     $("s-mgr").textContent = new Set(items.map((x) => x.managerId)).size;
 
     // карточки менеджеров
@@ -295,7 +306,7 @@ a:hover { text-decoration: underline; }
           el("div", { class: "mgr-count" }, String(ls.length), el("small", { text: " / " + open(m.id) }))),
         bar,
         el("div", { class: "mgr-meta" },
-          el("span", { text: cnt.c ? cnt.c + " больше 7 суток" : ls.length ? "до 7 суток" : "всё в порядке" }),
+          el("span", { text: cnt.c ? cnt.c + " " + lv.crit : ls.length ? lv.below : "всё в порядке" }),
           waiting ? el("span", { class: "wait", text: waiting + " ждут ответа" }) : null));
       if (ls.length) card.addEventListener("click", () => {
         state.manager = state.manager === m.id ? null : m.id;
@@ -310,7 +321,7 @@ a:hover { text-decoration: underline; }
     if (!state.manager) {
       list.append(el("div", { class: "empty", text: items.length
         ? "Нажмите на менеджера, чтобы увидеть его " + noun.acc + " без касаний."
-        : state.onlyWait ? "Нет записей, где клиент ждёт ответа." : "У всех менеджеров были касания за последние " + snap.thresholdHours + " часов." }));
+        : state.onlyWait ? "Нет записей, где клиент ждёт ответа." : "У всех менеджеров были касания за последние " + thr(threshold) + "." }));
       return;
     }
     const m = mgrById.get(state.manager);

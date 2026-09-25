@@ -18,6 +18,8 @@ export function loadConfig(env) {
     departments: (env.DEPARTMENTS || "256,198").split(",").map((s) => Number(s.trim())).filter(Boolean),
     dealCategoryId: Number(env.DEAL_CATEGORY_ID || 27),
     thresholdHours: Number(env.THRESHOLD_HOURS || 48),
+    // У сделок другой ритм работы: в список попадают только те, где нас не было больше месяца
+    dealThresholdDays: Number(env.DEAL_THRESHOLD_DAYS || 30),
     refreshMinutes: Number(env.REFRESH_MINUTES || 15),
   };
 }
@@ -83,18 +85,20 @@ function entitySpecs(config, dealCategoryName) {
       key: "leads", entity: "lead", title: "Лиды", crmType: "LEAD", ownerTypeId: 1,
       listMethod: "crm.lead.list", stageField: "STATUS_ID", stageEntity: "STATUS",
       filter: { STATUS_SEMANTIC_ID: "P" }, extraSelect: ["HAS_PHONE"],
+      thresholdHours: config.thresholdHours,
     },
     {
       key: "deals", entity: "deal", title: dealCategoryName, crmType: "DEAL", ownerTypeId: 2,
       listMethod: "crm.deal.list", stageField: "STAGE_ID", stageEntity: `DEAL_STAGE_${config.dealCategoryId}`,
       filter: { CATEGORY_ID: config.dealCategoryId, STAGE_SEMANTIC_ID: "P" }, extraSelect: [],
+      thresholdHours: config.dealThresholdDays * 24,
     },
   ];
 }
 
 export async function collectSnapshot(bx, config) {
   const now = Date.now();
-  const { departments, thresholdHours } = config;
+  const { departments } = config;
 
   // Менеджеры выбранных групп — состав читается при каждом сборе
   const managers = new Map();
@@ -191,7 +195,7 @@ export async function collectSnapshot(bx, config) {
       const lastTouch = Math.max(lastOurMsg, lastCall);
       const created = Date.parse(it.DATE_CREATE);
       const silentSince = lastTouch || created;
-      if (now - silentSince < thresholdHours * HOUR) continue;
+      if (now - silentSince < spec.thresholdHours * HOUR) continue;
 
       rows.push({
         id: Number(it.ID),
@@ -208,6 +212,7 @@ export async function collectSnapshot(bx, config) {
     views[spec.key] = {
       title: spec.title,
       entity: spec.entity,
+      thresholdHours: spec.thresholdHours,
       totalOpen: items.length,
       openByManager,
       items: rows.sort((a, b) => a.silentSince.localeCompare(b.silentSince)),
@@ -216,7 +221,6 @@ export async function collectSnapshot(bx, config) {
 
   return {
     updatedAt: new Date(now).toISOString(),
-    thresholdHours,
     portal: bx.portal,
     batchErrors,
     managers: [...managers.values()].sort((a, b) => a.name.localeCompare(b.name, "ru")),
