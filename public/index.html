@@ -128,6 +128,12 @@ a:hover { text-decoration: underline; }
 .chip.wait { border-color: var(--crit); color: var(--crit); font-weight: 600; }
 .muted { color: var(--muted); }
 .stack { display: grid; gap: 16px; }
+table.hinted { min-width: 1000px; }
+table.hinted th:nth-child(1) { width: 90px; } table.hinted th:nth-child(2) { width: 150px; } table.hinted th:nth-child(3) { width: 110px; } table.hinted th:nth-child(4) { width: 170px; } table.hinted th:nth-child(5) { width: auto; } table.hinted th:nth-child(6) { width: 140px; }
+.hint { display: grid; gap: 3px; font-size: 13px; line-height: 1.4; }
+.hint b { font-weight: 600; }
+.hint-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.chip.stale { border-color: var(--warn); color: var(--warn); font-weight: 600; }
 [hidden] { display: none !important; }
 table.moves th:nth-child(1) { width: 170px; } table.moves th:nth-child(2) { width: auto; } table.moves th:nth-child(3) { width: 120px; } table.moves th:nth-child(4) { width: 270px; } table.moves th:nth-child(5) { width: 150px; }
 table.moves { min-width: 900px; }
@@ -184,7 +190,7 @@ table.moves { min-width: 900px; }
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  const state = { snap: null, status: null, loadError: null, view: "leads", grp: "", onlyWait: false, manager: null };
+  const state = { snap: null, hints: {}, status: null, loadError: null, view: "leads", grp: "", onlyWait: false, manager: null };
   try {
     const s = JSON.parse(localStorage.getItem("ldash") || "{}");
     state.view = s.view || "leads"; state.grp = s.grp || ""; state.onlyWait = !!s.onlyWait;
@@ -259,6 +265,18 @@ table.moves { min-width: 900px; }
     return el("div", { class: "tbl-wrap" }, el("table", cls ? { class: cls } : {},
       el("thead", {}, el("tr", {}, ...head.map((h) => el("th", { text: h })))),
       el("tbody", {}, ...rows)));
+  }
+
+  // Подсказка по лиду: запрос / итог / шаг. «Устарела» — после неё в лиде было новое сообщение или звонок.
+  function hintCell(h, x) {
+    if (!h) return el("span", { class: "muted", text: "—" });
+    const stale = x.lastActivity && Date.parse(x.lastActivity) > Date.parse(h.at);
+    return el("div", { class: "hint" },
+      el("div", {}, el("b", { text: "Запрос: " }), h.request),
+      el("div", {}, el("b", { text: "Итог: " }), h.outcome),
+      el("div", {}, el("b", { text: "Шаг: " }), h.next),
+      el("div", { class: "hint-meta" }, el("span", { text: "от " + fmt.format(new Date(h.at)) }),
+        stale ? el("span", { class: "chip stale", title: "После подсказки в лиде было новое сообщение или звонок", text: "устарела" }) : null));
   }
 
   function renderTasks(snap, managers, mgrById, inGrp, now) {
@@ -448,6 +466,7 @@ table.moves { min-width: 900px; }
     }
     const m = mgrById.get(state.manager);
     const ls = byMgr.get(m.id).sort((a, b) => b.hours - a.hours);
+    const withHints = view.entity === "lead";
     const tbody = el("tbody");
     for (const x of ls) {
       const chips = el("div", { class: "chips" });
@@ -459,6 +478,7 @@ table.moves { min-width: 900px; }
         el("td", { text: x.stage || "—" }),
         el("td", { class: "num" }, el("span", { class: "pill " + sev(x.hours), text: dur(x.hours) })),
         el("td", {}, el("span", { text: last }), x.lastTouchKind ? el("span", { class: "muted", text: " · " + fmt.format(new Date(x.silentSince)) }) : null),
+        withHints ? el("td", {}, hintCell(state.hints[x.id], x)) : null,
         el("td", {}, chips)));
     }
     const close = el("button", { type: "button", class: "close", text: "Свернуть" });
@@ -467,8 +487,9 @@ table.moves { min-width: 900px; }
       el("div", { class: "group-head" },
         el("div", {}, el("b", { text: m.name }), el("span", { text: "  " + ls.length + " из " + open(m.id) + " открытых · " + m.group.replace("Группа продаж ", "") })),
         close),
-      el("div", { class: "tbl-wrap" }, el("table", {},
-        el("thead", {}, el("tr", {}, el("th", { text: noun.col }), el("th", { text: "Стадия" }), el("th", { text: "Без касаний" }), el("th", { text: "Последнее касание" }), el("th", { text: "" }))),
+      el("div", { class: "tbl-wrap" }, el("table", withHints ? { class: "hinted" } : {},
+        el("thead", {}, el("tr", {}, el("th", { text: noun.col }), el("th", { text: "Стадия" }), el("th", { text: "Без касаний" }), el("th", { text: "Последнее касание" }),
+          withHints ? el("th", { text: "Подсказка" }) : null, el("th", { text: "" }))),
         tbody))));
   }
 
@@ -494,6 +515,7 @@ table.moves { min-width: 900px; }
       const body = await res.json();
       state.status = body.status;
       if (body.snapshot) state.snap = body.snapshot;
+      state.hints = body.hints || {};
       state.loadError = null;
     } catch (e) {
       state.loadError = "нет связи с сервером";

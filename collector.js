@@ -229,6 +229,8 @@ export async function collectSnapshot(bx, config) {
         silentSince: new Date(silentSince).toISOString(),
         lastTouchKind: !lastTouch ? null : lastCall > lastOurMsg ? "call" : "msg",
         clientWaiting: lastClient > lastTouch,
+        // Последнее событие в лиде — наше или клиента; по нему подсказка помечается «устарела»
+        lastActivity: Math.max(lastTouch, lastClient) ? new Date(Math.max(lastTouch, lastClient)).toISOString() : null,
         hasChat: chatsOf.get(it.ID).length > 0,
         hasPhone: spec.extraSelect.includes("HAS_PHONE") ? it.HAS_PHONE === "Y" : null,
       });
