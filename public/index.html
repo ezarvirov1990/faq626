@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Лиды без касаний</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+:root {
+  --bg: #F2F4F6;
+  --surface: #FFFFFF;
+  --ink: #16202C;
+  --muted: #5B6878;
+  --line: #DCE2E9;
+  --accent: #1F6F8B;
+  --accent-soft: #E3EFF3;
+  --warn: #A86A12;
+  --warn-soft: #FBF1DE;
+  --high: #C2410C;
+  --high-soft: #FCE9DF;
+  --crit: #B42318;
+  --crit-soft: #FBE4E2;
+  --ok: #2F7D4F;
+  --ok-soft: #E2F2E8;
+  --font: "Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0F151C; --surface: #17212B; --ink: #E6EDF3; --muted: #93A1B1; --line: #28343F;
+    --accent: #62B4D0; --accent-soft: #17313B;
+    --warn: #E3A948; --warn-soft: #3A2E17; --high: #F0874E; --high-soft: #3D2418;
+    --crit: #F27272; --crit-soft: #401D1E; --ok: #6BCB92; --ok-soft: #173325;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0F151C; --surface: #17212B; --ink: #E6EDF3; --muted: #93A1B1; --line: #28343F;
+  --accent: #62B4D0; --accent-soft: #17313B;
+  --warn: #E3A948; --warn-soft: #3A2E17; --high: #F0874E; --high-soft: #3D2418;
+  --crit: #F27272; --crit-soft: #401D1E; --ok: #6BCB92; --ok-soft: #173325;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 48px; display: grid; gap: 28px; }
+@media (max-width: 480px) { .wrap { padding-inline: 16px; } }
+
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
+.sub { margin: 4px 0 0; color: var(--muted); }
+.fresh { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 500; background: var(--ok-soft); color: var(--ok); }
+.fresh::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.fresh.stale { background: var(--warn-soft); color: var(--warn); }
+.fresh.dead { background: var(--crit-soft); color: var(--crit); }
+
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+@media (max-width: 760px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { background: var(--surface); padding: 16px 18px; display: grid; gap: 2px; }
+.stat b { font: 600 30px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 13px; }
+.stat.crit b { color: var(--crit); }
+.stat.warn b { color: var(--high); }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { font: inherit; font-size: 14px; border: 0; background: transparent; color: var(--ink); padding: 7px 14px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0F151C; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0F151C; } }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); }
+button:focus-visible, input:focus-visible, a:focus-visible, .mgr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+
+.mgrs { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.mgr { text-align: left; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; cursor: pointer; }
+.mgr:hover { border-color: var(--accent); }
+.mgr[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.mgr-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.mgr-name { font-weight: 600; }
+.mgr-grp { color: var(--muted); font-size: 12px; }
+.mgr-count { font: 600 20px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.mgr-count small { font: 500 12px var(--mono); color: var(--muted); }
+.bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--line); }
+.bar i { display: block; height: 100%; }
+.bar .w { background: var(--warn); } .bar .h { background: var(--high); } .bar .c { background: var(--crit); }
+.mgr.zero .mgr-count { color: var(--ok); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; }
+
+.group { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.group + .group { margin-top: 14px; }
+.group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.group-head b { font-weight: 600; }
+.group-head span { color: var(--muted); font-size: 13px; }
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
+th:nth-child(1) { width: 110px; } th:nth-child(2) { width: 26%; } th:nth-child(3) { width: 130px; } th:nth-child(4) { width: 28%; }
+th { text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); padding: 8px 16px; white-space: nowrap; }
+td { padding: 10px 16px; border-top: 1px solid var(--line); vertical-align: middle; }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+a { color: var(--accent); text-decoration: none; font-weight: 500; }
+a:hover { text-decoration: underline; }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font: 600 13px/1.5 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill.w { background: var(--warn-soft); color: var(--warn); }
+.pill.h { background: var(--high-soft); color: var(--high); }
+.pill.c { background: var(--crit-soft); color: var(--crit); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.wait { border-color: var(--crit); color: var(--crit); font-weight: 600; }
+.muted { color: var(--muted); }
+
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 28px; text-align: center; color: var(--muted); }
+.note { font-size: 13px; color: var(--muted); max-width: 70ch; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Лиды без касаний</h1>
+      <p class="sub" id="sub">Группы продаж B2C МСК и НСК · открытые лиды без нашего касания больше 48 часов</p>
+    </div>
+    <span class="fresh dead" id="fresh">Загружаю данные…</span>
+  </header>
+
+  <section class="stats" aria-label="Сводка">
+    <div class="stat crit"><b id="s-total">—</b><span id="s-total-l">лидов без касаний</span></div>
+    <div class="stat crit"><b id="s-wait">—</b><span>клиент написал и ждёт ответа</span></div>
+    <div class="stat warn"><b id="s-week">—</b><span>без касаний больше 7 суток</span></div>
+    <div class="stat"><b id="s-mgr">—</b><span>менеджеров с такими лидами</span></div>
+  </section>
+
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="Группа">
+      <button type="button" data-grp="" aria-pressed="true" id="g-all">Все группы</button>
+      <button type="button" data-grp="МСК" aria-pressed="false" id="g-msk">МСК</button>
+      <button type="button" data-grp="НСК" aria-pressed="false" id="g-nsk">НСК</button>
+    </div>
+    <label class="check"><input type="checkbox" id="only-wait"> Только где клиент ждёт ответа</label>
+  </div>
+
+  <section>
+    <h2>По менеджерам</h2>
+    <div class="mgrs" id="mgrs"></div>
+    <div class="legend">
+      <span><i style="background:var(--warn)"></i>2–3 суток</span>
+      <span><i style="background:var(--high)"></i>3–7 суток</span>
+      <span><i style="background:var(--crit)"></i>больше 7 суток</span>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="list-title">Лиды</h2>
+    <div id="groups"></div>
+  </section>
+
+  <p class="note">Касание — наше исходящее действие: сообщение менеджера или бота в чат Открытой линии либо звонок. Сообщения клиента касанием не считаются: если клиент написал, а мы молчим, лид отмечен «клиент ждёт». Сервер собирает данные из Bitrix24 раз в 15 минут, страница подтягивает их сама; время без касаний отсчитывается в реальном времени.</p>
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const state = { snap: null, status: null, loadError: null, grp: "", onlyWait: false, manager: null };
+  try { const s = JSON.parse(localStorage.getItem("ldash") || "{}"); state.grp = s.grp || ""; state.onlyWait = !!s.onlyWait; } catch (e) {}
+
+  const HOUR = 3600e3;
+  const sev = (h) => (h >= 168 ? "c" : h >= 72 ? "h" : "w");
+  function dur(h) {
+    const d = Math.floor(h / 24), r = Math.floor(h % 24);
+    return d ? d + " д " + r + " ч" : r + " ч";
+  }
+  function ago(ms) {
+    const m = Math.round(ms / 60000);
+    if (m < 1) return "только что";
+    if (m < 60) return m + " мин назад";
+    const h = Math.floor(m / 60);
+    return h < 24 ? h + " ч " + (m % 60) + " мин назад" : Math.floor(h / 24) + " д назад";
+  }
+  const fmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
+  function el(tag, attrs, ...kids) {
+    const n = document.createElement(tag);
+    for (const k in attrs || {}) {
+      if (k === "class") n.className = attrs[k];
+      else if (k === "text") n.textContent = attrs[k];
+      else n.setAttribute(k, attrs[k]);
+    }
+    for (const c of kids) if (c != null) n.append(c);
+    return n;
+  }
+  function save() { try { localStorage.setItem("ldash", JSON.stringify({ grp: state.grp, onlyWait: state.onlyWait })); } catch (e) {} }
+
+  function render() {
+    const snap = state.snap;
+    for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-pressed", String(b.dataset.grp === state.grp));
+    $("only-wait").checked = state.onlyWait;
+    const fresh = $("fresh");
+    const collectError = state.status && state.status.lastError;
+    if (!snap) {
+      fresh.className = "fresh " + (state.loadError || collectError ? "dead" : "stale");
+      fresh.textContent = state.loadError || (collectError ? "Сбор данных не удался: " + collectError : "Первый сбор данных из Bitrix24, около минуты…");
+      return;
+    }
+    const now = Date.now();
+
+    // свежесть данных
+    const age = now - Date.parse(snap.updatedAt);
+    fresh.className = "fresh" + (age > 2 * HOUR || state.loadError ? " dead" : age > 30 * 60e3 || collectError ? " stale" : "");
+    fresh.textContent = "Обновлено " + ago(age) + (state.loadError ? " · " + state.loadError : collectError ? " · последний сбор не удался" : "");
+    fresh.title = "Снимок из Bitrix24: " + fmt.format(new Date(snap.updatedAt)) + " МСК" + (collectError ? "\nОшибка сбора: " + collectError : "");
+
+    const mgrById = new Map(snap.managers.map((m) => [m.id, m]));
+    const inGrp = (m) => !state.grp || (m && m.group.includes(state.grp));
+    const leads = snap.leads
+      .map((l) => ({ ...l, hours: (now - Date.parse(l.silentSince)) / HOUR }))
+      .filter((l) => inGrp(mgrById.get(l.managerId)) && (!state.onlyWait || l.clientWaiting));
+    const managers = snap.managers.filter(inGrp);
+    if (state.manager && !managers.some((m) => m.id === state.manager)) state.manager = null;
+
+    $("s-total").textContent = leads.length;
+    $("s-total-l").textContent = "лидов без касаний из " + managers.reduce((a, m) => a + m.open, 0) + " открытых";
+    $("s-wait").textContent = leads.filter((l) => l.clientWaiting).length;
+    $("s-week").textContent = leads.filter((l) => l.hours >= 168).length;
+    $("s-mgr").textContent = new Set(leads.map((l) => l.managerId)).size;
+
+    // карточки менеджеров
+    const byMgr = new Map();
+    for (const l of leads) { if (!byMgr.has(l.managerId)) byMgr.set(l.managerId, []); byMgr.get(l.managerId).push(l); }
+    const sorted = [...managers].sort((a, b) => (byMgr.get(b.id)?.length || 0) - (byMgr.get(a.id)?.length || 0) || a.name.localeCompare(b.name, "ru"));
+    const box = $("mgrs"); box.replaceChildren();
+    for (const m of sorted) {
+      const ls = byMgr.get(m.id) || [];
+      const cnt = { w: 0, h: 0, c: 0 }; ls.forEach((l) => cnt[sev(l.hours)]++);
+      const bar = el("div", { class: "bar", "aria-hidden": "true" });
+      if (ls.length) for (const k of ["c", "h", "w"]) if (cnt[k]) { const i = el("i", { class: k }); i.style.width = (cnt[k] / ls.length) * 100 + "%"; bar.append(i); }
+      const card = el("button", { type: "button", class: "mgr" + (ls.length ? "" : " zero"), "aria-pressed": String(state.manager === m.id), title: ls.length ? "Показать лиды менеджера" : "Лидов без касаний нет" },
+        el("div", { class: "mgr-top" },
+          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: m.group.replace("Группа продаж ", "") })),
+          el("div", { class: "mgr-count" }, String(ls.length), el("small", { text: " / " + m.open }))),
+        bar);
+      card.addEventListener("click", () => { state.manager = state.manager === m.id ? null : m.id; render(); if (state.manager) $("list-title").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" }); });
+      box.append(card);
+    }
+
+    // списки лидов по менеджерам
+    const groups = $("groups"); groups.replaceChildren();
+    const shown = sorted.filter((m) => (byMgr.get(m.id) || []).length && (!state.manager || state.manager === m.id));
+    $("list-title").textContent = state.manager ? "Лиды · " + mgrById.get(state.manager).name : "Лиды по менеджерам";
+    if (!shown.length) {
+      groups.append(el("div", { class: "empty", text: state.onlyWait ? "Нет лидов, где клиент ждёт ответа." : "У всех менеджеров были касания за последние " + snap.thresholdHours + " часов." }));
+      return;
+    }
+    for (const m of shown) {
+      const ls = byMgr.get(m.id).sort((a, b) => b.hours - a.hours);
+      const tbody = el("tbody");
+      for (const l of ls) {
+        const chips = el("div", { class: "chips" });
+        if (l.clientWaiting) chips.append(el("span", { class: "chip wait", text: "клиент ждёт ответа" }));
+        if (!l.hasChat) chips.append(el("span", { class: "chip", text: l.hasPhone ? "только телефон" : "нет чата и телефона" }));
+        const last = l.lastTouchKind === "call" ? "звонок" : l.lastTouchKind === "msg" ? "сообщение" : "не было";
+        tbody.append(el("tr", {},
+          el("td", {}, el("a", { href: snap.portal + "/crm/lead/details/" + l.id + "/", target: "_blank", rel: "noopener", text: "#" + l.id })),
+          el("td", { text: l.stage || "—" }),
+          el("td", { class: "num" }, el("span", { class: "pill " + sev(l.hours), text: dur(l.hours) })),
+          el("td", {}, el("span", { text: last }), l.lastTouchKind ? el("span", { class: "muted", text: " · " + fmt.format(new Date(l.silentSince)) }) : null),
+          el("td", {}, chips)));
+      }
+      groups.append(el("div", { class: "group" },
+        el("div", { class: "group-head" }, el("b", { text: m.name }), el("span", { text: ls.length + " из " + m.open + " открытых · " + m.group.replace("Группа продаж ", "") })),
+        el("div", { class: "tbl-wrap" }, el("table", {},
+          el("thead", {}, el("tr", {}, el("th", { text: "Лид" }), el("th", { text: "Стадия" }), el("th", { text: "Без касаний" }), el("th", { text: "Последнее касание" }), el("th", { text: "" }))),
+          tbody))));
+    }
+  }
+
+  for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => { state.grp = b.dataset.grp; save(); render(); });
+  $("only-wait").addEventListener("change", (e) => { state.onlyWait = e.target.checked; save(); render(); });
+  // Сервер собирает данные раз в 15 минут; страница спрашивает раз в минуту и пересчитывает время
+  async function load() {
+    try {
+      const res = await fetch("api/snapshot", { cache: "no-store" });
+      if (!res.ok) throw new Error("сервер ответил " + res.status);
+      const body = await res.json();
+      state.status = body.status;
+      if (body.snapshot) state.snap = body.snapshot;
+      state.loadError = null;
+    } catch (e) {
+      state.loadError = "нет связи с сервером";
+    }
+    render();
+  }
+  render();
+  load();
+  setInterval(load, 60e3);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "leads-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Дашборд MyGenetics: открытые лиды B2C без касаний дольше 48 часов, по менеджерам",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
