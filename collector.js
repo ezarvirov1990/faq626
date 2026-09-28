@@ -12,6 +12,11 @@ const OUTGOING_MARK = /^\s*=+\s*Исходящее сообщение/;
 const WAZZUP_SYSTEM_MARK = "=== SYSTEM WZ ===";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// «WAZZUP: Instagram» → «Instagram»; пустое название — «Чат»
+export function channelName(title) {
+  return String(title || "").replace(/^\s*WAZZUP:\s*/i, "").trim() || "Чат";
+}
+
 export function loadConfig(env) {
   return {
     port: Number(env.PORT || 3000),
@@ -127,6 +132,7 @@ export async function collectSnapshot(bx, config) {
   // 1) Сущности, их чаты и последний звонок
   let batchErrors = 0;
   const loaded = [];
+  const channelOf = new Map(); // CHAT_ID → «Instagram», «Telegram», «WhatsApp», «ВКонтакте»…
   for (const spec of specs) {
     const stages = {};
     for (const s of (await bx.call("crm.status.list", { filter: { ENTITY_ID: spec.stageEntity } })).result) stages[s.STATUS_ID] = s.NAME;
@@ -151,7 +157,9 @@ export async function collectSnapshot(bx, config) {
 
     const chatsOf = new Map();
     for (const it of items) {
-      chatsOf.set(it.ID, (res.out["chat_" + it.ID] || []).filter((c) => c && c.CHAT_ID).map((c) => String(c.CHAT_ID)));
+      const chats = (res.out["chat_" + it.ID] || []).filter((c) => c && c.CHAT_ID);
+      for (const c of chats) channelOf.set(String(c.CHAT_ID), channelName(c.CONNECTOR_TITLE));
+      chatsOf.set(it.ID, chats.map((c) => String(c.CHAT_ID)));
     }
     loaded.push({ spec, stages, items, chatsOf, calls: res.out });
   }
@@ -194,13 +202,18 @@ export async function collectSnapshot(bx, config) {
       const managerId = Number(it.ASSIGNED_BY_ID);
       openByManager[managerId] = (openByManager[managerId] || 0) + 1;
 
-      let lastOurMsg = 0, lastClient = 0;
+      let lastOurMsg = 0, lastClient = 0, lastClientIg = 0;
       const touches = [];
+      const channels = new Set();
       for (const c of chatsOf.get(it.ID)) {
         const l = lastByChat.get(c);
         lastOurMsg = Math.max(lastOurMsg, l.ours);
         lastClient = Math.max(lastClient, l.client);
         touches.push(...l.oursTimes);
+        const ch = channelOf.get(c);
+        channels.add(ch);
+        // Instagram пускает наши сообщения только 7 дней после последнего сообщения клиента
+        if (/instagram/i.test(ch)) lastClientIg = Math.max(lastClientIg, l.client);
       }
       const itemCalls = calls["call_" + it.ID] || [];
       const lastCall = itemCalls.length ? Date.parse(itemCalls[0].CREATED) : 0;
@@ -232,6 +245,9 @@ export async function collectSnapshot(bx, config) {
         // Последнее событие в лиде — наше или клиента; по нему подсказка помечается «устарела»
         lastActivity: Math.max(lastTouch, lastClient) ? new Date(Math.max(lastTouch, lastClient)).toISOString() : null,
         hasChat: chatsOf.get(it.ID).length > 0,
+        channels: [...channels],
+        lastClientAt: lastClient ? new Date(lastClient).toISOString() : null,
+        igClientAt: lastClientIg ? new Date(lastClientIg).toISOString() : null,
         hasPhone: spec.extraSelect.includes("HAS_PHONE") ? it.HAS_PHONE === "Y" : null,
       });
     }
