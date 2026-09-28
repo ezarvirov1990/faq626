@@ -9,59 +9,48 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
 <style>
 :root {
-  --bg: #F3F5F7;
+  --bg: #F2F4F6;
   --surface: #FFFFFF;
-  --surface-2: #F8FAFB;
-  --ink: #121A24;
-  --muted: #5A6676;
-  --line: #E1E6EC;
+  --ink: #16202C;
+  --muted: #5B6878;
+  --line: #DCE2E9;
   --accent: #1F6F8B;
   --accent-soft: #E3EFF3;
   --on-accent: #FFFFFF;
-  /* Статусы: «клиент ждёт ответа» — critical, «окно Instagram закрывается» — serious, «подсказка устарела» — warning */
-  --crit: #B42318;
-  --crit-soft: #FBE4E2;
-  --serious: #C2410C;
-  --serious-soft: #FCE9DF;
   --warn: #A86A12;
   --warn-soft: #FBF1DE;
+  --high: #C2410C;
+  --high-soft: #FCE9DF;
+  --crit: #B42318;
+  --crit-soft: #FBE4E2;
   --ok: #2F7D4F;
   --ok-soft: #E2F2E8;
-  /* Уровни просрочки — одна шкала красного, от светлого к тёмному (проверено validate_palette --ordinal) */
-  --s1: #F2A08A; --s2: #DE4F36; --s3: #9E1C17;
-  --s1-soft: #FDEEE9; --s2-soft: #FBDDD6; --s3-soft: #F5CFCC;
   --font: "Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #0F151C; --surface: #17212B; --surface-2: #1B2631; --ink: #E6EDF3; --muted: #93A1B1; --line: #28343F;
+    --bg: #0F151C; --surface: #17212B; --ink: #E6EDF3; --muted: #93A1B1; --line: #28343F;
     --accent: #62B4D0; --accent-soft: #17313B; --on-accent: #0F151C;
-    --crit: #F27272; --crit-soft: #401D1E; --serious: #F0874E; --serious-soft: #3D2418;
-    --warn: #E3A948; --warn-soft: #3A2E17; --ok: #6BCB92; --ok-soft: #173325;
-    --s1: #8A3328; --s2: #D4513F; --s3: #FF9A88;
-    --s1-soft: #2B1F21; --s2-soft: #3A2220; --s3-soft: #4A2724;
+    --warn: #E3A948; --warn-soft: #3A2E17; --high: #F0874E; --high-soft: #3D2418;
+    --crit: #F27272; --crit-soft: #401D1E; --ok: #6BCB92; --ok-soft: #173325;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0F151C; --surface: #17212B; --surface-2: #1B2631; --ink: #E6EDF3; --muted: #93A1B1; --line: #28343F;
+  --bg: #0F151C; --surface: #17212B; --ink: #E6EDF3; --muted: #93A1B1; --line: #28343F;
   --accent: #62B4D0; --accent-soft: #17313B; --on-accent: #0F151C;
-  --crit: #F27272; --crit-soft: #401D1E; --serious: #F0874E; --serious-soft: #3D2418;
-  --warn: #E3A948; --warn-soft: #3A2E17; --ok: #6BCB92; --ok-soft: #173325;
-  --s1: #8A3328; --s2: #D4513F; --s3: #FF9A88;
-  --s1-soft: #2B1F21; --s2-soft: #3A2220; --s3-soft: #4A2724;
+  --warn: #E3A948; --warn-soft: #3A2E17; --high: #F0874E; --high-soft: #3D2418;
+  --crit: #F27272; --crit-soft: #401D1E; --ok: #6BCB92; --ok-soft: #173325;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font); }
-.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 48px; display: grid; gap: 22px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 48px; display: grid; gap: 24px; }
 @media (max-width: 480px) { .wrap { padding-inline: 16px; } }
-/* Широкие таблицы прокручиваются внутри своего блока и не раздвигают страницу */
-.wrap > *, section { min-width: 0; }
 
 header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
-h1 { margin: 0; font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -0.015em; text-wrap: balance; }
+h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; }
 .sub { margin: 4px 0 0; color: var(--muted); }
 .fresh { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 500; background: var(--ok-soft); color: var(--ok); }
 .fresh::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
@@ -73,19 +62,15 @@ h1 { margin: 0; font-size: 30px; line-height: 1.15; font-weight: 700; letter-spa
 .tabs button:hover { color: var(--ink); }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
 .tabs .cnt { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; padding: 1px 7px; border-radius: 999px; background: var(--line); color: var(--ink); }
-.tabs button[aria-selected="true"] .cnt { background: var(--accent-soft); color: var(--accent); }
+.tabs button[aria-selected="true"] .cnt { background: var(--crit-soft); color: var(--crit); }
 
-/* Сводка: цвет у цифры только когда есть проблема */
-.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 @media (max-width: 760px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px 14px; display: grid; gap: 4px; align-content: start; position: relative; overflow: hidden; }
-.stat b { font: 600 34px/1.05 var(--mono); font-variant-numeric: tabular-nums; }
-.stat span { color: var(--muted); font-size: 13px; line-height: 1.35; }
-.stat.alert::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--crit); }
-.stat.alert b { color: var(--crit); }
-.stat.alert.soft::before { background: var(--s2); }
-.stat.alert.soft b { color: var(--ink); }
-.stat.zero b { color: var(--ok); }
+.stat { background: var(--surface); padding: 16px 18px; display: grid; gap: 2px; align-content: start; }
+.stat b { font: 600 30px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 13px; }
+.stat.crit b { color: var(--crit); }
+.stat.warn b { color: var(--high); }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
@@ -96,100 +81,56 @@ h1 { margin: 0; font-size: 30px; line-height: 1.15; font-weight: 700; letter-spa
 .check input { width: 16px; height: 16px; accent-color: var(--accent); }
 button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); display: flex; align-items: baseline; gap: 10px; }
-h2 small { font: 500 12px var(--font); letter-spacing: 0; text-transform: none; }
+h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 
-/* «Горит сейчас» */
-.hot { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.hot-row { display: grid; grid-template-columns: 210px 110px minmax(0, 1fr) 170px; gap: 6px 16px; align-items: center; padding: 10px 16px; border-top: 1px solid var(--line); }
-.hot-row:first-child { border-top: 0; }
-@media (max-width: 760px) { .hot-row { grid-template-columns: 1fr auto; } .hot-row .hot-mgr { grid-column: 1 / -1; } }
-.why { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
-.why::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; background: currentColor; }
-.why.wait { color: var(--crit); }
-.why.ig { color: var(--serious); }
-.why.long { color: var(--ink); }
-.why.long::before { background: var(--s3); }
-.hot-mgr { font-size: 14px; }
-.hot-mgr .muted { font-size: 13px; }
-.hot-when { font: 500 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; }
-.hot-more { display: flex; justify-content: center; padding: 8px; border-top: 1px solid var(--line); background: var(--surface-2); }
-.linkbtn { font: inherit; font-size: 13px; color: var(--accent); background: none; border: 0; cursor: pointer; padding: 4px 8px; }
-.linkbtn:hover { text-decoration: underline; }
-.hot-empty { padding: 14px 16px; color: var(--ok); font-weight: 500; }
-
-/* Менеджеры: строки, худший — наверху */
-.mrows { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.mrow { width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0; border-top: 1px solid var(--line); padding: 11px 16px; display: grid; grid-template-columns: 200px minmax(100px, 1fr) 260px 90px; gap: 6px 18px; align-items: center; cursor: pointer; }
-.mrow:first-child { border-top: 0; }
-.mrow:hover { background: var(--surface-2); }
-.mrow[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
-@media (max-width: 760px) { .mrow { grid-template-columns: 1fr auto; } .mrow .bar, .mrow .mix { grid-column: 1 / -1; } }
-.mgr-name { font-weight: 600; }
-.mgr-grp { color: var(--muted); font-size: 12px; }
-.bar { display: flex; gap: 2px; height: 10px; }
-.bar i { display: block; height: 100%; border-radius: 3px; min-width: 4px; }
-.bar .w { background: var(--s1); } .bar .h { background: var(--s2); } .bar .c { background: var(--s3); }
-.bar .rest { background: var(--line); }
-.mix { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--muted); }
-.mix span { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
-.mix i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
-.mix .wait { color: var(--crit); font-weight: 600; }
-.mcount { text-align: right; font: 600 22px/1 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.mcount small { font: 500 12px var(--mono); color: var(--muted); }
-.calm { font-size: 13px; color: var(--muted); margin-top: 10px; }
-.calm b { color: var(--ok); font-weight: 600; }
-
-.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); margin-top: 10px; }
-.legend span { display: inline-flex; align-items: center; gap: 6px; }
-.legend i { width: 10px; height: 10px; border-radius: 2px; }
-
-/* Вкладка «Задачи» — карточки */
 .mgrs { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
 .mgr { text-align: left; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; cursor: pointer; }
 .mgr:hover { border-color: var(--accent); }
 .mgr[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
 .mgr-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.mgr-name { font-weight: 600; }
+.mgr-grp { color: var(--muted); font-size: 12px; }
 .mgr-count { font: 600 20px/1 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.mgr-count.bad { color: var(--crit); }
 .mgr-count small { font: 500 12px var(--mono); color: var(--muted); }
 .mgr-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
-.mgr-meta b { color: var(--ink); font-weight: 600; }
+.mgr-meta .wait { color: var(--crit); font-weight: 600; }
+.bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--line); }
+.bar i { display: block; height: 100%; }
+.bar .w { background: var(--warn); } .bar .h { background: var(--high); } .bar .c { background: var(--crit); }
 .mgr.zero .mgr-count { color: var(--ok); }
 .mgr.zero { cursor: default; }
 .mgr.zero:hover { border-color: var(--line); }
 
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; }
+
 .group { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.group-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.group-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
 .group-head b { font-weight: 600; font-size: 16px; }
 .group-head span { color: var(--muted); font-size: 13px; }
-.close { font: inherit; font-size: 13px; color: var(--accent); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.close { font: inherit; font-size: 13px; color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
 .close:hover { border-color: var(--accent); }
 .tbl-wrap { overflow-x: auto; }
 table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
 th:nth-child(1) { width: 110px; } th:nth-child(2) { width: 26%; } th:nth-child(3) { width: 130px; } th:nth-child(4) { width: 28%; }
 th { text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); padding: 8px 16px; white-space: nowrap; }
-td { padding: 10px 16px; border-top: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
-tbody tr:hover { background: var(--surface-2); }
+td { padding: 10px 16px; border-top: 1px solid var(--line); vertical-align: middle; overflow-wrap: anywhere; }
 td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 a { color: var(--accent); text-decoration: none; font-weight: 500; }
 a:hover { text-decoration: underline; }
-.pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px 2px 7px; border-radius: 999px; font: 600 13px/1.5 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); }
-.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; flex: none; }
-.pill.w { background: var(--s1-soft); } .pill.w::before { background: var(--s1); }
-.pill.h { background: var(--s2-soft); } .pill.h::before { background: var(--s2); }
-.pill.c { background: var(--s3-soft); } .pill.c::before { background: var(--s3); }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font: 600 13px/1.5 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill.w { background: var(--warn-soft); color: var(--warn); }
+.pill.h { background: var(--high-soft); color: var(--high); }
+.pill.c { background: var(--crit-soft); color: var(--crit); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { font-size: 12px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); }
-.chip.wait { border-color: var(--crit); color: var(--crit); font-weight: 600; background: var(--crit-soft); }
-.chip.ig { border-color: var(--serious); color: var(--serious); font-weight: 600; }
+.chip { font-size: 12px; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.wait { border-color: var(--crit); color: var(--crit); font-weight: 600; }
 .muted { color: var(--muted); }
 .stack { display: grid; gap: 16px; }
-.cell-sub { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 table.hinted { min-width: 1000px; }
-table.hinted th:nth-child(1) { width: 150px; } table.hinted th:nth-child(2) { width: 120px; } table.hinted th:nth-child(3) { width: 130px; } table.hinted th:nth-child(4) { width: auto; } table.hinted th:nth-child(5) { width: 200px; }
-table.plain th:nth-child(1) { width: 150px; } table.plain th:nth-child(2) { width: auto; } table.plain th:nth-child(3) { width: 140px; } table.plain th:nth-child(4) { width: 170px; } table.plain th:nth-child(5) { width: 240px; }
-.hint { display: grid; gap: 3px; font-size: 13px; line-height: 1.45; }
+table.hinted th:nth-child(1) { width: 108px; } table.hinted th:nth-child(2) { width: 130px; } table.hinted th:nth-child(3) { width: 110px; } table.hinted th:nth-child(4) { width: 150px; } table.hinted th:nth-child(5) { width: auto; } table.hinted th:nth-child(6) { width: 185px; }
+.hint { display: grid; gap: 3px; font-size: 13px; line-height: 1.4; }
 .hint b { font-weight: 600; }
 .hint-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .chip.stale { border-color: var(--warn); color: var(--warn); font-weight: 600; }
@@ -198,7 +139,7 @@ table.moves th:nth-child(1) { width: 170px; } table.moves th:nth-child(2) { widt
 table.moves { min-width: 900px; }
 
 .empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); }
-.note { font-size: 13px; color: var(--muted); max-width: 80ch; margin: 0; }
+.note { font-size: 13px; color: var(--muted); max-width: 70ch; margin: 0; }
 </style>
 </head>
 <body>
@@ -213,6 +154,13 @@ table.moves { min-width: 900px; }
 
   <nav class="tabs" role="tablist" aria-label="Что показывать" id="tabs"></nav>
 
+  <section class="stats" aria-label="Сводка">
+    <div class="stat crit"><b id="s-total">—</b><span id="s-total-l">без касаний</span></div>
+    <div class="stat crit"><b id="s-wait">—</b><span id="s-wait-l">клиент написал и ждёт ответа</span></div>
+    <div class="stat warn"><b id="s-week">—</b><span id="s-crit-l">без касаний больше 7 суток</span></div>
+    <div class="stat"><b id="s-mgr">—</b><span id="s-mgr-l">менеджеров с просрочкой</span></div>
+  </section>
+
   <div class="toolbar">
     <div class="seg" role="group" aria-label="Группа">
       <button type="button" data-grp="" aria-pressed="true">Все группы</button>
@@ -222,28 +170,19 @@ table.moves { min-width: 900px; }
     <label class="check" id="only-wait-box"><input type="checkbox" id="only-wait"> Только где клиент ждёт ответа</label>
   </div>
 
-  <section class="stats" aria-label="Сводка">
-    <div class="stat" id="t-total"><b id="s-total">—</b><span id="s-total-l">без касаний</span></div>
-    <div class="stat" id="t-wait"><b id="s-wait">—</b><span id="s-wait-l">клиент написал и ждёт ответа</span></div>
-    <div class="stat" id="t-week"><b id="s-week">—</b><span id="s-crit-l">без касаний больше 7 суток</span></div>
-    <div class="stat" id="t-mgr"><b id="s-mgr">—</b><span id="s-mgr-l">менеджеров с просрочкой</span></div>
-  </section>
-
-  <section id="hot-box" aria-labelledby="hot-h">
-    <h2 id="hot-h">Горит сейчас <small id="hot-sub"></small></h2>
-    <div class="hot" id="hot"></div>
-  </section>
-
   <section>
-    <h2 id="mgrs-h">По менеджерам</h2>
-    <div class="mrows" id="mgrs"></div>
-    <p class="calm" id="calm" hidden></p>
-    <div class="legend" id="legend"></div>
+    <h2>По менеджерам</h2>
+    <div class="mgrs" id="mgrs"></div>
+    <div class="legend" id="legend">
+      <span><i style="background:var(--warn)"></i>2–3 суток</span>
+      <span><i style="background:var(--high)"></i>3–7 суток</span>
+      <span><i style="background:var(--crit)"></i>больше 7 суток</span>
+    </div>
   </section>
 
   <section id="list"></section>
 
-  <p class="note" id="note">Касание — наше исходящее действие: сообщение менеджера или бота в чат Открытой линии либо звонок. Сообщения клиента касанием не считаются: если клиент написал, а мы молчим, запись отмечена «клиент ждёт ответа». Instagram разрешает писать клиенту только 7 дней после его последнего сообщения — такие записи поднимаются в «Горит сейчас» за двое суток до закрытия окна. Данные из Bitrix24 обновляются раз в 10 минут; время без касаний отсчитывается в реальном времени.</p>
+  <p class="note" id="note">Касание — наше исходящее действие: сообщение менеджера или бота в чат Открытой линии либо звонок. Сообщения клиента касанием не считаются: если клиент написал, а мы молчим, запись отмечена «клиент ждёт ответа». Данные из Bitrix24 обновляются раз в 10 минут; время без касаний отсчитывается в реальном времени.</p>
 </div>
 
 <!-- В локальной версии сюда вшивается снимок; на сервере пусто и страница берёт данные из api/snapshot -->
@@ -251,7 +190,7 @@ table.moves { min-width: 900px; }
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  const state = { snap: null, hints: {}, status: null, loadError: null, view: "leads", grp: "", onlyWait: false, manager: null, hotAll: false };
+  const state = { snap: null, hints: {}, status: null, loadError: null, view: "leads", grp: "", onlyWait: false, manager: null };
   try {
     const s = JSON.parse(localStorage.getItem("ldash") || "{}");
     state.view = s.view || "leads"; state.grp = s.grp || ""; state.onlyWait = !!s.onlyWait;
@@ -269,14 +208,13 @@ table.moves { min-width: 900px; }
   }
   // Уровни просрочки, часов: с какого срока запись «оранжевая» и «красная»
   const LEVELS = {
-    lead: { h: 72, c: 168, legend: ["2–3 суток", "3–7 суток", "больше 7 суток"], short: ["2–3 сут", "3–7 сут", "7+ сут"], crit: "больше 7 суток", below: "до 7 суток" },
-    deal: { h: 60 * 24, c: 90 * 24, legend: ["30–60 дней", "60–90 дней", "больше 90 дней"], short: ["30–60 дн", "60–90 дн", "90+ дн"], crit: "больше 90 дней", below: "до 90 дней" },
+    lead: { h: 72, c: 168, legend: ["2–3 суток", "3–7 суток", "больше 7 суток"], crit: "больше 7 суток", below: "до 7 суток" },
+    deal: { h: 60 * 24, c: 90 * 24, legend: ["30–60 дней", "60–90 дней", "больше 90 дней"], crit: "больше 90 дней", below: "до 90 дней" },
   };
   let lv = LEVELS.lead;
   const sev = (h) => (h >= lv.c ? "c" : h >= lv.h ? "h" : "w");
   const thr = (h) => (h >= 72 && h % 24 === 0 ? (h / 24) + " " + plural(h / 24, ["дня", "дней", "дней"]) : h + " " + plural(h, ["часа", "часов", "часов"]));
   function dur(h) {
-    if (h < 1) return Math.max(1, Math.round(h * 60)) + " мин";
     const d = Math.floor(h / 24), r = Math.floor(h % 24);
     return d ? d + " д " + r + " ч" : r + " ч";
   }
@@ -316,13 +254,6 @@ table.moves { min-width: 900px; }
   const NOTE_TOUCH = $("note").textContent;
   const NOTE_TASKS = "Перенос без касания — срок задачи по лиду или сделке перенесли, а в тот же день до переноса не было ни нашего звонка, ни нашего сообщения клиенту. Перенос записан на того, кто его сделал; правка срока в первые 10 минут после постановки задачи не считается. Просрочка — у открытой задачи срок прошёл больше 48 часов назад. Данные из Bitrix24 обновляются раз в 10 минут.";
   const DAY_MS = 24 * HOUR;
-  const IG_WINDOW = 7 * DAY_MS, IG_WARN = 2 * DAY_MS, HOT_LIMIT = 10;
-  // Плитка сводки: цвет и полоска слева — только когда есть проблема; ноль — зелёный
-  function stat(key, value, label, tone) {
-    $("s-" + key).textContent = value;
-    $("s-" + ({ total: "total-l", wait: "wait-l", week: "crit-l", mgr: "mgr-l" })[key]).textContent = label;
-    $("t-" + key).className = "stat" + (!value ? " zero" : tone ? " alert" + (tone === "soft" ? " soft" : "") : "");
-  }
   const card = (x) => el("a", { href: state.snap.portal + "/crm/" + x.entity + "/details/" + x.id + "/", target: "_blank", rel: "noopener", text: (x.entity === "deal" ? "Сделка #" : "Лид #") + x.id });
   const LEADS = ["лид", "лида", "лидов"], DEALS = ["сделка", "сделки", "сделок"];
   const both = (ls, e1) => {
@@ -358,17 +289,21 @@ table.moves { min-width: 900px; }
 
     $("title").textContent = "Задачи";
     $("sub").textContent = "Группы продаж B2C МСК и НСК · открытые лиды и сделки воронки «" + snap.views.deals.title + "»";
-    stat("total", moves.length, plural(moves.length, ["перенос", "переноса", "переносов"]) + " срока без касания за вчера и сегодня", "crit");
-    stat("wait", noneLeads, plural(noneLeads, LEADS) + " без задачи");
-    stat("week", none.length - noneLeads, plural(none.length - noneLeads, DEALS) + " без задачи");
-    stat("mgr", late.length, "с задачей, просроченной больше 2 дней: " + both(late, "нет"), "soft");
+    $("s-total").textContent = moves.length;
+    $("s-total-l").textContent = plural(moves.length, ["перенос", "переноса", "переносов"]) + " срока без касания за вчера и сегодня";
+    $("s-wait").textContent = noneLeads;
+    $("s-wait-l").textContent = plural(noneLeads, LEADS) + " без задачи";
+    $("s-week").textContent = none.length - noneLeads;
+    $("s-crit-l").textContent = plural(none.length - noneLeads, DEALS) + " без задачи";
+    $("s-mgr").textContent = late.length;
+    $("s-mgr-l").textContent = "с задачей, просроченной больше 2 дней: " + both(late, "нет");
 
     const of = (arr, id) => arr.filter((x) => x.managerId === id);
     const score = (id) => of(moves, id).length * 1000 + of(items, id).length;
     const sorted = [...managers].sort((a, b) => score(b.id) - score(a.id) || a.name.localeCompare(b.name, "ru"));
     if (state.manager && !score(state.manager)) state.manager = null;
 
-    const box = $("mgrs"); box.className = "mgrs"; box.replaceChildren();
+    const box = $("mgrs"); box.replaceChildren();
     for (const m of sorted) {
       const mv = of(moves, m.id).length, nn = of(none, m.id), lt = of(late, m.id);
       const any = mv + nn.length + lt.length;
@@ -378,9 +313,9 @@ table.moves { min-width: 900px; }
       },
         el("div", { class: "mgr-top" },
           el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: m.group.replace("Группа продаж ", "") })),
-          el("div", { class: "mgr-count" + (mv ? " bad" : "") }, String(mv), el("small", { text: " " + plural(mv, ["перенос", "переноса", "переносов"]) }))),
-        el("div", { class: "mgr-meta" }, el("span", { text: "Без задачи" }), nn.length ? el("b", { text: both(nn, "—") }) : el("span", { text: "—" })),
-        el("div", { class: "mgr-meta" }, el("span", { text: "Просрочка", title: "Задача просрочена больше чем на 2 дня" }), lt.length ? el("b", { text: both(lt, "—") }) : el("span", { text: "—" })));
+          el("div", { class: "mgr-count" }, String(mv), el("small", { text: " " + plural(mv, ["перенос", "переноса", "переносов"]) }))),
+        el("div", { class: "mgr-meta" }, el("span", { text: "Без задачи" }), el("span", { text: both(nn, "—") })),
+        el("div", { class: "mgr-meta" }, el("span", { text: "Просрочено" }), el("span", { class: lt.length ? "wait" : "", text: both(lt, "—") })));
       if (any) b.addEventListener("click", () => {
         state.manager = state.manager === m.id ? null : m.id;
         render();
@@ -425,7 +360,7 @@ table.moves { min-width: 900px; }
       ll.map((x) => {
         const d = Math.floor((now - Date.parse(x.deadline)) / DAY_MS);
         return el("tr", {}, el("td", {}, card(x)), el("td", { text: x.stage || "—" }),
-          el("td", { class: "num" }, el("span", { class: "pill " + (d >= 14 ? "c" : d >= 7 ? "h" : "w"), text: d + " д" })),
+          el("td", { class: "num" }, el("span", { class: "pill " + (d >= 7 ? "c" : "h"), text: d + " д" })),
           el("td", { class: "num", text: fmt.format(new Date(x.deadline)) }));
       }))));
 
@@ -466,8 +401,6 @@ table.moves { min-width: 900px; }
     const isTasks = state.view === "tasks";
     $("only-wait-box").hidden = isTasks;
     $("legend").hidden = isTasks;
-    $("hot-box").hidden = isTasks;
-    if (isTasks) { $("calm").hidden = true; $("mgrs").hidden = false; $("mgrs-h").textContent = "По менеджерам"; }
     $("note").textContent = isTasks ? NOTE_TASKS : NOTE_TOUCH;
     if (isTasks) return renderTasks(snap, managers, mgrById, inGrp, now);
 
@@ -480,85 +413,50 @@ table.moves { min-width: 900px; }
 
     $("title").textContent = noun.heading;
     $("sub").textContent = "Группы продаж B2C МСК и НСК · " + (view.entity === "deal" ? "открытые сделки воронки «" + view.title + "»" : "открытые лиды") + " без нашего касания больше " + thr(threshold);
-    $("legend").replaceChildren(...["s1", "s2", "s3"].map((c, i) => el("span", {}, el("i", { style: "background:var(--" + c + ")" }), lv.legend[i])));
+    $("s-crit-l").textContent = "без касаний " + lv.crit;
+    $("legend").replaceChildren(...["warn", "high", "crit"].map((c, i) => el("span", {}, el("i", { style: "background:var(--" + c + ")" }), lv.legend[i])));
     const openTotal = managers.reduce((a, m) => a + open(m.id), 0);
-    const waitingAll = items.filter((x) => x.clientWaiting);
-    const critAll = items.filter((x) => x.hours >= lv.c);
-    const mgrsWith = new Set(items.map((x) => x.managerId)).size;
-    stat("total", items.length, plural(items.length, noun.forms) + " без касаний из " + openTotal + " открытых");
-    stat("wait", waitingAll.length, waitingAll.length ? "клиент написал и ждёт ответа" : "клиентов, ждущих ответа, нет", "crit");
-    stat("week", critAll.length, "без касаний " + lv.crit, "soft");
-    stat("mgr", mgrsWith, plural(mgrsWith, ["менеджер", "менеджера", "менеджеров"]) + " из " + managers.length + " с просрочкой");
+    $("s-total").textContent = items.length;
+    $("s-total-l").textContent = plural(items.length, noun.forms) + " без касаний из " + openTotal + " открытых";
+    $("s-wait").textContent = items.filter((x) => x.clientWaiting).length;
+    $("s-wait-l").textContent = "клиент написал и ждёт ответа";
+    $("s-week").textContent = items.filter((x) => x.hours >= lv.c).length;
+    $("s-mgr").textContent = new Set(items.map((x) => x.managerId)).size;
+    $("s-mgr-l").textContent = "менеджеров с просрочкой";
 
-    // Горит сейчас: клиент ждёт ответа → закрывается окно Instagram → дольше всех без касания
-    const hot = [];
-    for (const x of items) {
-      if (x.clientWaiting) { hot.push({ x, kind: "wait", rank: 0, key: -(now - Date.parse(x.lastClientAt || x.silentSince)) }); continue; }
-      const until = x.igClientAt ? Date.parse(x.igClientAt) + IG_WINDOW : 0;
-      if (until > now && until - now < IG_WARN) { hot.push({ x, kind: "ig", rank: 1, key: until, until }); continue; }
-      if (x.hours >= lv.c) hot.push({ x, kind: "long", rank: 2, key: -x.hours });
-    }
-    hot.sort((a, b) => a.rank - b.rank || a.key - b.key);
-    const hotBox = $("hot"); hotBox.replaceChildren();
-    const counts = { wait: 0, ig: 0, long: 0 }; hot.forEach((h) => counts[h.kind]++);
-    $("hot-sub").textContent = hot.length ? [counts.wait && counts.wait + " ждут ответа", counts.ig && counts.ig + " — окно Instagram", counts.long && counts.long + " " + lv.crit].filter(Boolean).join(" · ") : "";
-    if (!hot.length) hotBox.append(el("div", { class: "hot-empty", text: "Ничего не горит: клиентов, ждущих ответа, и записей " + lv.crit + " нет." }));
-    for (const h of (state.hotAll ? hot : hot.slice(0, HOT_LIMIT))) {
-      const x = h.x, m = mgrById.get(x.managerId) || { name: "—" };
-      const why = h.kind === "wait" ? "Клиент ждёт ответа" : h.kind === "ig" ? "Закроется окно Instagram" : "Без касаний " + lv.crit;
-      const when = h.kind === "wait" ? "ждёт " + dur((now - Date.parse(x.lastClientAt || x.silentSince)) / HOUR)
-        : h.kind === "ig" ? "осталось " + dur((h.until - now) / HOUR) : "молчим " + dur(x.hours);
-      hotBox.append(el("div", { class: "hot-row" },
-        el("span", { class: "why " + h.kind, text: why }),
-        el("a", { href: snap.portal + "/crm/" + view.entity + "/details/" + x.id + "/", target: "_blank", rel: "noopener", text: "#" + x.id }),
-        el("div", { class: "hot-mgr" }, m.name, el("span", { class: "muted", text: " · " + [x.stage, ...(x.channels || [])].filter(Boolean).join(" · ") })),
-        el("span", { class: "hot-when", text: when })));
-    }
-    if (hot.length > HOT_LIMIT) {
-      const more = el("button", { type: "button", class: "linkbtn", text: state.hotAll ? "Свернуть" : "Показать все " + hot.length });
-      more.addEventListener("click", () => { state.hotAll = !state.hotAll; render(); });
-      hotBox.append(el("div", { class: "hot-more" }, more));
-    }
-
-    // Менеджеры: строки, сверху — у кого клиенты ждут ответа и больше критичных
+    // карточки менеджеров
     const byMgr = new Map();
     for (const x of items) { if (!byMgr.has(x.managerId)) byMgr.set(x.managerId, []); byMgr.get(x.managerId).push(x); }
-    const stats = new Map(managers.map((m) => {
+    const sorted = [...managers].sort((a, b) => (byMgr.get(b.id)?.length || 0) - (byMgr.get(a.id)?.length || 0) || a.name.localeCompare(b.name, "ru"));
+    if (state.manager && !(byMgr.get(state.manager) || []).length) state.manager = null;
+
+    const box = $("mgrs"); box.replaceChildren();
+    for (const m of sorted) {
       const ls = byMgr.get(m.id) || [];
       const cnt = { w: 0, h: 0, c: 0 }; ls.forEach((x) => cnt[sev(x.hours)]++);
-      return [m.id, { ls, cnt, waiting: ls.filter((x) => x.clientWaiting).length }];
-    }));
-    const weight = (id) => { const s = stats.get(id); return s.waiting * 1e6 + s.cnt.c * 1e3 + s.ls.length; };
-    const active = managers.filter((m) => stats.get(m.id).ls.length).sort((a, b) => weight(b.id) - weight(a.id) || a.name.localeCompare(b.name, "ru"));
-    const calm = managers.filter((m) => !stats.get(m.id).ls.length).sort((a, b) => a.name.localeCompare(b.name, "ru"));
-    if (state.manager && !stats.get(state.manager)?.ls.length) state.manager = null;
-    $("mgrs-h").textContent = "По менеджерам";
-
-    const box = $("mgrs"); box.className = "mrows"; box.replaceChildren(); box.hidden = !active.length;
-    for (const m of active) {
-      const { ls, cnt, waiting } = stats.get(m.id);
-      const total = Math.max(open(m.id), ls.length);
-      const bar = el("div", { class: "bar", title: ls.length + " из " + total + " открытых без касаний" });
-      for (const k of ["c", "h", "w"]) if (cnt[k]) { const i = el("i", { class: k, title: cnt[k] + " · " + lv.legend[{ w: 0, h: 1, c: 2 }[k]] }); i.style.flex = String(cnt[k]); bar.append(i); }
-      if (total > ls.length) { const r = el("i", { class: "rest", title: (total - ls.length) + " с касанием" }); r.style.flex = String(total - ls.length); bar.append(r); }
-      const mix = el("div", { class: "mix" });
-      for (const [k, s] of [["c", "s3"], ["h", "s2"], ["w", "s1"]]) if (cnt[k]) mix.append(el("span", { title: lv.legend[{ w: 0, h: 1, c: 2 }[k]] }, el("i", { style: "background:var(--" + s + ")" }), cnt[k] + " " + lv.short[{ w: 0, h: 1, c: 2 }[k]]));
-      if (waiting) mix.append(el("span", { class: "wait", text: waiting + " ждут ответа" }));
-      const row = el("button", { type: "button", class: "mrow", "aria-pressed": String(state.manager === m.id), title: "Показать список" },
-        el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: m.group.replace("Группа продаж ", "") })),
-        bar, mix,
-        el("div", { class: "mcount" }, String(ls.length), el("small", { text: " / " + total })));
-      row.addEventListener("click", () => {
+      const waiting = ls.filter((x) => x.clientWaiting).length;
+      const bar = el("div", { class: "bar", "aria-hidden": "true" });
+      for (const k of ["c", "h", "w"]) if (cnt[k]) { const i = el("i", { class: k }); i.style.width = (cnt[k] / ls.length) * 100 + "%"; bar.append(i); }
+      const card = el("button", {
+        type: "button", class: "mgr" + (ls.length ? "" : " zero"), "aria-pressed": String(state.manager === m.id),
+        title: ls.length ? "Показать список" : "Просрочек нет",
+      },
+        el("div", { class: "mgr-top" },
+          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: m.group.replace("Группа продаж ", "") })),
+          el("div", { class: "mgr-count" }, String(ls.length), el("small", { text: " / " + open(m.id) }))),
+        bar,
+        el("div", { class: "mgr-meta" },
+          el("span", { text: cnt.c ? cnt.c + " " + lv.crit : ls.length ? lv.below : "всё в порядке" }),
+          waiting ? el("span", { class: "wait", text: waiting + " ждут ответа" }) : null));
+      if (ls.length) card.addEventListener("click", () => {
         state.manager = state.manager === m.id ? null : m.id;
         render();
         if (state.manager) $("list").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
       });
-      box.append(row);
+      box.append(card);
     }
-    const calmEl = $("calm"); calmEl.hidden = !calm.length;
-    calmEl.replaceChildren(el("b", { text: active.length ? "Без просрочек: " : "У всех менеджеров всё в порядке: " }), calm.map((m) => m.name).join(", "));
 
-    // Список — только по выбранному менеджеру
+    // список — только по выбранному менеджеру
     const list = $("list"); list.replaceChildren();
     if (!state.manager) {
       list.append(el("div", { class: "empty", text: items.length
@@ -567,25 +465,21 @@ table.moves { min-width: 900px; }
       return;
     }
     const m = mgrById.get(state.manager);
-    const ls = stats.get(m.id).ls.sort((a, b) => (b.clientWaiting - a.clientWaiting) || b.hours - a.hours);
+    const ls = byMgr.get(m.id).sort((a, b) => b.hours - a.hours);
     const withHints = view.entity === "lead";
     const tbody = el("tbody");
     for (const x of ls) {
       const chips = el("div", { class: "chips" });
-      if (x.clientWaiting) chips.append(el("span", { class: "chip wait", text: "клиент ждёт ответа" + (x.lastClientAt ? " · " + dur((now - Date.parse(x.lastClientAt)) / HOUR) : "") }));
-      const until = x.igClientAt ? Date.parse(x.igClientAt) + IG_WINDOW : 0;
-      if (until) chips.append(until <= now
-        ? el("span", { class: "chip", title: "Instagram не даёт писать через 7 дней после последнего сообщения клиента", text: "Instagram: окно закрыто" })
-        : el("span", { class: "chip" + (until - now < IG_WARN ? " ig" : ""), title: "Писать в Instagram можно до " + fmt.format(new Date(until)) + " МСК", text: "Instagram до " + fmt.format(new Date(until)).replace(",", "") }));
-      for (const c of x.channels || []) if (!(until && /instagram/i.test(c))) chips.append(el("span", { class: "chip", text: c }));
+      if (x.clientWaiting) chips.append(el("span", { class: "chip wait", text: "клиент ждёт ответа" }));
       if (!x.hasChat) chips.append(el("span", { class: "chip", text: x.hasPhone === true ? "только телефон" : x.hasPhone === false ? "нет чата и телефона" : "нет чата" }));
-      const last = x.lastTouchKind === "call" ? "звонок" : x.lastTouchKind === "msg" ? "сообщение" : "касаний не было";
-      const link = el("td", {}, el("a", { href: snap.portal + "/crm/" + view.entity + "/details/" + x.id + "/", target: "_blank", rel: "noopener", text: "#" + x.id }));
-      const silent = el("td", { class: "num" }, el("span", { class: "pill " + sev(x.hours), text: dur(x.hours) }));
-      const lastTd = el("td", {}, last, x.lastTouchKind ? el("span", { class: "cell-sub", text: fmt.format(new Date(x.silentSince)) }) : null);
-      tbody.append(withHints
-        ? el("tr", {}, (link.append(el("span", { class: "cell-sub", text: x.stage || "—" })), link), silent, lastTd, el("td", {}, hintCell(state.hints[x.id], x)), el("td", {}, chips))
-        : el("tr", {}, link, el("td", { text: x.stage || "—" }), silent, lastTd, el("td", {}, chips)));
+      const last = x.lastTouchKind === "call" ? "звонок" : x.lastTouchKind === "msg" ? "сообщение" : "не было";
+      tbody.append(el("tr", {},
+        el("td", {}, el("a", { href: snap.portal + "/crm/" + view.entity + "/details/" + x.id + "/", target: "_blank", rel: "noopener", text: "#" + x.id })),
+        el("td", { text: x.stage || "—" }),
+        el("td", { class: "num" }, el("span", { class: "pill " + sev(x.hours), text: dur(x.hours) })),
+        el("td", {}, el("span", { text: last }), x.lastTouchKind ? el("span", { class: "muted", text: " · " + fmt.format(new Date(x.silentSince)) }) : null),
+        withHints ? el("td", {}, hintCell(state.hints[x.id], x)) : null,
+        el("td", {}, chips)));
     }
     const close = el("button", { type: "button", class: "close", text: "Свернуть" });
     close.addEventListener("click", () => { state.manager = null; render(); });
@@ -593,10 +487,9 @@ table.moves { min-width: 900px; }
       el("div", { class: "group-head" },
         el("div", {}, el("b", { text: m.name }), el("span", { text: "  " + ls.length + " из " + open(m.id) + " открытых · " + m.group.replace("Группа продаж ", "") })),
         close),
-      el("div", { class: "tbl-wrap" }, el("table", { class: withHints ? "hinted" : "plain" },
-        el("thead", {}, el("tr", {}, ...(withHints
-          ? [noun.col + " · стадия", "Без касаний", "Последнее касание", "Подсказка", "Отметки"]
-          : [noun.col, "Стадия", "Без касаний", "Последнее касание", "Отметки"]).map((h) => el("th", { text: h })))),
+      el("div", { class: "tbl-wrap" }, el("table", withHints ? { class: "hinted" } : {},
+        el("thead", {}, el("tr", {}, el("th", { text: noun.col }), el("th", { text: "Стадия" }), el("th", { text: "Без касаний" }), el("th", { text: "Последнее касание" }),
+          withHints ? el("th", { text: "Подсказка" }) : null, el("th", { text: "" }))),
         tbody))));
   }
 
