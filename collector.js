@@ -25,7 +25,7 @@ export function loadConfig(env) {
     dealThresholdDays: Number(env.DEAL_THRESHOLD_DAYS || 30),
     // Чьи переносы сроков задач не показываем (руководитель)
     taskMoveExclude: (env.TASK_MOVE_EXCLUDE ?? "77").split(",").map((s) => Number(s.trim())).filter(Boolean),
-    refreshMinutes: Number(env.REFRESH_MINUTES || 15),
+    refreshMinutes: Number(env.REFRESH_MINUTES || 10),
   };
 }
 
