@@ -5,6 +5,8 @@ import path from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import { createBitrix, collectSnapshot, loadConfig } from "./collector.js";
 import { mergeHints } from "./hints.js";
+import { collectLive } from "./activity.js";
+import { mskDayStart } from "./tasks.js";
 
 const env = process.env;
 const config = loadConfig(env);
@@ -63,6 +65,49 @@ async function refresh() {
   } finally {
     state.running = false;
   }
+}
+
+// «Лента событий»: раз в минуту — кто в сети, звонки, стадии, правки, задачи. Сообщения и заметки — из снимка.
+// Всё живёт в памяти и только за сегодня (по Москве); «был в сети» сервер помнит с момента запуска.
+const live = { day: 0, events: new Map(), online: {}, lastSeen: {}, updatedAt: null, error: null, running: false, tasksCheckedAt: 0 };
+
+async function refreshLive() {
+  const managers = state.snapshot && state.snapshot.managers;
+  if (live.running || !config.webhook || !managers) return;
+  live.running = true;
+  const started = Date.now();
+  try {
+    const day = mskDayStart(started);
+    if (day !== live.day) Object.assign(live, { day, events: new Map(), tasksCheckedAt: 0 });
+    // Историю задач перечитываем только по тем, что менялись с прошлого раза (с запасом 2 минуты)
+    const res = await collectLive(createBitrix(config.webhook), managers, { now: started, tasksSince: live.tasksCheckedAt - 2 * 60e3 });
+    for (const e of res.events) live.events.set(e.key, e);
+    for (const [id, on] of Object.entries(res.online)) if (on) live.lastSeen[id] = started;
+    live.online = res.online;
+    live.tasksCheckedAt = started;
+    live.updatedAt = new Date(started).toISOString();
+    live.error = null;
+  } catch (e) {
+    live.error = e.message;
+    log("live error:", e.message);
+  } finally {
+    live.running = false;
+  }
+}
+
+function activityPayload() {
+  const snap = state.snapshot;
+  const day = mskDayStart(Date.now());
+  const events = new Map(live.day === day ? live.events : []);
+  for (const e of (snap && snap.activity && snap.activity.events) || []) if (e.at >= day) events.set(e.key, e);
+  return {
+    updatedAt: live.updatedAt,
+    messagesUpdatedAt: snap ? snap.updatedAt : null,
+    error: live.error,
+    managers: snap ? snap.managers : [],
+    online: Object.fromEntries(Object.entries(live.online).map(([id, on]) => [id, { online: on, lastSeenAt: live.lastSeen[id] ? new Date(live.lastSeen[id]).toISOString() : null }])),
+    events: [...events.values()].sort((a, b) => b.at - a.at),
+  };
 }
 
 function authorized(req) {
@@ -125,10 +170,15 @@ const server = http.createServer((req, res) => {
       status: { lastAttemptAt: state.lastAttemptAt, lastError: state.lastError, running: state.running },
     }));
   }
+  if (pathname === "/api/activity") {
+    res.writeHead(200, { ...baseHeaders, "Content-Type": "application/json; charset=utf-8" });
+    return res.end(JSON.stringify(activityPayload()));
+  }
   res.writeHead(404, { ...baseHeaders, "Content-Type": "text/plain; charset=utf-8" });
   res.end("Не найдено");
 });
 
 server.listen(config.port, () => log(`listening on ${config.port}, refresh every ${config.refreshMinutes} min`));
-refresh();
+refresh().then(refreshLive);
 setInterval(refresh, config.refreshMinutes * 60e3);
+setInterval(refreshLive, 60e3);

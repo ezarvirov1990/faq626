@@ -138,6 +138,19 @@ table.hinted th:nth-child(1) { width: 108px; } table.hinted th:nth-child(2) { wi
 table.moves th:nth-child(1) { width: 170px; } table.moves th:nth-child(2) { width: auto; } table.moves th:nth-child(3) { width: 120px; } table.moves th:nth-child(4) { width: 270px; } table.moves th:nth-child(5) { width: 150px; }
 table.moves { min-width: 900px; }
 
+.stats.neutral .stat b { color: var(--ink); }
+.dot { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.dot::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.dot.on { color: var(--ok); } .dot.off { color: var(--muted); }
+.mgr-last { font-size: 13px; }
+.counts { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ev { display: grid; grid-template-columns: 52px 180px minmax(0, 1fr); gap: 12px; padding: 8px 16px; border-top: 1px solid var(--line); font-size: 14px; align-items: baseline; }
+.ev-time { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+.ev-who { font-weight: 600; }
+.ev-what { overflow-wrap: anywhere; }
+@media (max-width: 640px) { .ev { grid-template-columns: 48px minmax(0, 1fr); gap: 2px 10px; } .ev-what { grid-column: 2; } }
+.more { display: flex; justify-content: center; padding: 12px; border-top: 1px solid var(--line); }
+
 .empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); }
 .note { font-size: 13px; color: var(--muted); max-width: 70ch; margin: 0; }
 </style>
@@ -190,11 +203,13 @@ table.moves { min-width: 900px; }
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  const state = { snap: null, hints: {}, status: null, loadError: null, view: "leads", grp: "", onlyWait: false, manager: null };
+  const state = { snap: null, hints: {}, status: null, loadError: null, view: "leads", grp: "", onlyWait: false, manager: null, activity: null, feedLimit: 200 };
   try {
     const s = JSON.parse(localStorage.getItem("ldash") || "{}");
     state.view = s.view || "leads"; state.grp = s.grp || ""; state.onlyWait = !!s.onlyWait;
   } catch (e) {}
+  // Вкладку можно открыть по ссылке: …/#feed, #tasks, #leads, #deals
+  if (/^#(feed|tasks|leads|deals)$/.test(location.hash)) state.view = location.hash.slice(1);
   function save() { try { localStorage.setItem("ldash", JSON.stringify({ view: state.view, grp: state.grp, onlyWait: state.onlyWait })); } catch (e) {} }
 
   const HOUR = 3600e3;
@@ -367,13 +382,111 @@ table.moves { min-width: 900px; }
     list.append(el("div", { class: "stack" }, ...sections));
   }
 
+  // «Лента событий»: что сегодня делали менеджеры и кто сейчас в сети
+  const NOTE_FEED = "Лента — действия менеджеров групп продаж B2C за сегодня (по Москве): сообщения клиентам в чатах Открытых линий, звонки, смена стадии и правки лидов и сделок, заметки в карточках, задачи (новые, закрытые, перенос срока). Ответы бота Suvvy, дожимы роботов и задачи, которые ставят роботы, не учитываются. «В сети» — статус из Bitrix24. Звонки, стадии, правки и задачи обновляются раз в минуту, сообщения и заметки — раз в 10 минут. Просмотр карточек Bitrix24 не записывает, поэтому его в ленте нет.";
+  const hm = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
+  const talk = (s) => (s >= 60 ? Math.round(s / 60) + " мин" : s + " с");
+  const card2 = (e, lead, deal) => (e.entity === "deal" ? deal : lead);
+  function evText(e) {
+    switch (e.kind) {
+      case "msg": return "💬 Сообщение клиенту";
+      case "comment": return "📝 Заметка в карточке " + card2(e, "лида", "сделки");
+      case "call": return "📞 " + (e.outgoing ? "Исходящий" : "Входящий") + " звонок · " + (e.ok ? talk(e.seconds) : "не дозвонились");
+      case "move": return "➡️ " + card2(e, "Лид", "Сделка") + " → «" + (e.stage || "другая стадия") + "»";
+      case "edit": return "✏️ Правка карточки " + card2(e, "лида", "сделки");
+      case "task_new": return "🆕 Новая задача «" + (e.title || "") + "»";
+      case "task_done": return "✅ Задача закрыта «" + (e.title || "") + "»";
+      case "task_deadline": return "📅 Перенесён срок задачи «" + (e.title || "") + "»: " +
+        (e.from ? fmt.format(new Date(e.from)) : "без срока") + " → " + (e.to ? fmt.format(new Date(e.to)) : "без срока");
+      default: return e.kind;
+    }
+  }
+
+  function renderFeed(managers, mgrById, inGrp, now) {
+    const A = state.activity;
+    const evs = A.events.filter((e) => inGrp(mgrById.get(e.managerId)));
+    const on = (id) => A.online[id] || {};
+    const count = (ls, k) => ls.filter((e) => e.kind === k).length;
+    const calls = evs.filter((e) => e.kind === "call");
+    const talkMin = Math.round(calls.reduce((a, e) => a + (e.ok ? e.seconds : 0), 0) / 60);
+
+    $("title").textContent = "Лента событий";
+    $("sub").textContent = "Группы продаж B2C МСК и НСК · что менеджеры делали сегодня и кто сейчас в Bitrix24";
+    const onlineNow = managers.filter((m) => on(m.id).online).length;
+    $("s-total").textContent = onlineNow;
+    $("s-total-l").textContent = "в сети сейчас из " + managers.length;
+    $("s-wait").textContent = evs.length;
+    $("s-wait-l").textContent = plural(evs.length, ["событие", "события", "событий"]) + " сегодня";
+    $("s-week").textContent = count(evs, "msg");
+    $("s-crit-l").textContent = "сообщений клиентам";
+    $("s-mgr").textContent = calls.length;
+    $("s-mgr-l").textContent = plural(calls.length, ["звонок", "звонка", "звонков"]) + " · " + talkMin + " мин разговоров";
+
+    const fresh = $("fresh");
+    if (A.updatedAt) {
+      const age = now - Date.parse(A.updatedAt);
+      fresh.className = "fresh" + (age > 10 * 60e3 || A.error ? " stale" : "");
+      fresh.textContent = "Лента обновлена " + ago(age) + (A.error ? " · последний сбор не удался" : "");
+      fresh.title = "Звонки, стадии, правки, задачи: " + fmt.format(new Date(A.updatedAt)) + " МСК" +
+        (A.messagesUpdatedAt ? "\nСообщения и заметки: " + fmt.format(new Date(A.messagesUpdatedAt)) + " МСК" : "");
+    } else { fresh.className = "fresh stale"; fresh.textContent = "Лента собирается, около минуты…"; }
+
+    const lastOf = new Map();
+    for (const e of evs) if (!lastOf.has(e.managerId)) lastOf.set(e.managerId, e);
+    const sorted = [...managers].sort((a, b) => (on(b.id).online ? 1 : 0) - (on(a.id).online ? 1 : 0) ||
+      ((lastOf.get(b.id) || {}).at || 0) - ((lastOf.get(a.id) || {}).at || 0) || a.name.localeCompare(b.name, "ru"));
+    const box = $("mgrs"); box.replaceChildren();
+    for (const m of sorted) {
+      const mine = evs.filter((e) => e.managerId === m.id);
+      const last = lastOf.get(m.id);
+      const st = on(m.id);
+      const mc = mine.filter((e) => e.kind === "call");
+      const parts = [
+        ["💬", count(mine, "msg"), "сообщений клиентам"],
+        ["📞", mc.length ? mc.length + " · " + Math.round(mc.reduce((a, e) => a + (e.ok ? e.seconds : 0), 0) / 60) + " мин" : 0, "звонков · минут разговора"],
+        ["➡️", count(mine, "move"), "смен стадии лидов и сделок"], ["✅", count(mine, "task_done"), "задач закрыто"],
+        ["🆕", count(mine, "task_new"), "задач создано"], ["📅", count(mine, "task_deadline"), "переносов срока задач"],
+        ["✏️", count(mine, "edit") + count(mine, "comment"), "правок карточек и заметок"],
+      ].filter(([, n]) => n);
+      const b = el("button", { type: "button", class: "mgr", "aria-pressed": String(state.manager === m.id), title: "Показать события менеджера" },
+        el("div", { class: "mgr-top" },
+          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: m.group.replace("Группа продаж ", "") })),
+          el("span", { class: "dot " + (st.online ? "on" : "off"), text: st.online ? "в сети" : st.lastSeenAt ? "был(а) в " + hm.format(new Date(st.lastSeenAt)) : "не в сети" })),
+        el("div", { class: "mgr-meta", text: "Последняя активность: " + (last ? hm.format(new Date(last.at)) + " · " + ago(now - last.at) : "сегодня не было") }),
+        last ? el("div", { class: "mgr-last", text: evText(last) }) : null,
+        parts.length ? el("div", { class: "counts" }, ...parts.map(([i, n, t]) => el("span", { title: t, text: i + " " + n }))) : null);
+      b.addEventListener("click", () => { state.manager = state.manager === m.id ? null : m.id; state.feedLimit = 200; render(); });
+      box.append(b);
+    }
+
+    const list = $("list"); list.replaceChildren();
+    const shown = state.manager ? evs.filter((e) => e.managerId === state.manager) : evs;
+    const who = state.manager ? mgrById.get(state.manager) : null;
+    const head = el("div", { class: "group-head" },
+      el("div", {}, el("b", { text: who ? who.name : "Все менеджеры" }), el("span", { text: "  " + shown.length + " " + plural(shown.length, ["событие", "события", "событий"]) + " за сегодня" })));
+    if (who) { const c = el("button", { type: "button", class: "close", text: "Показать всех" }); c.addEventListener("click", () => { state.manager = null; render(); }); head.append(c); }
+    const rows = shown.slice(0, state.feedLimit).map((e) => el("div", { class: "ev" },
+      el("span", { class: "ev-time", text: hm.format(new Date(e.at)) }),
+      el("span", { class: "ev-who", text: (mgrById.get(e.managerId) || {}).name || "—" }),
+      el("span", { class: "ev-what", text: evText(e) })));
+    const group = el("div", { class: "group" }, head, ...rows);
+    if (!shown.length) group.append(el("div", { class: "ev" }, el("span"), el("span", { class: "muted", text: "Сегодня событий пока нет" })));
+    if (shown.length > state.feedLimit) {
+      const more = el("button", { type: "button", class: "close", text: "Показать ещё" });
+      more.addEventListener("click", () => { state.feedLimit += 200; render(); });
+      group.append(el("div", { class: "more" }, more));
+    }
+    list.append(el("h2", { text: "Лента за сегодня" }), group);
+  }
+
   function render() {
     for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-pressed", String(b.dataset.grp === state.grp));
     $("only-wait").checked = state.onlyWait;
     renderFresh();
     const snap = state.snap;
     if (!snap || !snap.views) return;
-    if (state.view === "tasks" ? !snap.tasks : !snap.views[state.view]) state.view = Object.keys(snap.views)[0];
+    const isFeed = state.view === "feed" && Boolean(state.activity);
+    if (!isFeed && (state.view === "tasks" ? !snap.tasks : !snap.views[state.view])) state.view = Object.keys(snap.views)[0];
 
     const now = Date.now();
     const mgrById = new Map(snap.managers.map((m) => [m.id, m]));
@@ -397,11 +510,19 @@ table.moves { min-width: 900px; }
       b.addEventListener("click", () => { state.view = "tasks"; save(); render(); });
       tabs.append(b);
     }
+    if (state.activity) {
+      const b = el("button", { type: "button", role: "tab", "aria-selected": String(isFeed), title: "Что менеджеры делали сегодня и кто сейчас в сети" },
+        el("span", { text: "Лента событий" }));
+      b.addEventListener("click", () => { state.view = "feed"; state.manager = null; state.feedLimit = 200; save(); render(); });
+      tabs.append(b);
+    }
 
     const isTasks = state.view === "tasks";
-    $("only-wait-box").hidden = isTasks;
-    $("legend").hidden = isTasks;
-    $("note").textContent = isTasks ? NOTE_TASKS : NOTE_TOUCH;
+    $("only-wait-box").hidden = isTasks || isFeed;
+    $("legend").hidden = isTasks || isFeed;
+    document.querySelector(".stats").classList.toggle("neutral", isFeed);
+    $("note").textContent = isFeed ? NOTE_FEED : isTasks ? NOTE_TASKS : NOTE_TOUCH;
+    if (isFeed) return renderFeed(managers, mgrById, inGrp, now);
     if (isTasks) return renderTasks(snap, managers, mgrById, inGrp, now);
 
     const view = snap.views[state.view];
@@ -510,9 +631,13 @@ table.moves { min-width: 900px; }
   // Серверная версия: спрашиваем снимок раз в минуту
   async function load() {
     try {
-      const res = await fetch("api/snapshot", { cache: "no-store" });
+      const [res, act] = await Promise.all([
+        fetch("api/snapshot", { cache: "no-store" }),
+        fetch("api/activity", { cache: "no-store" }).catch(() => null),
+      ]);
       if (!res.ok) throw new Error("сервер ответил " + res.status);
       const body = await res.json();
+      if (act && act.ok) state.activity = await act.json();
       state.status = body.status;
       if (body.snapshot) state.snap = body.snapshot;
       state.hints = body.hints || {};

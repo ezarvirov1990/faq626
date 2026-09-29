@@ -3,6 +3,7 @@
 // Сообщения клиента касанием не считаются; если клиент написал позже нашего касания — clientWaiting.
 
 import { mskDayStart, untouchedMoves, taskState } from "./tasks.js";
+import { managerIndex, messageEvents, commentEvents } from "./activity.js";
 
 const HOUR = 3600e3;
 const DAY = 24 * HOUR;
@@ -163,9 +164,15 @@ export async function collectSnapshot(bx, config) {
   const msgs = await bx.batch(msgCmds);
   batchErrors += msgs.errors;
 
+  // Для «Ленты событий»: сообщения менеджеров клиентам за сегодня
+  const index = managerIndex([...managers.values()]);
+  const daySince = mskDayStart(now);
+  const activity = [];
+
   const lastByChat = new Map();
   for (const c of chatIds) {
     const m = msgs.out["msg_" + c];
+    if (m) activity.push(...messageEvents(m, index, daySince));
     let ours = 0, client = 0;
     const oursTimes = [];
     if (m) {
@@ -263,6 +270,20 @@ export async function collectSnapshot(bx, config) {
   const hist = await bx.batch(histCmds);
   batchErrors += hist.errors;
 
+  // 5) Для «Ленты событий»: заметки менеджеров в ленте открытых лидов и сделок.
+  // Ошибки здесь не портят снимок — лента просто покажет меньше заметок.
+  const commentCmds = {};
+  for (const { spec, items } of loaded) {
+    for (const it of items) {
+      commentCmds[`cm_${spec.entity}_${it.ID}`] =
+        `crm.timeline.comment.list?filter[ENTITY_TYPE]=${spec.entity}&filter[ENTITY_ID]=${it.ID}&select[]=ID&select[]=CREATED&select[]=AUTHOR_ID`;
+    }
+  }
+  const comments = await bx.batch(commentCmds);
+  for (const [key, rows] of Object.entries(comments.out)) {
+    activity.push(...commentEvents(key.split("_")[1], rows || [], index.ids, daySince));
+  }
+
   const iso = (ms) => (ms ? new Date(ms).toISOString() : null);
   const moves = [];
   for (const [id, { task, item }] of ourTasks) {
@@ -289,5 +310,6 @@ export async function collectSnapshot(bx, config) {
       moves: moves.sort((a, b) => b.at.localeCompare(a.at)),
       items: taskItems,
     },
+    activity: { since: iso(daySince), events: activity },
   };
 }
