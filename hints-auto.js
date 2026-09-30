@@ -1,11 +1,11 @@
 // Hourly auto-hints on the server (faq626-hints.timer): leads of the «Лиды» tab without a fresh hint →
-// context from Bitrix24 → headless Claude Code on the owner's subscription (CLAUDE_CODE_OAUTH_TOKEN, no tools) →
-// validated here → POST /api/hints of the local dashboard. No leads to hint — no Claude call.
-// Context lives in memory only. Env: BITRIX_WEBHOOK, DASHBOARD_USER, DASHBOARD_PASSWORD, CLAUDE_BIN,
-// HINTS_MAX (20), HINTS_MODEL (sonnet), HINTS_DRY_RUN=1 to skip the upload.
-import { spawn } from "node:child_process";
+// context from Bitrix24 → GigaChat (Sber; Claude isn't available from Russia) in batches of HINTS_BATCH leads →
+// validated here → POST /api/hints of the local dashboard. No leads to hint — no model call.
+// Context lives in memory only. Env: BITRIX_WEBHOOK, DASHBOARD_USER, DASHBOARD_PASSWORD, GIGACHAT_AUTH_KEY,
+// GIGACHAT_SCOPE, HINTS_MAX (20), HINTS_BATCH (5), HINTS_MODEL (GigaChat-2-Pro), HINTS_DRY_RUN=1 to skip the upload.
 import { pathToFileURL } from "node:url";
 import { createBitrix } from "./collector.js";
+import { createGigaChat } from "./gigachat.js";
 import { hintStale, HINT_MAX } from "./hints.js";
 
 const REQUEST_FIELD = "UF_CRM_1738579732801"; // «Запрос клиента»
@@ -79,6 +79,13 @@ export function parseHints(text, ids) {
   return out;
 }
 
+// Split ids into batches for the model: fewer leads per request — fewer mixed-up leads
+export function batches(ids, size) {
+  const out = [];
+  for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+  return out;
+}
+
 // Everything the hint needs, same as tools\hints.ps1 Export-LeadContext
 export async function leadsContext(bx, ids, messagesPerChat = 40) {
   const fields = (await bx.call("crm.lead.fields")).result;
@@ -133,27 +140,6 @@ export async function leadsContext(bx, ids, messagesPerChat = 40) {
   return parts.join("\n\n");
 }
 
-// Headless Claude Code with no tools; instructions and context go via stdin
-export function runClaude(input, { bin = process.env.CLAUDE_BIN || "claude", model = "sonnet", timeoutMs = 10 * 60e3 } = {}) {
-  return new Promise((resolve, reject) => {
-    const p = spawn(bin, ["-p", "Выполни инструкцию из stdin.", "--output-format", "json", "--model", model, "--tools="], { env: process.env });
-    let out = "", err = "";
-    const timer = setTimeout(() => p.kill("SIGKILL"), timeoutMs);
-    p.stdout.on("data", (d) => { out += d; });
-    p.stderr.on("data", (d) => { err += d; });
-    p.on("error", (e) => { clearTimeout(timer); reject(e); });
-    p.on("close", (code) => {
-      clearTimeout(timer);
-      if (code !== 0) return reject(new Error(`claude exited with ${code}: ${err.slice(0, 300)}`));
-      let j;
-      try { j = JSON.parse(out); } catch { return reject(new Error("claude output is not JSON")); }
-      if (j.is_error) return reject(new Error("claude: " + String(j.result).slice(0, 300)));
-      resolve(String(j.result));
-    });
-    p.stdin.end(input);
-  });
-}
-
 async function main() {
   const env = process.env;
   const base = env.HINTS_URL || `http://127.0.0.1:${env.PORT || 3000}`;
@@ -164,15 +150,28 @@ async function main() {
   const ids = leadsNeedingHints(snap.snapshot, snap.hints || {}, Number(env.HINTS_MAX || 20));
   if (!ids.length) { console.log("hints: no leads need a hint"); return; }
   const bx = createBitrix(env.BITRIX_WEBHOOK);
-  const context = await leadsContext(bx, ids);
-  const answer = await runClaude(`${PROMPT}\nЛиды: ${ids.join(", ")}\n\n=== ВЫГРУЗКА ===\n${context}`, { model: env.HINTS_MODEL || "sonnet" });
-  const hints = parseHints(answer, ids);
+  const giga = createGigaChat({ authKey: env.GIGACHAT_AUTH_KEY, scope: env.GIGACHAT_SCOPE });
+  const hints = {};
+  let tokens = 0, failed = 0;
+  for (const part of batches(ids, Number(env.HINTS_BATCH || 5))) {
+    try {
+      const context = await leadsContext(bx, part);
+      const { text, usage } = await giga.complete(`${PROMPT}\nЛиды: ${part.join(", ")}\n\n=== ВЫГРУЗКА ===\n${context}`, { model: env.HINTS_MODEL || "GigaChat-2-Pro" });
+      tokens += Number(usage.total_tokens) || 0;
+      Object.assign(hints, parseHints(text, part));
+    } catch (e) {
+      failed += part.length; // one bad batch doesn't stop the others
+      console.error(`hints: batch ${part.join(",")} failed: ${e.message}`);
+    }
+  }
   const sec = Math.round((Date.now() - started) / 1000);
-  if (env.HINTS_DRY_RUN) { console.log(`hints: dry run, ${Object.keys(hints).length} of ${ids.length} ready in ${sec}s`); console.log(JSON.stringify(hints, null, 1)); return; }
+  const n = Object.keys(hints).length;
+  if (env.HINTS_DRY_RUN) { console.log(`hints: dry run, ${n} of ${ids.length} ready in ${sec}s, ${tokens} tokens`); console.log(JSON.stringify(hints, null, 1)); return; }
+  if (!n) { console.log(`hints: nothing to push (${failed} failed), ${tokens} tokens`); return; }
   const r = await fetch(base + "/api/hints", { method: "POST", headers: { authorization: auth, "content-type": "application/json" }, body: JSON.stringify(hints) });
   const res = await r.json();
   if (!res.ok) throw new Error("upload rejected: " + res.error);
-  console.log(`hints: pushed ${Object.keys(hints).length} of ${ids.length} in ${sec}s (server total ${res.total})`);
+  console.log(`hints: pushed ${n} of ${ids.length} in ${sec}s, ${tokens} tokens (server total ${res.total})`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] || "").href) {

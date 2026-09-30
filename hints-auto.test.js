@@ -1,6 +1,31 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatText, mskTime, leadsNeedingHints, chatLines, parseHints } from "./hints-auto.js";
+import { formatText, mskTime, leadsNeedingHints, chatLines, parseHints, batches } from "./hints-auto.js";
+import { createGigaChat } from "./gigachat.js";
+
+test("leads go to the model in batches", () => {
+  assert.deepEqual(batches([1, 2, 3, 4, 5, 6, 7], 3), [[1, 2, 3], [4, 5, 6], [7]]);
+});
+
+test("GigaChat: one OAuth token is reused, the answer text and usage come back", async () => {
+  const calls = [];
+  const fetchImpl = async (url, opts) => {
+    calls.push({ url, auth: opts.headers.Authorization, body: opts.body });
+    const body = url.includes("/oauth")
+      ? { access_token: "tok", expires_at: Date.now() + 30 * 60e3 }
+      : { choices: [{ message: { content: '{"1":{}}' } }], usage: { total_tokens: 42 } };
+    return { ok: true, status: 200, json: async () => body };
+  };
+  const g = createGigaChat({ authKey: "KEY", scope: "GIGACHAT_API_CORP", fetchImpl });
+  const a = await g.complete("привет");
+  await g.complete("ещё");
+  assert.equal(a.text, '{"1":{}}');
+  assert.equal(a.usage.total_tokens, 42);
+  assert.equal(calls.filter((c) => c.url.includes("/oauth")).length, 1);
+  assert.equal(calls[0].auth, "Basic KEY");
+  assert.equal(calls[0].body, "scope=GIGACHAT_API_CORP");
+  assert.equal(calls[1].auth, "Bearer tok");
+});
 
 test("bb-codes and html are stripped, blank lines collapsed", () => {
   assert.equal(formatText("[b]Привет[/b]<br>  мир\n\n\n  ок"), "Привет мир\nок");

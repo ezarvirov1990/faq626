@@ -1,5 +1,5 @@
 [Unit]
-Description=faq626 auto-hints for the «Лиды» tab (headless Claude Code)
+Description=faq626 auto-hints for the «Лиды» tab (GigaChat)
 After=network-online.target faq626.service
 Wants=network-online.target
 
@@ -7,10 +7,13 @@ Wants=network-online.target
 Type=oneshot
 User=faq626
 WorkingDirectory=/opt/faq626
-# BITRIX_WEBHOOK, DASHBOARD_*; CLAUDE_CODE_OAUTH_TOKEN lives in its own file
+# BITRIX_WEBHOOK, DASHBOARD_*; the GigaChat key lives in its own file
 EnvironmentFile=/etc/faq626.env
-EnvironmentFile=/etc/faq626-claude.env
-Environment=HOME=/var/lib/faq626 CLAUDE_BIN=/var/lib/faq626/.local/bin/claude PORT=3000
+EnvironmentFile=/etc/faq626-gigachat.env
+Environment=PORT=3000 NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/russian_trusted_ca.crt
 ExecStart=/usr/bin/node hints-auto.js
 TimeoutStartSec=20min
 NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
