@@ -77,7 +77,12 @@ test("действия с задачей чужих сотрудников и в
   assert.equal(ev.length, 0);
 });
 
-const moved = (stage) => ({ ID: "1", MOVED_TIME: "2026-09-29T12:00:00+03:00", MOVED_BY_ID: "5", STATUS_ID: stage });
+const moved = (stage) => ({ ID: "1", MOVED_TIME: "2026-09-29T12:00:00+03:00", MOVED_BY_ID: "5", STATUS_ID: stage, DATE_CREATE: "2026-09-28T10:00:00+03:00" });
+
+test("стадия при создании (лид из Wazzup ночью на ответственного) — не событие", () => {
+  const row = { ...moved("NEW"), MOVED_TIME: "2026-09-30T02:22:24+03:00", DATE_CREATE: "2026-09-30T02:22:24+03:00" };
+  assert.equal(cardEvents("lead", row, ids, since, "Новый лид", "NEW").length, 0);
+});
 
 test("менеджер перевёл лид на «Недозвон вторые сутки» — событие", () => {
   assert.deepEqual(cardEvents("lead", moved("PROCESSED"), ids, since, "Недозвон вторые сутки", "PROCESSED").map((e) => [e.kind, e.stage]),

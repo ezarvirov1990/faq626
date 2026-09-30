@@ -15,6 +15,7 @@ export const AUTO_LEAD_STAGES = new Set(["1", "UC_PAXFX3", "UC_8C77HR", "UC_33AW
 // «Взят в работу» лид получает вместе с назначением ответственного — это не действие менеджера
 export const ASSIGN_LEAD_STAGE = "IN_PROCESS";
 const TASK_DONE = "5";
+const CREATED_SAME_MS = 10e3;
 
 const normName = (s) => String(s || "").toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
 
@@ -80,6 +81,8 @@ export function cardEvents(entity, row, managerIds, since, stageName, stageId) {
   const movedBy = Number(row.MOVED_BY_ID);
   if (!(movedAt >= since) || !managerIds.has(movedBy)) return [];
   if (entity === "lead" && (AUTO_LEAD_STAGES.has(stageId) || stageId === ASSIGN_LEAD_STAGE)) return [];
+  // Первая стадия при создании (лид из Wazzup ночью, сделка при конвертации) записывается на ответственного — это не перемещение
+  if (Math.abs(movedAt - Date.parse(row.DATE_CREATE)) < CREATED_SAME_MS) return [];
   return [{ key: `move:${entity}:${row.ID}:${movedAt}`, at: movedAt, managerId: movedBy, kind: "move", entity, stage: stageName || null }];
 }
 
@@ -124,7 +127,7 @@ export async function collectLive(bx, managers, { now = Date.now(), tasksSince }
     { entity: "deal", method: "crm.deal.list", stage: "STAGE_ID" },
   ];
   for (const c of cards) {
-    const rows = await bx.list(c.method, { filter: { ">=MOVED_TIME": iso(since), MOVED_BY_ID: ids }, select: ["ID", c.stage, "MOVED_TIME", "MOVED_BY_ID"] });
+    const rows = await bx.list(c.method, { filter: { ">=MOVED_TIME": iso(since), MOVED_BY_ID: ids }, select: ["ID", c.stage, "MOVED_TIME", "MOVED_BY_ID", "DATE_CREATE"] });
     for (const row of rows) events.push(...cardEvents(c.entity, row, idSet, since, stageNames[c.entity][row[c.stage]], row[c.stage]));
   }
 
