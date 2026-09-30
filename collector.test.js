@@ -1,6 +1,32 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseDealPipelines, skipStageIds } from "./collector.js";
+import { parseDealPipelines, skipStageIds, mergeDealPipelines } from "./collector.js";
+
+const pipe = (id, open, slow = false) => ({ id, title: "P" + id, thresholdHours: 720, totalOpen: Object.values(open).reduce((a, n) => a + n, 0), openByManager: open, slow });
+const item = (id, pipeline, silentSince) => ({ id, pipeline, silentSince, managerId: 1 });
+
+test("fast collection carries slow pipelines over from the previous snapshot", () => {
+  const prev = { views: { deals: {
+    pipelines: [pipe(27, { 1: 5 }), pipe(65, { 9: 7 }, true)],
+    items: [item(1, 27, "2026-08-01"), item(2, 65, "2026-07-01")],
+    extraManagers: [{ id: 9, name: "Юлия" }],
+  } } };
+  const fresh = { views: { leads: { items: [] }, deals: {
+    title: "В2С", pipelines: [pipe(27, { 1: 4 })], openByManager: { 1: 4 }, totalOpen: 4, items: [item(3, 27, "2026-08-15")], extraManagers: [],
+  } } };
+  const d = mergeDealPipelines(fresh, prev).views.deals;
+  assert.deepEqual(d.pipelines.map((p) => p.id), [27, 65]);
+  assert.deepEqual(d.items.map((x) => x.id), [2, 3]); // old main-pipeline item 1 is replaced by the fresh ones
+  assert.deepEqual(d.openByManager, { 1: 4, 9: 7 });
+  assert.equal(d.totalOpen, 11);
+  assert.deepEqual(d.extraManagers.map((m) => m.id), [9]);
+});
+
+test("nothing to carry over: fresh snapshot stays as is", () => {
+  const fresh = { views: { deals: { pipelines: [pipe(27, {}), pipe(65, {}, true)], items: [] } } };
+  assert.equal(mergeDealPipelines(fresh, { views: { deals: { pipelines: [pipe(27, {})], items: [] } } }), fresh);
+  assert.equal(mergeDealPipelines(fresh, null), fresh);
+});
 
 test("pipelines by default: main B2C sales plus upsell and GenConf for the upsell group", () => {
   const p = parseDealPipelines({});

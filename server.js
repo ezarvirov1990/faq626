@@ -3,7 +3,7 @@ import http from "node:http";
 import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { timingSafeEqual } from "node:crypto";
-import { createBitrix, collectSnapshot, loadConfig } from "./collector.js";
+import { createBitrix, collectSnapshot, loadConfig, mergeDealPipelines } from "./collector.js";
 import { mergeHints } from "./hints.js";
 import { collectLive } from "./activity.js";
 import { mskDayStart } from "./tasks.js";
@@ -25,6 +25,21 @@ const hintsFile = env.DATA_DIR ? path.join(env.DATA_DIR, "hints.json") : null;
 if (hintsFile) {
   try { state.hints = JSON.parse(await readFile(hintsFile, "utf8")); } catch (e) { if (e.code !== "ENOENT") log("hints read error:", e.message); }
 } else log("DATA_DIR не задан — подсказки не переживут перезапуск");
+
+// The last good snapshot is also kept on disk, so after a restart the page shows it right away
+// instead of waiting for a full collection (several minutes)
+const snapshotFile = env.DATA_DIR ? path.join(env.DATA_DIR, "snapshot.json") : null;
+if (snapshotFile) {
+  try { state.snapshot = JSON.parse(await readFile(snapshotFile, "utf8")); log("snapshot loaded from disk:", state.snapshot.updatedAt); }
+  catch (e) { if (e.code !== "ENOENT") log("snapshot read error:", e.message); }
+}
+
+async function saveSnapshot() {
+  if (!snapshotFile) return;
+  await mkdir(path.dirname(snapshotFile), { recursive: true });
+  await writeFile(snapshotFile + ".tmp", JSON.stringify(state.snapshot), "utf8");
+  await rename(snapshotFile + ".tmp", snapshotFile);
+}
 
 async function saveHints() {
   if (!hintsFile) return;
@@ -53,13 +68,19 @@ async function refresh() {
   state.lastAttemptAt = new Date().toISOString();
   const started = Date.now();
   try {
-    const snap = await collectSnapshot(createBitrix(config.webhook), config);
+    // Slow (big) pipelines are collected every SLOW_REFRESH_MINUTES; in between they come from the previous snapshot
+    const prev = state.snapshot;
+    const slowAt = prev && prev.slowUpdatedAt ? Date.parse(prev.slowUpdatedAt) : 0;
+    const withSlow = started - slowAt >= (config.slowRefreshMinutes - 1) * 60e3;
+    let snap = await collectSnapshot(createBitrix(config.webhook), config, { withSlow });
     // При ошибках отдельных запросов оставляем прежний снимок: на странице будет видно, что он устарел
     if (snap.batchErrors > 0) throw new Error(`Bitrix вернул ошибки в ${snap.batchErrors} запросах`);
+    snap = withSlow ? { ...snap, slowUpdatedAt: snap.updatedAt } : { ...mergeDealPipelines(snap, prev), slowUpdatedAt: prev && prev.slowUpdatedAt };
     state.snapshot = snap;
     state.lastError = null;
+    try { await saveSnapshot(); } catch (e) { log("snapshot save error:", e.message); }
     const summary = Object.entries(snap.views).map(([k, v]) => `${k} ${v.items.length}/${v.totalOpen}`).join(", ");
-    log(`collect ok: ${summary} in ${Math.round((Date.now() - started) / 1000)}s`);
+    log(`collect ok (${withSlow ? "full" : "fast"}): ${summary} in ${Math.round((Date.now() - started) / 1000)}s`);
   } catch (e) {
     state.lastError = e.message;
     log("collect error:", e.message);

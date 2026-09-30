@@ -573,6 +573,14 @@ table.moves { min-width: 900px; }
       const groups = sel.every((p) => p === pipes[0]) ? "Группы продаж B2C МСК и НСК" : sel.includes(pipes[0]) ? "Группы продаж и доппродаж B2C" : "Группа доппродаж B2C";
       $("sub").textContent = groups + " · открытые сделки без нашего касания: " + sel.map((p) => "«" + p.title + "» — больше " + thr(p.thresholdHours)).join(", ");
     }
+    // Big pipelines are collected every 30 minutes — say so and when they were last updated
+    const slowSel = sel ? sel.filter((p) => p.slow && p.updatedAt) : [];
+    if (slowSel.length) {
+      const names = slowSel.map((p) => "«" + p.title + "»").join(" и ");
+      const at = fmt.format(new Date(Math.min(...slowSel.map((p) => Date.parse(p.updatedAt)))));
+      $("note").textContent = NOTE_TOUCH + " " + (slowSel.length > 1 ? "Воронки " + names + " большие, их данные обновляются" : "Воронка " + names + " большая, её данные обновляются") +
+        " раз в 30 минут (последний раз — " + at + " МСК).";
+    }
     $("s-crit-l").textContent = "без касаний " + lv.crit;
     $("legend").replaceChildren(...["warn", "high", "crit"].map((c, i) => el("span", {}, el("i", { style: "background:var(--" + c + ")" }), lv.legend[i])));
     const openTotal = shownManagers.reduce((a, m) => a + open(m.id), 0);

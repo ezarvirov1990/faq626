@@ -25,20 +25,46 @@ export function loadConfig(env) {
     // Чьи переносы сроков задач не показываем (руководитель)
     taskMoveExclude: (env.TASK_MOVE_EXCLUDE ?? "77").split(",").map((s) => Number(s.trim())).filter(Boolean),
     refreshMinutes: Number(env.REFRESH_MINUTES || 10),
+    slowRefreshMinutes: Number(env.SLOW_REFRESH_MINUTES || 30),
   };
 }
 
 // Deal pipelines on the «Сделки» tab. A pipeline without `departments` belongs to the main groups
 // (DEPARTMENTS) and also feeds «Задачи» and «Лента событий»; the others show up on «Сделки» only.
 // days — how long without our touch before a deal is listed (deals have a slower rhythm than leads).
+// slow — big pipelines collected less often (SLOW_REFRESH_MINUTES); in between the server reuses the previous result.
 export function parseDealPipelines(env) {
   if (env.DEAL_PIPELINES) return JSON.parse(env.DEAL_PIPELINES);
   return [
     { id: Number(env.DEAL_CATEGORY_ID || 27), days: Number(env.DEAL_THRESHOLD_DAYS || 30) }, // «В2С Продажа»
-    { id: 65, days: 14, departments: [206], excludeUsers: [77] }, // «B2C Допродажа», upsell group without the head
+    { id: 65, days: 14, departments: [206], excludeUsers: [77], slow: true }, // «B2C Допродажа», upsell group without the head
     // «ГенКонф2026»: once the ticket is bought there is nothing to push
-    { id: 53, days: 30, departments: [206], excludeUsers: [77], skipStages: ["Купили билет", "Подтвердили визит", "Посетил мероприятие"] },
+    { id: 53, days: 30, departments: [206], excludeUsers: [77], slow: true, skipStages: ["Купили билет", "Подтвердили визит", "Посетил мероприятие"] },
   ];
+}
+
+// Fast collections skip slow pipelines: carry them over from the previous snapshot into the fresh deals view
+export function mergeDealPipelines(fresh, prev) {
+  const f = fresh.views.deals;
+  const p = prev && prev.views && prev.views.deals;
+  if (!f || !p || !p.pipelines) return fresh;
+  const have = new Set(f.pipelines.map((x) => x.id));
+  const carry = p.pipelines.filter((x) => !have.has(x.id));
+  if (!carry.length) return fresh;
+  const carried = new Set(carry.map((x) => x.id));
+  const pipelines = [...f.pipelines, ...carry];
+  const openByManager = {};
+  for (const x of pipelines) for (const [id, n] of Object.entries(x.openByManager)) openByManager[id] = (openByManager[id] || 0) + n;
+  const extra = new Map([...(p.extraManagers || []), ...(f.extraManagers || [])].map((m) => [m.id, m]));
+  const deals = {
+    ...f,
+    pipelines,
+    openByManager,
+    totalOpen: pipelines.reduce((a, x) => a + x.totalOpen, 0),
+    items: [...f.items, ...p.items.filter((x) => carried.has(x.pipeline))].sort((a, b) => a.silentSince.localeCompare(b.silentSince)),
+    extraManagers: [...extra.values()].sort((a, b) => a.name.localeCompare(b.name, "ru")),
+  };
+  return { ...fresh, views: { ...fresh.views, deals } };
 }
 
 // Stage ids whose names start with any of the given prefixes
@@ -100,7 +126,7 @@ export function createBitrix(webhook) {
   return { call, list, batch, portal: new URL(base).origin };
 }
 
-export async function collectSnapshot(bx, config) {
+export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
   const now = Date.now();
   const { departments } = config;
 
@@ -129,6 +155,7 @@ export async function collectSnapshot(bx, config) {
   }];
   const extraManagers = new Map(); // people who appear on «Сделки» only
   for (const p of config.dealPipelines) {
+    if (p.slow && !withSlow) continue;
     let ownerIds = managerIds;
     if (p.departments) {
       const own = new Map();
@@ -142,7 +169,7 @@ export async function collectSnapshot(bx, config) {
       title: category.name.replace(/^[^\p{L}\p{N}]+/u, "").trim(), crmType: "DEAL", ownerTypeId: 2,
       listMethod: "crm.deal.list", stageField: "STAGE_ID", stageEntity: `DEAL_STAGE_${p.id}`,
       filter: { CATEGORY_ID: p.id, STAGE_SEMANTIC_ID: "P" }, extraSelect: [],
-      thresholdHours: p.days * 24, ownerIds, skipStages: p.skipStages,
+      thresholdHours: p.days * 24, ownerIds, skipStages: p.skipStages, slow: Boolean(p.slow),
     });
   }
 
@@ -282,7 +309,12 @@ export async function collectSnapshot(bx, config) {
     view.totalOpen += items.length;
     for (const [id, n] of Object.entries(openByManager)) view.openByManager[id] = (view.openByManager[id] || 0) + n;
     view.items.push(...rows);
-    if (spec.pipeline) view.pipelines.push({ id: spec.pipeline, title: spec.title, thresholdHours: spec.thresholdHours, totalOpen: items.length, openByManager });
+    if (spec.pipeline) {
+      view.pipelines.push({
+        id: spec.pipeline, title: spec.title, thresholdHours: spec.thresholdHours, totalOpen: items.length, openByManager,
+        slow: spec.slow, updatedAt: new Date(now).toISOString(),
+      });
+    }
   }
   for (const v of Object.values(views)) v.items.sort((a, b) => a.silentSince.localeCompare(b.silentSince));
   if (views.deals) views.deals.extraManagers = [...extraManagers.values()].sort((a, b) => a.name.localeCompare(b.name, "ru"));
