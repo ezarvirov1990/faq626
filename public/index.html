@@ -451,7 +451,9 @@ table.moves { min-width: 900px; }
       const b = el("button", { type: "button", class: "mgr", "aria-pressed": String(state.manager === m.id), title: "Показать события менеджера" },
         el("div", { class: "mgr-top" },
           el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: m.group.replace("Группа продаж ", "") })),
-          el("span", { class: "dot " + (st.online ? "on" : "off"), text: st.online ? "в сети" : st.lastSeenAt ? "был(а) в " + hm.format(new Date(st.lastSeenAt)) : "не в сети" })),
+          el("span", { class: "dot " + (st.online && !st.absentUntil ? "on" : "off"),
+            text: st.absentUntil ? "отсутствует до " + fmt.format(new Date(st.absentUntil)).slice(0, 5)
+              : st.online ? "в сети" : st.lastSeenAt ? "был(а) в " + hm.format(new Date(st.lastSeenAt)) : "не в сети" })),
         el("div", { class: "mgr-meta", text: "Последняя активность: " + (last ? hm.format(new Date(last.at)) + " · " + ago(now - last.at) : "сегодня не было") }),
         last ? el("div", { class: "mgr-last", text: evText(last) }) : null,
         parts.length ? el("div", { class: "counts" }, ...parts.map(([i, n, t]) => el("span", { title: t, text: i + " " + n }))) : null);

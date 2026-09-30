@@ -113,6 +113,10 @@ export async function collectLive(bx, managers, { now = Date.now(), tasksSince }
 
   const users = (await bx.call("user.get", { FILTER: { ID: ids } })).result || [];
   const online = Object.fromEntries(users.map((u) => [Number(u.ID), u.IS_ONLINE === "Y"]));
+  // Отметка в графике отсутствий Bitrix24 (отпуск, выходной): absent — до какого момента
+  const imUsers = (await bx.call("im.user.list.get", { ID: ids })).result || {};
+  const absent = {};
+  for (const [id, u] of Object.entries(imUsers)) if (u && u.absent && Date.parse(u.absent) > now) absent[Number(id)] = u.absent;
 
   const calls = await bx.list("voximplant.statistic.get", { FILTER: { PORTAL_USER_ID: ids, ">=CALL_START_DATE": iso(since) } });
   for (const c of calls) { const e = callEvent(c); if (e && idSet.has(e.managerId)) events.push(e); }
@@ -145,5 +149,5 @@ export async function collectLive(bx, managers, { now = Date.now(), tasksSince }
   const hist = await bx.batch(Object.fromEntries([...tasks.keys()].map((id) => ["h_" + id, `tasks.task.history.list?taskId=${id}`])));
   for (const [id, title] of tasks) events.push(...taskHistoryEvents(id, title, ((hist.out["h_" + id] || {}).list) || [], idSet, since));
 
-  return { day: since, online, events };
+  return { day: since, online, absent, events };
 }

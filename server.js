@@ -7,6 +7,7 @@ import { createBitrix, collectSnapshot, loadConfig } from "./collector.js";
 import { mergeHints } from "./hints.js";
 import { collectLive } from "./activity.js";
 import { mskDayStart } from "./tasks.js";
+import { decideAlerts, alertText, createMattermost } from "./alerts.js";
 
 const env = process.env;
 const config = loadConfig(env);
@@ -69,7 +70,39 @@ async function refresh() {
 
 // «Лента событий»: раз в минуту — кто в сети, звонки, стадии, правки, задачи. Сообщения и заметки — из снимка.
 // Всё живёт в памяти и только за сегодня (по Москве); «был в сети» сервер помнит с момента запуска.
-const live = { day: 0, events: new Map(), online: {}, lastSeen: {}, updatedAt: null, error: null, running: false, tasksCheckedAt: 0 };
+const live = { day: 0, events: new Map(), online: {}, absent: {}, lastSeen: {}, updatedAt: null, error: null, running: false, tasksCheckedAt: 0 };
+
+// Уведомления руководителю в Mattermost о 20 минутах тишины (alerts.js). Без переменных — выключены.
+// Открытые «простои» лежат на постоянном диске, чтобы после перезапуска не слать повторно.
+const mattermost = env.MATTERMOST_URL && env.MATTERMOST_TOKEN && env.ALERT_MM_USER
+  ? createMattermost({ url: env.MATTERMOST_URL, token: env.MATTERMOST_TOKEN }) : null;
+if (!mattermost) log("MATTERMOST_URL / MATTERMOST_TOKEN / ALERT_MM_USER не заданы — уведомления о тишине выключены");
+const alertsFile = env.DATA_DIR ? path.join(env.DATA_DIR, "alerts.json") : null;
+let alertsOpen = {};
+if (alertsFile) {
+  try { alertsOpen = JSON.parse(await readFile(alertsFile, "utf8")); } catch (e) { if (e.code !== "ENOENT") log("alerts read error:", e.message); }
+}
+
+async function runAlerts(now) {
+  if (!mattermost || !state.snapshot) return;
+  const p = activityPayload();
+  const { send, open } = decideAlerts({
+    now, managers: p.managers, events: p.events, absent: live.absent, open: alertsOpen,
+    messagesAt: Date.parse(state.snapshot.updatedAt),
+  });
+  alertsOpen = open;
+  if (alertsFile) {
+    await mkdir(path.dirname(alertsFile), { recursive: true });
+    await writeFile(alertsFile, JSON.stringify(alertsOpen), "utf8");
+  }
+  const feedUrl = env.PUBLIC_URL ? env.PUBLIC_URL.replace(/\/+$/, "") + "/#feed" : undefined;
+  for (const a of send) {
+    try {
+      await mattermost.direct(env.ALERT_MM_USER, alertText(a, { online: live.online[a.manager.id], feedUrl }));
+      log(`alert ${a.kind}: ${a.manager.name}`);
+    } catch (e) { log("alert send error:", e.message); }
+  }
+}
 
 async function refreshLive() {
   const managers = state.snapshot && state.snapshot.managers;
@@ -84,9 +117,11 @@ async function refreshLive() {
     for (const e of res.events) live.events.set(e.key, e);
     for (const [id, on] of Object.entries(res.online)) if (on) live.lastSeen[id] = started;
     live.online = res.online;
+    live.absent = res.absent;
     live.tasksCheckedAt = started;
     live.updatedAt = new Date(started).toISOString();
     live.error = null;
+    try { await runAlerts(Date.now()); } catch (e) { log("alerts error:", e.message); }
   } catch (e) {
     live.error = e.message;
     log("live error:", e.message);
@@ -105,7 +140,7 @@ function activityPayload() {
     messagesUpdatedAt: snap ? snap.updatedAt : null,
     error: live.error,
     managers: snap ? snap.managers : [],
-    online: Object.fromEntries(Object.entries(live.online).map(([id, on]) => [id, { online: on, lastSeenAt: live.lastSeen[id] ? new Date(live.lastSeen[id]).toISOString() : null }])),
+    online: Object.fromEntries(Object.entries(live.online).map(([id, on]) => [id, { online: on, lastSeenAt: live.lastSeen[id] ? new Date(live.lastSeen[id]).toISOString() : null, absentUntil: live.absent[id] || null }])),
     events: [...events.values()].sort((a, b) => b.at - a.at),
   };
 }
