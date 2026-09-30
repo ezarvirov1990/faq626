@@ -7,7 +7,7 @@ import { createBitrix, collectSnapshot, loadConfig, mergeDealPipelines } from ".
 import { mergeHints } from "./hints.js";
 import { collectLive } from "./activity.js";
 import { mskDayStart } from "./tasks.js";
-import { decideAlerts, alertText, createMattermost } from "./alerts.js";
+import { decideAlerts, alertText, createMattermost, recipientOnDuty } from "./alerts.js";
 
 const env = process.env;
 const config = loadConfig(env);
@@ -123,8 +123,11 @@ async function runAlerts(now) {
     await writeFile(alertsFile, JSON.stringify(alertsOpen), "utf8");
   }
   const feedUrl = env.PUBLIC_URL ? env.PUBLIC_URL.replace(/\/+$/, "") + "/#feed" : undefined;
-  // Руководителю шлём только «нет активности 20 минут» (решение 30.09.2026): без «снова в работе» и «смена началась, действий нет»
-  for (const a of send.filter((x) => x.kind === "silent")) {
+  // Руководителю шлём только «нет активности 20 минут» (решение 30.09.2026): без «снова в работе» и «смена началась, действий нет»,
+  // и только в её рабочее время; вне его простой помечен открытым, но не отправляется
+  const silent = send.filter((x) => x.kind === "silent");
+  if (silent.length && !recipientOnDuty(now)) { log(`alerts skipped (recipient off duty): ${silent.map((a) => a.manager.name).join(", ")}`); return; }
+  for (const a of silent) {
     try {
       await mattermost.direct(env.ALERT_MM_USER, alertText(a, { online: live.online[a.manager.id], feedUrl }));
       log(`alert ${a.kind}: ${a.manager.name}`);

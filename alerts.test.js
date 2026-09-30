@@ -1,6 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shiftNow, decideAlerts, alertText, SILENCE_MS } from "./alerts.js";
+import { shiftNow, decideAlerts, alertText, SILENCE_MS, recipientOnDuty } from "./alerts.js";
+
+test("alerts go to the head only Mon–Fri 9:00–19:00 Novosibirsk", () => {
+  const nsk = (s) => Date.parse(s + "+07:00");
+  assert.equal(recipientOnDuty(nsk("2026-09-30T09:00:00")), true); // Wednesday
+  assert.equal(recipientOnDuty(nsk("2026-09-30T18:59:00")), true);
+  assert.equal(recipientOnDuty(nsk("2026-09-30T08:59:00")), false);
+  assert.equal(recipientOnDuty(nsk("2026-09-30T19:00:00")), false);
+  assert.equal(recipientOnDuty(nsk("2026-10-03T12:00:00")), false); // Saturday
+  assert.equal(recipientOnDuty(nsk("2026-10-04T12:00:00")), false); // Sunday
+});
 
 const t = (s) => Date.parse(s);
 const NSK = { tz: 7, from: 10, to: 19, weekdays: true };

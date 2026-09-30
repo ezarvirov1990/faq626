@@ -17,6 +17,11 @@ export const SCHEDULES = {
   203760: MSK_2_2, 242224: MSK_2_2, 91397: MSK_2_2, 130142: MSK_2_2, // Муртазина, Ямщикова, Путятина, Радченко
 };
 
+// Working hours of the alert recipient (Мария Самусевич: Mon–Fri 9–19 Novosibirsk, decision 30.09.2026).
+// Outside them alerts are not sent and not queued: by the morning a pause is old news.
+export const RECIPIENT_HOURS = { tz: 7, from: 9, to: 19, weekdays: true };
+export const recipientOnDuty = (now, hours = RECIPIENT_HOURS) => Boolean(shiftNow(hours, now));
+
 // Смена сегодня, если сейчас рабочее время: { start, end } (мс) или null
 export function shiftNow(s, now) {
   const local = now + s.tz * HOUR;
