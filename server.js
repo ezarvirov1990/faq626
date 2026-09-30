@@ -89,9 +89,14 @@ async function refresh() {
   }
 }
 
-// «Лента событий»: раз в минуту — кто в сети, звонки, стадии, правки, задачи. Сообщения и заметки — из снимка.
+// «Лента событий»: every LIVE_SECONDS (30) — online, calls, stages, tasks, messages of changed dialogs;
+// notes of hot cards once a minute. The snapshot adds the full sweep of messages and notes.
 // Всё живёт в памяти и только за сегодня (по Москве); «был в сети» сервер помнит с момента запуска.
-const live = { day: 0, events: new Map(), online: {}, absent: {}, lastSeen: {}, updatedAt: null, error: null, running: false, tasksCheckedAt: 0 };
+const live = {
+  day: 0, events: new Map(), online: {}, absent: {}, lastSeen: {}, updatedAt: null, error: null, running: false, tasksCheckedAt: 0,
+  messagesAt: 0, notesAt: 0, chatCache: new Map(), watch: new Map(),
+};
+const LIVE_MS = Number(env.LIVE_SECONDS || 30) * 1e3;
 
 // Уведомления руководителю в Mattermost о 20 минутах тишины (alerts.js). Без переменных — выключены.
 // Открытые «простои» лежат на постоянном диске, чтобы после перезапуска не слать повторно.
@@ -109,7 +114,8 @@ async function runAlerts(now) {
   const p = activityPayload();
   const { send, open } = decideAlerts({
     now, managers: state.snapshot.managers, events: p.events, absent: live.absent, open: alertsOpen,
-    messagesAt: Date.parse(state.snapshot.updatedAt),
+    // messages are read live now; fall back to the snapshot if the live part hasn't run yet
+    messagesAt: Math.max(live.messagesAt || 0, Date.parse(state.snapshot.updatedAt)),
   });
   alertsOpen = open;
   if (alertsFile) {
@@ -141,14 +147,22 @@ async function refreshLive() {
   const started = Date.now();
   try {
     const day = mskDayStart(started);
-    if (day !== live.day) Object.assign(live, { day, events: new Map(), tasksCheckedAt: 0 });
-    // Историю задач перечитываем только по тем, что менялись с прошлого раза (с запасом 2 минуты)
-    const res = await collectLive(createBitrix(config.webhook), managers, { now: started, tasksSince: live.tasksCheckedAt - 2 * 60e3 });
+    if (day !== live.day) Object.assign(live, { day, events: new Map(), tasksCheckedAt: 0, watch: new Map() });
+    // Историю задач перечитываем только по тем, что менялись с прошлого раза (с запасом 2 минуты).
+    // Dialogs: those changed since the last check (1 min overlap; the first run looks 2 minutes back —
+    // earlier messages of the day come from the snapshot). Notes of hot cards — once a minute.
+    const notes = started - live.notesAt >= 60e3 - 5e3;
+    const res = await collectLive(createBitrix(config.webhook), managers, {
+      now: started, tasksSince: live.tasksCheckedAt - 2 * 60e3,
+      sessionsSince: (live.messagesAt || started - 60e3) - 60e3, chatCache: live.chatCache, watch: live.watch, notes,
+    });
     for (const e of res.events) live.events.set(e.key, e);
     for (const [id, on] of Object.entries(res.online)) if (on) live.lastSeen[id] = started;
     live.online = res.online;
     live.absent = res.absent;
     live.tasksCheckedAt = started;
+    live.messagesAt = started;
+    if (notes) live.notesAt = started;
     live.updatedAt = new Date(started).toISOString();
     live.error = null;
     try { await runAlerts(Date.now()); } catch (e) { log("alerts error:", e.message); }
@@ -246,4 +260,4 @@ const server = http.createServer((req, res) => {
 server.listen(config.port, () => log(`listening on ${config.port}, refresh every ${config.refreshMinutes} min`));
 refresh().then(refreshLive);
 setInterval(refresh, config.refreshMinutes * 60e3);
-setInterval(refreshLive, 60e3);
+setInterval(refreshLive, LIVE_MS);

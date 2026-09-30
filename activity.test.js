@@ -1,8 +1,27 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { managerIndex, messageEvents, taskHistoryEvents, cardEvents, callEvent, commentEvents } from "./activity.js";
+import { managerIndex, messageEvents, taskHistoryEvents, cardEvents, callEvent, commentEvents, sessionOwners, updateWatch, WATCH_MS } from "./activity.js";
 
 const t = (s) => Date.parse(s);
+
+test("changed dialogs point at their lead/deal cards, once each; contacts are ignored", () => {
+  const owners = sessionOwners([
+    { OWNER_TYPE_ID: "1", OWNER_ID: "617544" }, { OWNER_TYPE_ID: "2", OWNER_ID: "901068" },
+    { OWNER_TYPE_ID: "1", OWNER_ID: "617544" }, { OWNER_TYPE_ID: "3", OWNER_ID: "5" },
+  ]);
+  assert.deepEqual(owners, [{ entity: "lead", id: 617544 }, { entity: "deal", id: 901068 }]);
+});
+
+test("hot cards stay watched for 30 minutes after the last touch, newest first", () => {
+  const watch = new Map();
+  const now = t("2026-09-30T12:00:00+03:00");
+  updateWatch(watch, [{ entity: "deal", id: 1 }], now);
+  let hot = updateWatch(watch, [{ entity: "lead", id: 2 }], now + 10 * 60e3);
+  assert.deepEqual(hot.map((h) => h.id), [2, 1]);
+  hot = updateWatch(watch, [], now + WATCH_MS + 60e3); // deal 1 expired, lead 2 still hot
+  assert.deepEqual(hot.map((h) => h.id), [2]);
+  assert.equal(updateWatch(watch, [{ entity: "deal", id: 3 }, { entity: "deal", id: 4 }], now, 1).length, 1);
+});
 const since = t("2026-09-29T00:00:00+03:00");
 const index = managerIndex([{ id: 5, name: "Алсу Муртазина" }, { id: 7, name: "Кристина Носкова" }]);
 const ids = index.ids;

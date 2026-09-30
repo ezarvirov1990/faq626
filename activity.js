@@ -103,14 +103,40 @@ export function callEvent(c) {
   return { key: "call:" + (c.CALL_ID || c.ID), at, managerId: Number(c.PORTAL_USER_ID), kind: "call", outgoing, ok, seconds: Number(c.CALL_DURATION) || 0 };
 }
 
-// Быстрый сбор (раз в минуту): кто в сети, звонки, смены стадий, правки карточек, задачи.
-// tasksSince — с какого момента смотреть изменённые задачи (чтобы не перечитывать историю всех задач каждую минуту).
-export async function collectLive(bx, managers, { now = Date.now(), tasksSince } = {}) {
+// Cards (lead/deal) of Open Lines sessions (CRM activity IMOPENLINES_SESSION): its LAST_UPDATED moves
+// within a second of every new message, so changed sessions point at the chats worth re-reading
+export function sessionOwners(rows) {
+  const out = new Map();
+  for (const r of rows) {
+    const entity = { 1: "lead", 2: "deal" }[Number(r.OWNER_TYPE_ID)];
+    if (entity && Number(r.OWNER_ID)) out.set(entity + "_" + r.OWNER_ID, { entity, id: Number(r.OWNER_ID) });
+  }
+  return [...out.values()];
+}
+
+// Notes can't be listed by time, only per card. Cards with a recent call, message or stage move are
+// "hot": managers usually write the note right then, so we re-read their notes for a while.
+export const WATCH_MS = 30 * 60e3;
+export function updateWatch(watch, touched, now, limit = 400) {
+  for (const t of touched) watch.set(t.entity + "_" + t.id, { ...t, until: now + WATCH_MS });
+  for (const [k, v] of watch) if (v.until < now) watch.delete(k);
+  return [...watch.values()].sort((a, b) => b.until - a.until).slice(0, limit);
+}
+
+const CHAT_CACHE_MS = 6 * 3600e3;
+
+// Быстрый сбор (раз в 30 секунд): кто в сети, звонки, смены стадий, задачи, сообщения в изменившихся диалогах,
+// заметки в «горячих» карточках.
+// tasksSince — с какого момента смотреть изменённые задачи (чтобы не перечитывать историю всех задач каждый раз).
+// sessionsSince — с какого момента смотреть изменившиеся диалоги; chatCache (Map) — чаты карточек между вызовами;
+// watch (Map) — «горячие» карточки; notes — перечитать их заметки в этот раз.
+export async function collectLive(bx, managers, { now = Date.now(), tasksSince, sessionsSince, chatCache = new Map(), watch, notes = false } = {}) {
   const since = mskDayStart(now);
   const ids = managers.map((m) => m.id);
   const idSet = new Set(ids);
   const iso = (ms) => new Date(ms).toISOString();
   const events = [];
+  const touched = [];
 
   const users = (await bx.call("user.get", { FILTER: { ID: ids } })).result || [];
   const online = Object.fromEntries(users.map((u) => [Number(u.ID), u.IS_ONLINE === "Y"]));
@@ -119,8 +145,14 @@ export async function collectLive(bx, managers, { now = Date.now(), tasksSince }
   const absent = {};
   for (const [id, u] of Object.entries(imUsers)) if (u && u.absent && Date.parse(u.absent) > now) absent[Number(id)] = u.absent;
 
-  const calls = await bx.list("voximplant.statistic.get", { FILTER: { PORTAL_USER_ID: ids, ">=CALL_START_DATE": iso(since) } });
-  for (const c of calls) { const e = callEvent(c); if (e && idSet.has(e.managerId)) events.push(e); }
+  const calls = await bx.list("voximplant.statistic.get", { FILTER: { PORTAL_USER_ID: ids, ">=CALL_START_DATE": iso(since) } });  for (const c of calls) {
+    const e = callEvent(c);
+    if (!e || !idSet.has(e.managerId)) continue;
+    events.push(e);
+    // a recent call makes its card hot for notes
+    const entity = { LEAD: "lead", DEAL: "deal" }[c.CRM_ENTITY_TYPE];
+    if (entity && Number(c.CRM_ENTITY_ID) && e.at >= now - WATCH_MS) touched.push({ entity, id: Number(c.CRM_ENTITY_ID) });
+  }
 
   const stageNames = { lead: {}, deal: {} };
   for (const s of await bx.list("crm.status.list", {})) {
@@ -133,7 +165,50 @@ export async function collectLive(bx, managers, { now = Date.now(), tasksSince }
   ];
   for (const c of cards) {
     const rows = await bx.list(c.method, { filter: { ">=MOVED_TIME": iso(since), MOVED_BY_ID: ids }, select: ["ID", c.stage, "MOVED_TIME", "MOVED_BY_ID", "DATE_CREATE"] });
-    for (const row of rows) events.push(...cardEvents(c.entity, row, idSet, since, stageNames[c.entity][row[c.stage]], row[c.stage]));
+    for (const row of rows) {
+      events.push(...cardEvents(c.entity, row, idSet, since, stageNames[c.entity][row[c.stage]], row[c.stage]));
+      if (Date.parse(row.MOVED_TIME) >= now - WATCH_MS) touched.push({ entity: c.entity, id: Number(row.ID) });
+    }
+  }
+
+  // Messages: only dialogs whose session changed since the last check
+  if (sessionsSince) {
+    const index = managerIndex(managers);
+    const owners = sessionOwners(await bx.list("crm.activity.list", {
+      filter: { PROVIDER_ID: "IMOPENLINES_SESSION", ">=LAST_UPDATED": iso(sessionsSince) }, select: ["ID", "OWNER_TYPE_ID", "OWNER_ID"],
+    }));
+    touched.push(...owners);
+    const key = (o) => o.entity + "_" + o.id;
+    const need = owners.filter((o) => !(chatCache.get(key(o)) && chatCache.get(key(o)).at > now - CHAT_CACHE_MS));
+    const found = await bx.batch(Object.fromEntries(need.map((o) =>
+      ["c_" + key(o), `imopenlines.crm.chat.get?CRM_ENTITY_TYPE=${o.entity.toUpperCase()}&CRM_ENTITY=${o.id}&ACTIVE_ONLY=N`])));
+    for (const o of need) {
+      const r = found.out["c_" + key(o)];
+      if (r) chatCache.set(key(o), { at: now, chats: r.filter((c) => c && c.CHAT_ID).map((c) => String(c.CHAT_ID)) });
+    }
+    // Leads on automatic stages: everything in their chats is sent by robots
+    const leadIds = owners.filter((o) => o.entity === "lead").map((o) => o.id);
+    const autoLeads = new Set();
+    for (let i = 0; i < leadIds.length; i += 50) {
+      const r = await bx.call("crm.lead.list", { filter: { ID: leadIds.slice(i, i + 50) }, select: ["ID", "STATUS_ID"] });
+      for (const l of r.result || []) if (AUTO_LEAD_STAGES.has(l.STATUS_ID)) autoLeads.add(Number(l.ID));
+    }
+    const chats = new Map(); // chat id → auto
+    for (const o of owners) {
+      for (const c of (chatCache.get(key(o)) || { chats: [] }).chats) chats.set(c, chats.get(c) || (o.entity === "lead" && autoLeads.has(o.id)));
+    }
+    const msgs = await bx.batch(Object.fromEntries([...chats.keys()].map((c) => ["m_" + c, `im.dialog.messages.get?DIALOG_ID=chat${c}&LIMIT=50`])));
+    for (const [c, auto] of chats) if (msgs.out["m_" + c]) events.push(...messageEvents(msgs.out["m_" + c], index, since, auto));
+  }
+
+  // Notes in hot cards
+  if (watch) {
+    const hot = updateWatch(watch, touched, now);
+    if (notes && hot.length) {
+      const cm = await bx.batch(Object.fromEntries(hot.map((h) =>
+        [`cm_${h.entity}_${h.id}`, `crm.timeline.comment.list?filter[ENTITY_TYPE]=${h.entity}&filter[ENTITY_ID]=${h.id}&select[]=ID&select[]=CREATED&select[]=AUTHOR_ID`])));
+      for (const [k, rows] of Object.entries(cm.out)) events.push(...commentEvents(k.split("_")[1], rows || [], idSet, since));
+    }
   }
 
   const taskFrom = Math.max(since, tasksSince || since);
