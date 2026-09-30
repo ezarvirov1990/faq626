@@ -1,0 +1,23 @@
+[Unit]
+Description=faq626 dashboard «Без касаний B2C»
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=faq626
+WorkingDirectory=/opt/faq626
+EnvironmentFile=/etc/faq626.env
+Environment=PORT=3000 DATA_DIR=/var/lib/faq626/data NODE_ENV=production
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+MemoryMax=1500M
+# Hardening: the app only needs its data dir
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/faq626/data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
