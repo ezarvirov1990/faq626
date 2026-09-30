@@ -24,8 +24,10 @@ export function loadConfig(env) {
     dealPipelines: parseDealPipelines(env),
     // Чьи переносы сроков задач не показываем (руководитель)
     taskMoveExclude: (env.TASK_MOVE_EXCLUDE ?? "77").split(",").map((s) => Number(s.trim())).filter(Boolean),
-    refreshMinutes: Number(env.REFRESH_MINUTES || 10),
-    slowRefreshMinutes: Number(env.SLOW_REFRESH_MINUTES || 30),
+    // Leads/deals/tasks tabs: one full collection of all pipelines every 15 min is enough (decision 30.09.2026);
+    // the feed has its own 30-second live loop
+    refreshMinutes: Number(env.REFRESH_MINUTES || 15),
+    slowRefreshMinutes: Number(env.SLOW_REFRESH_MINUTES || 15),
   };
 }
 
