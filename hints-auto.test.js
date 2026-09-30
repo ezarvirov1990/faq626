@@ -1,6 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatText, mskTime, leadsNeedingHints, chatLines, parseHints, batches } from "./hints-auto.js";
+import { formatText, mskTime, leadsNeedingHints, chatLines, parseHints, batches, leadFacts } from "./hints-auto.js";
+
+test("facts: who wrote last, waiting client, unanswered messages, last call", () => {
+  const now = Date.parse("2026-09-30T12:00:00Z");
+  const dialog = (msgs) => ({ users: [{ id: 9, connector: true }, { id: 5 }], messages: msgs });
+  const waiting = leadFacts([dialog([
+    { author_id: 5, date: "2026-09-28T10:00:00Z", text: "Добрый день" },
+    { author_id: 9, date: "2026-09-30T08:20:00Z", text: "Сколько стоит?" },
+    { author_id: 9, date: "2026-09-30T09:00:00Z", text: "=== SYSTEM WZ === удалено" },
+  ])], [], now);
+  assert.ok(waiting.some((f) => f.includes("клиент ждёт ответа с 30.09.26 11:20")));
+  assert.ok(waiting.includes("Звонков не было."));
+  const silent = leadFacts([dialog([
+    { author_id: 9, date: "2026-09-27T09:00:00Z", text: "Изучу" },
+    { author_id: 5, date: "2026-09-27T16:00:00Z", text: "Напоминаю" },
+    { author_id: 9, date: "2026-09-28T09:00:00Z", text: "=== Исходящее сообщение, автор: Битрикс24 (Анна) === акция" },
+  ])], [{ CALL_START_DATE: "2026-09-28T10:00:00+03:00", CALL_DURATION: "27" }, {}], now);
+  assert.ok(silent.some((f) => f.includes("Последними писали МЫ; наших сообщений после последнего ответа клиента: 2")));
+  assert.ok(silent.some((f) => f.includes("разговор 27 с; всего звонков: 2")));
+  assert.deepEqual(leadFacts([], [], now), ["Переписки нет.", "Звонков не было."]);
+});
 import { createGigaChat } from "./gigachat.js";
 
 test("leads go to the model in batches", () => {
