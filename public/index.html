@@ -502,7 +502,7 @@ table.moves { min-width: 900px; }
     const tabs = $("tabs"); tabs.replaceChildren();
     for (const [key, v] of Object.entries(snap.views)) {
       const b = el("button", { type: "button", role: "tab", "aria-selected": String(key === state.view) },
-        el("span", { text: v.title }), el("span", { class: "cnt", text: String(pick(v).length) }));
+        el("span", { text: key === "deals" ? "Сделки" : v.title }), el("span", { class: "cnt", text: String(pick(v).length) }));
       b.addEventListener("click", () => { state.view = key; save(); render(); });
       tabs.append(b);
     }
