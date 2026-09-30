@@ -36,6 +36,8 @@ test("шаблонный дожим робота и служебные поме�
   const ev = messageEvents(dialog([
     msg(1, 5, "Добрый день! Лаборатория генетики MyGenetics) Актуально ли для Вас получить информацию по ДНК тестам?"),
     msg(2, 5, "=== SYSTEM WZ === Сообщение не доставлено"),
+    // upsell entry-stage automessage (feedback request with a promo code)
+    msg(3, 5, "Здравствуйте! Меня зовут Юлия, я менеджер компании MyGenetics. Мы хотели бы узнать о ваших впечатлениях от ДНК-тестирования: результатах отчета и консультации."),
   ]), index, since);
   assert.equal(ev.length, 0);
 });
