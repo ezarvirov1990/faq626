@@ -64,7 +64,15 @@ export function mergeDealPipelines(fresh, prev) {
     items: [...f.items, ...p.items.filter((x) => carried.has(x.pipeline))].sort((a, b) => a.silentSince.localeCompare(b.silentSince)),
     extraManagers: [...extra.values()].sort((a, b) => a.name.localeCompare(b.name, "ru")),
   };
-  return { ...fresh, views: { ...fresh.views, deals } };
+  // Feed: today's messages and notes of other pipelines' people come from the slow run — keep them
+  let activity = fresh.activity;
+  if (activity && prev.activity) {
+    const since = Date.parse(activity.since);
+    const keys = new Set(activity.events.map((e) => e.key));
+    const kept = prev.activity.events.filter((e) => extra.has(e.managerId) && e.at >= since && !keys.has(e.key));
+    activity = { ...activity, events: [...activity.events, ...kept] };
+  }
+  return { ...fresh, views: { ...fresh.views, deals }, ...(activity ? { activity } : {}) };
 }
 
 // Stage ids whose names start with any of the given prefixes
@@ -153,9 +161,10 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
     filter: { STATUS_SEMANTIC_ID: "P" }, extraSelect: ["HAS_PHONE"],
     thresholdHours: config.thresholdHours, ownerIds: managerIds,
   }];
-  const extraManagers = new Map(); // people who appear on «Сделки» only
+  // Other pipelines' people: on «Сделки» and «Лента событий», not on leads/tasks/alerts.
+  // Known on every run (a department list is cheap), even when their slow pipelines are skipped.
+  const extraManagers = new Map();
   for (const p of config.dealPipelines) {
-    if (p.slow && !withSlow) continue;
     let ownerIds = managerIds;
     if (p.departments) {
       const own = new Map();
@@ -163,6 +172,7 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
       for (const m of own.values()) if (!managers.has(m.id)) extraManagers.set(m.id, m);
       ownerIds = [...own.keys()];
     }
+    if (p.slow && !withSlow) continue;
     const category = (await bx.call("crm.category.get", { entityTypeId: 2, id: p.id })).result.category;
     specs.push({
       key: "deals", entity: "deal", pipeline: p.id, primary: !p.departments,
@@ -215,7 +225,7 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
   batchErrors += msgs.errors;
 
   // Для «Ленты событий»: сообщения менеджеров клиентам за сегодня
-  const index = managerIndex([...managers.values()]);
+  const index = managerIndex([...managers.values(), ...extraManagers.values()]);
   const daySince = mskDayStart(now);
   const activity = [];
   // Чаты лидов на автоматических стадиях («Недозвон третьи сутки», «Робот…»): там пишут роботы от имени менеджера
@@ -341,7 +351,6 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
   // Ошибки здесь не портят снимок — лента просто покажет меньше заметок.
   const commentCmds = {};
   for (const { spec, items } of loaded) {
-    if (!spec.primary) continue;
     for (const it of items) {
       commentCmds[`cm_${spec.entity}_${it.ID}`] =
         `crm.timeline.comment.list?filter[ENTITY_TYPE]=${spec.entity}&filter[ENTITY_ID]=${it.ID}&select[]=ID&select[]=CREATED&select[]=AUTHOR_ID`;

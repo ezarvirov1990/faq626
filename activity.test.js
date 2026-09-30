@@ -63,6 +63,16 @@ test("задачи роботов: создание и закрытие — не
   assert.equal(ev[0].at, t("2026-09-29T15:00:00+03:00"));
 });
 
+test("upsell robot tasks: creating and closing are not events", () => {
+  for (const title of ["Первая допродажа", "Вторая попытка допродать"]) {
+    const ev = taskHistoryEvents(12, title, [
+      h(1, "NEW", 5, "2026-09-30T09:06:50+03:00"),
+      h(2, "STATUS", 5, "2026-09-30T10:51:54+03:00", "2", "5"),
+    ], ids, since);
+    assert.deepEqual(ev, [], title);
+  }
+});
+
 test("в чате лида на автоматической стадии сообщения от имени менеджера — не события", () => {
   const d = dialog([msg(1, 5, "Здравствуйте! Подскажите, удобно созвониться?")]);
   assert.equal(messageEvents(d, index, since, true).length, 0);

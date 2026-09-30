@@ -108,7 +108,7 @@ async function runAlerts(now) {
   if (!mattermost || !state.snapshot) return;
   const p = activityPayload();
   const { send, open } = decideAlerts({
-    now, managers: p.managers, events: p.events, absent: live.absent, open: alertsOpen,
+    now, managers: state.snapshot.managers, events: p.events, absent: live.absent, open: alertsOpen,
     messagesAt: Date.parse(state.snapshot.updatedAt),
   });
   alertsOpen = open;
@@ -126,8 +126,16 @@ async function runAlerts(now) {
   }
 }
 
+// Feed covers the main groups plus other pipelines' people (upsell group); alerts stay with the main groups
+function feedManagers() {
+  const snap = state.snapshot;
+  if (!snap) return null;
+  const extra = (snap.views.deals && snap.views.deals.extraManagers) || [];
+  return [...snap.managers, ...extra.filter((m) => !snap.managers.some((x) => x.id === m.id))];
+}
+
 async function refreshLive() {
-  const managers = state.snapshot && state.snapshot.managers;
+  const managers = feedManagers();
   if (live.running || !config.webhook || !managers) return;
   live.running = true;
   const started = Date.now();
@@ -161,7 +169,7 @@ function activityPayload() {
     updatedAt: live.updatedAt,
     messagesUpdatedAt: snap ? snap.updatedAt : null,
     error: live.error,
-    managers: snap ? snap.managers : [],
+    managers: feedManagers() || [],
     online: Object.fromEntries(Object.entries(live.online).map(([id, on]) => [id, { online: on, lastSeenAt: live.lastSeen[id] ? new Date(live.lastSeen[id]).toISOString() : null, absentUntil: live.absent[id] || null }])),
     events: [...events.values()].sort((a, b) => b.at - a.at),
   };

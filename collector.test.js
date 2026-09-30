@@ -22,6 +22,21 @@ test("fast collection carries slow pipelines over from the previous snapshot", (
   assert.deepEqual(d.extraManagers.map((m) => m.id), [9]);
 });
 
+test("fast collection keeps today's feed events of other pipelines' people", () => {
+  const today = Date.parse("2026-09-30T00:00:00+03:00");
+  const ev = (key, managerId, at) => ({ key, managerId, at, kind: "msg" });
+  const prev = {
+    views: { deals: { pipelines: [pipe(27, {}), pipe(65, {}, true)], items: [], extraManagers: [{ id: 9, name: "Юлия" }] } },
+    activity: { since: new Date(today).toISOString(), events: [ev("msg:1", 9, today + 1e3), ev("msg:2", 1, today + 2e3), ev("msg:0", 9, today - 1e3)] },
+  };
+  const fresh = {
+    views: { deals: { pipelines: [pipe(27, {})], items: [], extraManagers: [{ id: 9, name: "Юлия" }] } },
+    activity: { since: new Date(today).toISOString(), events: [ev("msg:3", 1, today + 3e3)] },
+  };
+  const keys = mergeDealPipelines(fresh, prev).activity.events.map((e) => e.key).sort();
+  assert.deepEqual(keys, ["msg:1", "msg:3"]); // main-group events come fresh; yesterday's are dropped
+});
+
 test("nothing to carry over: fresh snapshot stays as is", () => {
   const fresh = { views: { deals: { pipelines: [pipe(27, {}), pipe(65, {}, true)], items: [] } } };
   assert.equal(mergeDealPipelines(fresh, { views: { deals: { pipelines: [pipe(27, {})], items: [] } } }), fresh);

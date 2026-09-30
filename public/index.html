@@ -393,7 +393,7 @@ table.moves { min-width: 900px; }
   }
 
   // «Лента событий»: что сегодня делали менеджеры и кто сейчас в сети
-  const NOTE_FEED = "Лента — действия менеджеров групп продаж B2C за сегодня (по Москве): сообщения клиентам в чатах Открытых линий, звонки, смена стадии лидов и сделок, заметки в карточках, задачи (новые, закрытые, перенос срока). Не учитывается автоматика, даже если Bitrix24 записал её на менеджера: ответы бота Suvvy, автосообщения и перемещения на стадиях «Недозвон третьи сутки» и «Робот…», шаблонные дожимы, назначение ответственного (и переход лида на «Взят в работу» вместе с ним), создание и закрытие задач роботов («Первые сутки…», «Контроль…», «Оказать консультацию…»). «В сети» — статус из Bitrix24. Звонки, стадии, правки и задачи обновляются раз в минуту, сообщения и заметки — раз в 10 минут. Просмотр карточек Bitrix24 не записывает, поэтому его в ленте нет.";
+  const NOTE_FEED = "Лента — действия менеджеров групп продаж и доппродаж B2C за сегодня (по Москве): сообщения клиентам в чатах Открытых линий, звонки, смена стадии лидов и сделок, заметки в карточках, задачи (новые, закрытые, перенос срока). Не учитывается автоматика, даже если Bitrix24 записал её на менеджера: ответы бота Suvvy, автосообщения и перемещения на стадиях «Недозвон третьи сутки» и «Робот…», шаблонные дожимы, назначение ответственного (и переход лида на «Взят в работу» вместе с ним), создание и закрытие задач роботов («Первые сутки…», «Контроль…», «Оказать консультацию…»). «В сети» — статус из Bitrix24. Звонки, стадии, правки и задачи обновляются раз в минуту, сообщения и заметки — раз в 10 минут (в воронках «B2C Допродажа» и «ГенКонф2026» — раз в 30 минут). Просмотр карточек Bitrix24 не записывает, поэтому его в ленте нет.";
   const hm = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
   const talk = (s) => (s >= 60 ? Math.round(s / 60) + " мин" : s + " с");
   const card2 = (e, lead, deal) => (e.entity === "deal" ? deal : lead);
@@ -421,7 +421,7 @@ table.moves { min-width: 900px; }
     const talkMin = Math.round(calls.reduce((a, e) => a + (e.ok ? e.seconds : 0), 0) / 60);
 
     $("title").textContent = "Лента событий";
-    $("sub").textContent = "Группы продаж B2C МСК и НСК · что менеджеры делали сегодня и кто сейчас в Bitrix24";
+    $("sub").textContent = "Группы продаж B2C МСК, НСК и доппродаж · что менеджеры делали сегодня и кто сейчас в Bitrix24";
     const onlineNow = managers.filter((m) => on(m.id).online).length;
     $("s-total").textContent = onlineNow;
     $("s-total-l").textContent = "в сети сейчас из " + managers.length;
@@ -498,10 +498,10 @@ table.moves { min-width: 900px; }
     if (!snap || !snap.views) return;
     const isFeed = state.view === "feed" && Boolean(state.activity);
     if (!isFeed && (state.view === "tasks" ? !snap.tasks : !snap.views[state.view])) state.view = Object.keys(snap.views)[0];
-    // The upsell group and the pipeline switcher exist on «Сделки» only
+    // The upsell group is on «Сделки» and «Лента событий»; the pipeline switcher — on «Сделки» only
     const isDeals = !isFeed && state.view === "deals";
-    if (!isDeals && state.grp === "доппродаж") state.grp = "";
-    $("grp-upsell").hidden = !isDeals;
+    if (!isDeals && !isFeed && state.grp === "доппродаж") state.grp = "";
+    $("grp-upsell").hidden = !isDeals && !isFeed;
     for (const b of document.querySelectorAll("#grp button")) b.setAttribute("aria-pressed", String(b.dataset.grp === state.grp));
 
     const now = Date.now();
@@ -552,7 +552,7 @@ table.moves { min-width: 900px; }
     $("legend").hidden = isTasks || isFeed;
     document.querySelector(".stats").classList.toggle("neutral", isFeed);
     $("note").textContent = isFeed ? NOTE_FEED : isTasks ? NOTE_TASKS : NOTE_TOUCH;
-    if (isFeed) return renderFeed(managers, mgrById, inGrp, now);
+    if (isFeed) return renderFeed([...snap.managers, ...extra.filter((m) => !snap.managers.some((x) => x.id === m.id))].filter(inGrp), mgrById, inGrp, now);
     if (isTasks) return renderTasks(snap, managers, mgrById, inGrp, now);
 
     const view = snap.views[state.view];
