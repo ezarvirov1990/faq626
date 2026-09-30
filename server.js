@@ -96,7 +96,8 @@ async function runAlerts(now) {
     await writeFile(alertsFile, JSON.stringify(alertsOpen), "utf8");
   }
   const feedUrl = env.PUBLIC_URL ? env.PUBLIC_URL.replace(/\/+$/, "") + "/#feed" : undefined;
-  for (const a of send) {
+  // Руководителю шлём только «нет активности 20 минут» (решение 30.09.2026): без «снова в работе» и «смена началась, действий нет»
+  for (const a of send.filter((x) => x.kind === "silent")) {
     try {
       await mattermost.direct(env.ALERT_MM_USER, alertText(a, { online: live.online[a.manager.id], feedUrl }));
       log(`alert ${a.kind}: ${a.manager.name}`);
