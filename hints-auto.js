@@ -147,7 +147,9 @@ async function main() {
   const started = Date.now();
   const snap = await (await fetch(base + "/api/snapshot", { headers: { authorization: auth } })).json();
   if (!snap.snapshot) { console.log("hints: dashboard has no snapshot yet"); return; }
-  const ids = leadsNeedingHints(snap.snapshot, snap.hints || {}, Number(env.HINTS_MAX || 20));
+  // HINTS_IDS=1,2,3 — hint these leads regardless of their state (for quality checks, with HINTS_DRY_RUN)
+  const ids = env.HINTS_IDS ? env.HINTS_IDS.split(",").map(Number).filter(Boolean)
+    : leadsNeedingHints(snap.snapshot, snap.hints || {}, Number(env.HINTS_MAX || 20));
   if (!ids.length) { console.log("hints: no leads need a hint"); return; }
   const bx = createBitrix(env.BITRIX_WEBHOOK);
   const giga = createGigaChat({ authKey: env.GIGACHAT_AUTH_KEY, scope: env.GIGACHAT_SCOPE });
