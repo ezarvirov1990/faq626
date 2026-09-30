@@ -21,7 +21,15 @@ export const PROMPT = `Ты помогаешь руководителю отде
 - next — конкретный следующий шаг менеджеру (что написать или сделать, в какой канал).
 Правила: по-русски, каждое поле не длиннее 400 символов; только факты из выгрузки, ничего не выдумывать; если данных мало — так и написать («переписки нет, клиент не отвечал — позвонить»);
 в next не называть по имени, кто должен сделать шаг: подсказку читает ответственный менеджер из поля «Менеджер» (в переписке могли писать другие сотрудники);
-не писать телефоны, e-mail и адреса клиентов; никаких медицинских утверждений и диагнозов; служебные пометки Wazzup — это недоставка, а не ответ клиента.`;
+не писать телефоны, e-mail и адреса клиентов; никаких медицинских утверждений и диагнозов; служебные пометки Wazzup — это недоставка, а не ответ клиента.
+Подробность: каждое поле — 2–3 полных предложения (150–350 символов) с датами, названиями тестов и суммами из выгрузки.
+В outcome обязательно: кто написал последним (клиент или мы) и когда; если последним писал клиент — прямо написать «клиент ждёт ответа с <дата>».
+Переписка может тянуться месяцами: не путай старые сообщения с последними, смотри на даты; сегодняшняя дата указана ниже.`;
+
+// Prompt for a batch: rules, today's date (models don't know it) and the lead ids
+export function buildPrompt(ids, now = Date.now()) {
+  return `${PROMPT}\nСегодня: ${mskTime(now).slice(0, 8)} (по Москве).\nЛиды: ${ids.join(", ")}`;
+}
 
 export function formatText(s) {
   return String(s || "")
@@ -158,7 +166,7 @@ async function main() {
   for (const part of batches(ids, Number(env.HINTS_BATCH || 5))) {
     try {
       const context = await leadsContext(bx, part);
-      const { text, usage } = await giga.complete(`${PROMPT}\nЛиды: ${part.join(", ")}\n\n=== ВЫГРУЗКА ===\n${context}`, { model: env.HINTS_MODEL || "GigaChat-2-Pro" });
+      const { text, usage } = await giga.complete(`${buildPrompt(part)}\n\n=== ВЫГРУЗКА ===\n${context}`, { model: env.HINTS_MODEL || "GigaChat-2-Pro" });
       tokens += Number(usage.total_tokens) || 0;
       Object.assign(hints, parseHints(text, part));
     } catch (e) {
