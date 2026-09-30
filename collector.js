@@ -20,14 +20,30 @@ export function loadConfig(env) {
     user: env.DASHBOARD_USER || "mygenetics",
     password: env.DASHBOARD_PASSWORD,
     departments: (env.DEPARTMENTS || "256,198").split(",").map((s) => Number(s.trim())).filter(Boolean),
-    dealCategoryId: Number(env.DEAL_CATEGORY_ID || 27),
     thresholdHours: Number(env.THRESHOLD_HOURS || 48),
-    // У сделок другой ритм работы: в список попадают только те, где нас не было больше месяца
-    dealThresholdDays: Number(env.DEAL_THRESHOLD_DAYS || 30),
+    dealPipelines: parseDealPipelines(env),
     // Чьи переносы сроков задач не показываем (руководитель)
     taskMoveExclude: (env.TASK_MOVE_EXCLUDE ?? "77").split(",").map((s) => Number(s.trim())).filter(Boolean),
     refreshMinutes: Number(env.REFRESH_MINUTES || 10),
   };
+}
+
+// Deal pipelines on the «Сделки» tab. A pipeline without `departments` belongs to the main groups
+// (DEPARTMENTS) and also feeds «Задачи» and «Лента событий»; the others show up on «Сделки» only.
+// days — how long without our touch before a deal is listed (deals have a slower rhythm than leads).
+export function parseDealPipelines(env) {
+  if (env.DEAL_PIPELINES) return JSON.parse(env.DEAL_PIPELINES);
+  return [
+    { id: Number(env.DEAL_CATEGORY_ID || 27), days: Number(env.DEAL_THRESHOLD_DAYS || 30) }, // «В2С Продажа»
+    { id: 65, days: 14, departments: [206], excludeUsers: [77] }, // «B2C Допродажа», upsell group without the head
+    // «ГенКонф2026»: once the ticket is bought there is nothing to push
+    { id: 53, days: 30, departments: [206], excludeUsers: [77], skipStages: ["Купили билет", "Подтвердили визит", "Посетил мероприятие"] },
+  ];
+}
+
+// Stage ids whose names start with any of the given prefixes
+export function skipStageIds(stages, prefixes = []) {
+  return new Set(Object.entries(stages).filter(([, name]) => prefixes.some((p) => String(name).startsWith(p))).map(([id]) => id));
 }
 
 export function createBitrix(webhook) {
@@ -84,46 +100,51 @@ export function createBitrix(webhook) {
   return { call, list, batch, portal: new URL(base).origin };
 }
 
-// Что и откуда берём для каждого вида
-function entitySpecs(config, dealCategoryName) {
-  return [
-    {
-      key: "leads", entity: "lead", title: "Лиды", crmType: "LEAD", ownerTypeId: 1,
-      listMethod: "crm.lead.list", stageField: "STATUS_ID", stageEntity: "STATUS",
-      filter: { STATUS_SEMANTIC_ID: "P" }, extraSelect: ["HAS_PHONE"],
-      thresholdHours: config.thresholdHours,
-    },
-    {
-      key: "deals", entity: "deal", title: dealCategoryName, crmType: "DEAL", ownerTypeId: 2,
-      listMethod: "crm.deal.list", stageField: "STAGE_ID", stageEntity: `DEAL_STAGE_${config.dealCategoryId}`,
-      filter: { CATEGORY_ID: config.dealCategoryId, STAGE_SEMANTIC_ID: "P" }, extraSelect: [],
-      thresholdHours: config.dealThresholdDays * 24,
-    },
-  ];
-}
-
 export async function collectSnapshot(bx, config) {
   const now = Date.now();
   const { departments } = config;
 
-  // Менеджеры выбранных групп — состав читается при каждом сборе
-  const managers = new Map();
-  for (const dep of departments) {
-    const depInfo = (await bx.call("department.get", { ID: dep })).result[0];
-    const users = await bx.list("user.get", { FILTER: { ACTIVE: true, UF_DEPARTMENT: dep } });
-    for (const u of users) {
-      if (managers.has(Number(u.ID))) continue;
-      managers.set(Number(u.ID), {
-        id: Number(u.ID),
-        name: `${u.NAME || ""} ${u.LAST_NAME || ""}`.trim(),
-        group: depInfo ? depInfo.NAME : String(dep),
-      });
+  // Active members of a department — read on every collection
+  const deptCache = new Map();
+  async function deptMembers(dep) {
+    if (!deptCache.has(dep)) {
+      const depInfo = (await bx.call("department.get", { ID: dep })).result[0];
+      const users = await bx.list("user.get", { FILTER: { ACTIVE: true, UF_DEPARTMENT: dep } });
+      deptCache.set(dep, users.map((u) => ({ id: Number(u.ID), name: `${u.NAME || ""} ${u.LAST_NAME || ""}`.trim(), group: depInfo ? depInfo.NAME : String(dep) })));
     }
+    return deptCache.get(dep);
   }
+
+  // Менеджеры выбранных групп
+  const managers = new Map();
+  for (const dep of departments) for (const m of await deptMembers(dep)) if (!managers.has(m.id)) managers.set(m.id, m);
   const managerIds = [...managers.keys()];
 
-  const category = (await bx.call("crm.category.get", { entityTypeId: 2, id: config.dealCategoryId })).result.category;
-  const specs = entitySpecs(config, category.name.replace(/^[^\p{L}\p{N}]+/u, "").trim());
+  // What to collect: leads of the main groups, then every deal pipeline with its own owners
+  const specs = [{
+    key: "leads", entity: "lead", title: "Лиды", crmType: "LEAD", ownerTypeId: 1, primary: true,
+    listMethod: "crm.lead.list", stageField: "STATUS_ID", stageEntity: "STATUS",
+    filter: { STATUS_SEMANTIC_ID: "P" }, extraSelect: ["HAS_PHONE"],
+    thresholdHours: config.thresholdHours, ownerIds: managerIds,
+  }];
+  const extraManagers = new Map(); // people who appear on «Сделки» only
+  for (const p of config.dealPipelines) {
+    let ownerIds = managerIds;
+    if (p.departments) {
+      const own = new Map();
+      for (const dep of p.departments) for (const m of await deptMembers(dep)) if (!(p.excludeUsers || []).includes(m.id)) own.set(m.id, m);
+      for (const m of own.values()) if (!managers.has(m.id)) extraManagers.set(m.id, m);
+      ownerIds = [...own.keys()];
+    }
+    const category = (await bx.call("crm.category.get", { entityTypeId: 2, id: p.id })).result.category;
+    specs.push({
+      key: "deals", entity: "deal", pipeline: p.id, primary: !p.departments,
+      title: category.name.replace(/^[^\p{L}\p{N}]+/u, "").trim(), crmType: "DEAL", ownerTypeId: 2,
+      listMethod: "crm.deal.list", stageField: "STAGE_ID", stageEntity: `DEAL_STAGE_${p.id}`,
+      filter: { CATEGORY_ID: p.id, STAGE_SEMANTIC_ID: "P" }, extraSelect: [],
+      thresholdHours: p.days * 24, ownerIds, skipStages: p.skipStages,
+    });
+  }
 
   // 1) Сущности, их чаты и последний звонок
   let batchErrors = 0;
@@ -132,10 +153,11 @@ export async function collectSnapshot(bx, config) {
     const stages = {};
     for (const s of (await bx.call("crm.status.list", { filter: { ENTITY_ID: spec.stageEntity } })).result) stages[s.STATUS_ID] = s.NAME;
 
-    const items = await bx.list(spec.listMethod, {
-      filter: { ...spec.filter, ASSIGNED_BY_ID: managerIds },
+    const skip = skipStageIds(stages, spec.skipStages);
+    const items = (await bx.list(spec.listMethod, {
+      filter: { ...spec.filter, ASSIGNED_BY_ID: spec.ownerIds },
       select: ["ID", spec.stageField, "ASSIGNED_BY_ID", "DATE_CREATE", ...spec.extraSelect],
-    });
+    })).filter((it) => !skip.has(it[spec.stageField]));
 
     const cmds = {};
     for (const it of items) {
@@ -143,7 +165,8 @@ export async function collectSnapshot(bx, config) {
       cmds["call_" + it.ID] =
         `crm.activity.list?filter[OWNER_TYPE_ID]=${spec.ownerTypeId}&filter[OWNER_ID]=${it.ID}&filter[TYPE_ID]=2` +
         `&order[CREATED]=DESC&select[]=ID&select[]=CREATED`;
-      cmds["task_" + it.ID] =
+      // Open tasks feed only the «Задачи» tab, which covers the main groups
+      if (spec.primary) cmds["task_" + it.ID] =
         `crm.activity.list?filter[OWNER_TYPE_ID]=${spec.ownerTypeId}&filter[OWNER_ID]=${it.ID}&filter[PROVIDER_ID]=CRM_TASKS_TASK` +
         `&filter[COMPLETED]=N&select[]=ID&select[]=DEADLINE`;
     }
@@ -206,6 +229,7 @@ export async function collectSnapshot(bx, config) {
     for (const it of items) {
       const managerId = Number(it.ASSIGNED_BY_ID);
       openByManager[managerId] = (openByManager[managerId] || 0) + 1;
+      const stage = stages[it[spec.stageField]] || it[spec.stageField];
 
       let lastOurMsg = 0, lastClient = 0;
       const touches = [];
@@ -219,15 +243,16 @@ export async function collectSnapshot(bx, config) {
       const lastCall = itemCalls.length ? Date.parse(itemCalls[0].CREATED) : 0;
       touches.push(...itemCalls.map((x) => Date.parse(x.CREATED)));
 
-      const stage = stages[it[spec.stageField]] || it[spec.stageField];
-      const ts = taskState(calls["task_" + it.ID] || [], now);
-      if (ts.kind !== "ok") {
-        taskItems.push({
-          entity: spec.entity, id: Number(it.ID), stage, managerId, kind: ts.kind,
-          deadline: ts.deadline ? new Date(ts.deadline).toISOString() : null,
-        });
+      if (spec.primary) {
+        const ts = taskState(calls["task_" + it.ID] || [], now);
+        if (ts.kind !== "ok") {
+          taskItems.push({
+            entity: spec.entity, id: Number(it.ID), stage, managerId, kind: ts.kind,
+            deadline: ts.deadline ? new Date(ts.deadline).toISOString() : null,
+          });
+        }
+        openItems.set(spec.crmType[0] + "_" + it.ID, { entity: spec.entity, id: Number(it.ID), stage, managerId, touches });
       }
-      openItems.set(spec.crmType[0] + "_" + it.ID, { entity: spec.entity, id: Number(it.ID), stage, managerId, touches });
 
       const lastTouch = Math.max(lastOurMsg, lastCall);
       const created = Date.parse(it.DATE_CREATE);
@@ -236,6 +261,7 @@ export async function collectSnapshot(bx, config) {
 
       rows.push({
         id: Number(it.ID),
+        ...(spec.pipeline ? { pipeline: spec.pipeline } : {}),
         stage,
         managerId,
         created: new Date(created).toISOString(),
@@ -248,15 +274,18 @@ export async function collectSnapshot(bx, config) {
         hasPhone: spec.extraSelect.includes("HAS_PHONE") ? it.HAS_PHONE === "Y" : null,
       });
     }
-    views[spec.key] = {
-      title: spec.title,
-      entity: spec.entity,
-      thresholdHours: spec.thresholdHours,
-      totalOpen: items.length,
-      openByManager,
-      items: rows.sort((a, b) => a.silentSince.localeCompare(b.silentSince)),
+    // All deal pipelines share one view; the first (main) pipeline sets its title and threshold
+    const view = views[spec.key] ||= {
+      title: spec.title, entity: spec.entity, thresholdHours: spec.thresholdHours, totalOpen: 0, openByManager: {}, items: [],
+      ...(spec.pipeline ? { pipelines: [] } : {}),
     };
+    view.totalOpen += items.length;
+    for (const [id, n] of Object.entries(openByManager)) view.openByManager[id] = (view.openByManager[id] || 0) + n;
+    view.items.push(...rows);
+    if (spec.pipeline) view.pipelines.push({ id: spec.pipeline, title: spec.title, thresholdHours: spec.thresholdHours, totalOpen: items.length, openByManager });
   }
+  for (const v of Object.values(views)) v.items.sort((a, b) => a.silentSince.localeCompare(b.silentSince));
+  if (views.deals) views.deals.extraManagers = [...extraManagers.values()].sort((a, b) => a.name.localeCompare(b.name, "ru"));
 
   // 4) Переносы сроков задач за вчера и сегодня (по Москве) по нашим открытым лидам и сделкам.
   // Изменённые задачи ищем по делам CRM: у задачи при переносе срока обновляется и её дело,
@@ -280,6 +309,7 @@ export async function collectSnapshot(bx, config) {
   // Ошибки здесь не портят снимок — лента просто покажет меньше заметок.
   const commentCmds = {};
   for (const { spec, items } of loaded) {
+    if (!spec.primary) continue;
     for (const it of items) {
       commentCmds[`cm_${spec.entity}_${it.ID}`] =
         `crm.timeline.comment.list?filter[ENTITY_TYPE]=${spec.entity}&filter[ENTITY_ID]=${it.ID}&select[]=ID&select[]=CREATED&select[]=AUTHOR_ID`;

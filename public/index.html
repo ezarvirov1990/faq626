@@ -175,10 +175,12 @@ table.moves { min-width: 900px; }
   </section>
 
   <div class="toolbar">
-    <div class="seg" role="group" aria-label="Группа">
+    <div class="seg" id="pipes" role="group" aria-label="Воронка" hidden></div>
+    <div class="seg" id="grp" role="group" aria-label="Группа">
       <button type="button" data-grp="" aria-pressed="true">Все группы</button>
       <button type="button" data-grp="МСК" aria-pressed="false">МСК</button>
       <button type="button" data-grp="НСК" aria-pressed="false">НСК</button>
+      <button type="button" data-grp="доппродаж" aria-pressed="false" id="grp-upsell" hidden>Доппродажи</button>
     </div>
     <label class="check" id="only-wait-box"><input type="checkbox" id="only-wait"> Только где клиент ждёт ответа</label>
   </div>
@@ -203,14 +205,14 @@ table.moves { min-width: 900px; }
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  const state = { snap: null, hints: {}, status: null, loadError: null, view: "leads", grp: "", onlyWait: false, manager: null, activity: null, feedLimit: 200 };
+  const state = { snap: null, hints: {}, status: null, loadError: null, view: "leads", grp: "", pipe: 0, onlyWait: false, manager: null, activity: null, feedLimit: 200 };
   try {
     const s = JSON.parse(localStorage.getItem("ldash") || "{}");
-    state.view = s.view || "leads"; state.grp = s.grp || ""; state.onlyWait = !!s.onlyWait;
+    state.view = s.view || "leads"; state.grp = s.grp || ""; state.pipe = Number(s.pipe) || 0; state.onlyWait = !!s.onlyWait;
   } catch (e) {}
   // Вкладку можно открыть по ссылке: …/#feed, #tasks, #leads, #deals
   if (/^#(feed|tasks|leads|deals)$/.test(location.hash)) state.view = location.hash.slice(1);
-  function save() { try { localStorage.setItem("ldash", JSON.stringify({ view: state.view, grp: state.grp, onlyWait: state.onlyWait })); } catch (e) {} }
+  function save() { try { localStorage.setItem("ldash", JSON.stringify({ view: state.view, grp: state.grp, pipe: state.pipe, onlyWait: state.onlyWait })); } catch (e) {} }
 
   const HOUR = 3600e3;
   const NOUNS = {
@@ -227,7 +229,15 @@ table.moves { min-width: 900px; }
     deal: { h: 60 * 24, c: 90 * 24, legend: ["30–60 дней", "60–90 дней", "больше 90 дней"], crit: "больше 90 дней", below: "до 90 дней" },
   };
   let lv = LEVELS.lead;
-  const sev = (h) => (h >= lv.c ? "c" : h >= lv.h ? "h" : "w");
+  // t — a deal pipeline's threshold: orange from 2×, red from 3× (30 days → 30–60 / 60–90 / 90+)
+  const sev = (h, t) => (t ? (h >= 3 * t ? "c" : h >= 2 * t ? "h" : "w") : h >= lv.c ? "c" : h >= lv.h ? "h" : "w");
+  const grpName = (g) => g.replace("Группа продаж ", "").replace("Группа доппродаж B2C", "Доппродажи B2C");
+  // Deal levels: exact days for one threshold, relative wording when pipelines with different thresholds are mixed
+  function dealLevels(ts) {
+    if (ts.length !== 1) return { legend: ["1–2 порога", "2–3 порога", "больше 3 порогов"], crit: "в красной зоне", below: "до красной зоны" };
+    const d = ts[0] / 24;
+    return { legend: [d + "–" + 2 * d + " дней", 2 * d + "–" + 3 * d + " дней", "больше " + 3 * d + " дней"], crit: "больше " + 3 * d + " дней", below: "до " + 3 * d + " дней" };
+  }
   const thr = (h) => (h >= 72 && h % 24 === 0 ? (h / 24) + " " + plural(h / 24, ["дня", "дней", "дней"]) : h + " " + plural(h, ["часа", "часов", "часов"]));
   function dur(h) {
     const d = Math.floor(h / 24), r = Math.floor(h % 24);
@@ -327,7 +337,7 @@ table.moves { min-width: 900px; }
         title: any ? "Показать список" : "Нарушений нет",
       },
         el("div", { class: "mgr-top" },
-          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: m.group.replace("Группа продаж ", "") })),
+          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: grpName(m.group) })),
           el("div", { class: "mgr-count" }, String(mv), el("small", { text: " " + plural(mv, ["перенос", "переноса", "переносов"]) }))),
         el("div", { class: "mgr-meta" }, el("span", { text: "Без задачи" }), el("span", { text: both(nn, "—") })),
         el("div", { class: "mgr-meta" }, el("span", { text: "Просрочено" }), el("span", { class: lt.length ? "wait" : "", text: both(lt, "—") })));
@@ -450,7 +460,7 @@ table.moves { min-width: 900px; }
       ].filter(([, n]) => n);
       const b = el("button", { type: "button", class: "mgr", "aria-pressed": String(state.manager === m.id), title: "Показать события менеджера" },
         el("div", { class: "mgr-top" },
-          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: m.group.replace("Группа продаж ", "") })),
+          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: grpName(m.group) })),
           el("span", { class: "dot " + (st.online && !st.absentUntil ? "on" : "off"),
             text: st.absentUntil ? "отсутствует до " + fmt.format(new Date(st.absentUntil)).slice(0, 5)
               : st.online ? "в сети" : st.lastSeenAt ? "был(а) в " + hm.format(new Date(st.lastSeenAt)) : "не в сети" })),
@@ -482,21 +492,39 @@ table.moves { min-width: 900px; }
   }
 
   function render() {
-    for (const b of document.querySelectorAll(".seg button")) b.setAttribute("aria-pressed", String(b.dataset.grp === state.grp));
     $("only-wait").checked = state.onlyWait;
     renderFresh();
     const snap = state.snap;
     if (!snap || !snap.views) return;
     const isFeed = state.view === "feed" && Boolean(state.activity);
     if (!isFeed && (state.view === "tasks" ? !snap.tasks : !snap.views[state.view])) state.view = Object.keys(snap.views)[0];
+    // The upsell group and the pipeline switcher exist on «Сделки» only
+    const isDeals = !isFeed && state.view === "deals";
+    if (!isDeals && state.grp === "доппродаж") state.grp = "";
+    $("grp-upsell").hidden = !isDeals;
+    for (const b of document.querySelectorAll("#grp button")) b.setAttribute("aria-pressed", String(b.dataset.grp === state.grp));
 
     const now = Date.now();
-    const mgrById = new Map(snap.managers.map((m) => [m.id, m]));
+    const dv = snap.views.deals || {};
+    const extra = dv.extraManagers || [];
+    const mgrById = new Map([...snap.managers, ...extra].map((m) => [m.id, m]));
     const inGrp = (m) => !state.grp || (m && m.group.includes(state.grp));
     const managers = snap.managers.filter(inGrp);
+    const pipes = dv.pipelines || [];
+    if (state.pipe && !pipes.some((p) => p.id === state.pipe)) state.pipe = 0;
+    const pipeById = new Map(pipes.map((p) => [p.id, p]));
     const pick = (v) => v.items
-      .map((x) => ({ ...x, hours: (now - Date.parse(x.silentSince)) / HOUR }))
+      .filter((x) => !x.pipeline || !state.pipe || x.pipeline === state.pipe)
+      .map((x) => ({ ...x, hours: (now - Date.parse(x.silentSince)) / HOUR, t: x.pipeline ? (pipeById.get(x.pipeline) || {}).thresholdHours : undefined }))
       .filter((x) => inGrp(mgrById.get(x.managerId)) && (!state.onlyWait || x.clientWaiting));
+
+    const pb = $("pipes");
+    pb.hidden = !isDeals || pipes.length < 2;
+    pb.replaceChildren(...[{ id: 0, title: "Все воронки" }, ...pipes].map((p) => {
+      const b = el("button", { type: "button", "aria-pressed": String(state.pipe === p.id) }, p.title);
+      b.addEventListener("click", () => { state.pipe = p.id; state.manager = null; save(); render(); });
+      return b;
+    }));
 
     // вкладки со счётчиками по текущим фильтрам
     const tabs = $("tabs"); tabs.replaceChildren();
@@ -530,33 +558,42 @@ table.moves { min-width: 900px; }
     const view = snap.views[state.view];
     const noun = NOUNS[view.entity] || NOUNS.lead;
     const items = pick(view);
-    const open = (id) => view.openByManager[id] || 0;
-    lv = LEVELS[view.entity] || LEVELS.lead;
-    const threshold = view.thresholdHours || snap.thresholdHours;
+    // Selected deal pipelines (all of them on «Все воронки»); leads have none
+    const sel = view.pipelines ? view.pipelines.filter((p) => !state.pipe || p.id === state.pipe) : null;
+    const open = (id) => sel ? sel.reduce((a, p) => a + (p.openByManager[id] || 0), 0) : view.openByManager[id] || 0;
+    const ts = sel ? [...new Set(sel.map((p) => p.thresholdHours))] : [];
+    lv = sel ? { ...LEVELS.deal, ...dealLevels(ts) } : LEVELS[view.entity] || LEVELS.lead;
+    const threshold = ts.length === 1 ? ts[0] : view.thresholdHours || snap.thresholdHours;
+    // On «Сделки» the cards are whoever owns open deals in the selected pipelines (incl. the upsell group)
+    const shownManagers = sel ? [...snap.managers, ...extra].filter((m) => inGrp(m) && open(m.id) > 0) : managers;
 
     $("title").textContent = noun.heading;
-    $("sub").textContent = "Группы продаж B2C МСК и НСК · " + (view.entity === "deal" ? "открытые сделки воронки «" + view.title + "»" : "открытые лиды") + " без нашего касания больше " + thr(threshold);
+    if (!sel) $("sub").textContent = "Группы продаж B2C МСК и НСК · открытые лиды без нашего касания больше " + thr(threshold);
+    else {
+      const groups = sel.every((p) => p === pipes[0]) ? "Группы продаж B2C МСК и НСК" : sel.includes(pipes[0]) ? "Группы продаж и доппродаж B2C" : "Группа доппродаж B2C";
+      $("sub").textContent = groups + " · открытые сделки без нашего касания: " + sel.map((p) => "«" + p.title + "» — больше " + thr(p.thresholdHours)).join(", ");
+    }
     $("s-crit-l").textContent = "без касаний " + lv.crit;
     $("legend").replaceChildren(...["warn", "high", "crit"].map((c, i) => el("span", {}, el("i", { style: "background:var(--" + c + ")" }), lv.legend[i])));
-    const openTotal = managers.reduce((a, m) => a + open(m.id), 0);
+    const openTotal = shownManagers.reduce((a, m) => a + open(m.id), 0);
     $("s-total").textContent = items.length;
     $("s-total-l").textContent = plural(items.length, noun.forms) + " без касаний из " + openTotal + " открытых";
     $("s-wait").textContent = items.filter((x) => x.clientWaiting).length;
     $("s-wait-l").textContent = "клиент написал и ждёт ответа";
-    $("s-week").textContent = items.filter((x) => x.hours >= lv.c).length;
+    $("s-week").textContent = items.filter((x) => sev(x.hours, x.t) === "c").length;
     $("s-mgr").textContent = new Set(items.map((x) => x.managerId)).size;
     $("s-mgr-l").textContent = "менеджеров с просрочкой";
 
     // карточки менеджеров
     const byMgr = new Map();
     for (const x of items) { if (!byMgr.has(x.managerId)) byMgr.set(x.managerId, []); byMgr.get(x.managerId).push(x); }
-    const sorted = [...managers].sort((a, b) => (byMgr.get(b.id)?.length || 0) - (byMgr.get(a.id)?.length || 0) || a.name.localeCompare(b.name, "ru"));
+    const sorted = [...shownManagers].sort((a, b) => (byMgr.get(b.id)?.length || 0) - (byMgr.get(a.id)?.length || 0) || a.name.localeCompare(b.name, "ru"));
     if (state.manager && !(byMgr.get(state.manager) || []).length) state.manager = null;
 
     const box = $("mgrs"); box.replaceChildren();
     for (const m of sorted) {
       const ls = byMgr.get(m.id) || [];
-      const cnt = { w: 0, h: 0, c: 0 }; ls.forEach((x) => cnt[sev(x.hours)]++);
+      const cnt = { w: 0, h: 0, c: 0 }; ls.forEach((x) => cnt[sev(x.hours, x.t)]++);
       const waiting = ls.filter((x) => x.clientWaiting).length;
       const bar = el("div", { class: "bar", "aria-hidden": "true" });
       for (const k of ["c", "h", "w"]) if (cnt[k]) { const i = el("i", { class: k }); i.style.width = (cnt[k] / ls.length) * 100 + "%"; bar.append(i); }
@@ -565,7 +602,7 @@ table.moves { min-width: 900px; }
         title: ls.length ? "Показать список" : "Просрочек нет",
       },
         el("div", { class: "mgr-top" },
-          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: m.group.replace("Группа продаж ", "") })),
+          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: grpName(m.group) })),
           el("div", { class: "mgr-count" }, String(ls.length), el("small", { text: " / " + open(m.id) }))),
         bar,
         el("div", { class: "mgr-meta" },
@@ -590,6 +627,7 @@ table.moves { min-width: 900px; }
     const m = mgrById.get(state.manager);
     const ls = byMgr.get(m.id).sort((a, b) => b.hours - a.hours);
     const withHints = view.entity === "lead";
+    const showPipe = Boolean(sel) && sel.length > 1 && new Set(ls.map((x) => x.pipeline)).size > 1;
     const tbody = el("tbody");
     for (const x of ls) {
       const chips = el("div", { class: "chips" });
@@ -598,8 +636,9 @@ table.moves { min-width: 900px; }
       const last = x.lastTouchKind === "call" ? "звонок" : x.lastTouchKind === "msg" ? "сообщение" : "не было";
       tbody.append(el("tr", {},
         el("td", {}, el("a", { href: snap.portal + "/crm/" + view.entity + "/details/" + x.id + "/", target: "_blank", rel: "noopener", text: "#" + x.id })),
+        showPipe ? el("td", { text: (pipeById.get(x.pipeline) || {}).title || "—" }) : null,
         el("td", { text: x.stage || "—" }),
-        el("td", { class: "num" }, el("span", { class: "pill " + sev(x.hours), text: dur(x.hours) })),
+        el("td", { class: "num" }, el("span", { class: "pill " + sev(x.hours, x.t), text: dur(x.hours) })),
         el("td", {}, el("span", { text: last }), x.lastTouchKind ? el("span", { class: "muted", text: " · " + fmt.format(new Date(x.silentSince)) }) : null),
         withHints ? el("td", {}, hintCell(state.hints[x.id], x)) : null,
         el("td", {}, chips)));
@@ -608,15 +647,15 @@ table.moves { min-width: 900px; }
     close.addEventListener("click", () => { state.manager = null; render(); });
     list.append(el("h2", { text: view.title + " · " + m.name }), el("div", { class: "group" },
       el("div", { class: "group-head" },
-        el("div", {}, el("b", { text: m.name }), el("span", { text: "  " + ls.length + " из " + open(m.id) + " открытых · " + m.group.replace("Группа продаж ", "") })),
+        el("div", {}, el("b", { text: m.name }), el("span", { text: "  " + ls.length + " из " + open(m.id) + " открытых · " + grpName(m.group) })),
         close),
       el("div", { class: "tbl-wrap" }, el("table", withHints ? { class: "hinted" } : {},
-        el("thead", {}, el("tr", {}, el("th", { text: noun.col }), el("th", { text: "Стадия" }), el("th", { text: "Без касаний" }), el("th", { text: "Последнее касание" }),
+        el("thead", {}, el("tr", {}, el("th", { text: noun.col }), showPipe ? el("th", { text: "Воронка" }) : null, el("th", { text: "Стадия" }), el("th", { text: "Без касаний" }), el("th", { text: "Последнее касание" }),
           withHints ? el("th", { text: "Подсказка" }) : null, el("th", { text: "" }))),
         tbody))));
   }
 
-  for (const b of document.querySelectorAll(".seg button")) b.addEventListener("click", () => { state.grp = b.dataset.grp; save(); render(); });
+  for (const b of document.querySelectorAll("#grp button")) b.addEventListener("click", () => { state.grp = b.dataset.grp; save(); render(); });
   $("only-wait").addEventListener("change", (e) => { state.onlyWait = e.target.checked; save(); render(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && state.manager) { state.manager = null; render(); } });
 
