@@ -17,12 +17,14 @@ dpkg-reconfigure -f noninteractive unattended-upgrades
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow OpenSSH
+ufw allow 2222/tcp  # SSH also on 2222: some office networks block outbound 22
 ufw allow 80/tcp
 ufw allow 443/tcp
 ufw --force enable
 
 # SSH: keys only
-sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication no/' /etc/ssh/sshd_config
+# (a drop-in named 00-* wins over cloud-init's 50-cloud-init.conf: sshd takes the first value it reads)
+printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\n' > /etc/ssh/sshd_config.d/00-keys-only.conf
 systemctl reload ssh || systemctl reload sshd
 
 # Node.js 22 (Ubuntu ships an older one)
