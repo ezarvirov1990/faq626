@@ -7,10 +7,13 @@ const OUTGOING_AUTHOR = /^\s*=+\s*Исходящее сообщение, авт�
 const WAZZUP_SYSTEM_MARK = "=== SYSTEM WZ ===";
 // Шаблонные дожимы роботов стадий: пишутся от имени ответственного, но это не действие менеджера
 export const ROBOT_TEXT = /Актуально ли для Вас получить информацию по ДНК|Мне важно получить хоть какой-то ответ|Очень жду (от вас )?ваш ответ|не смогли до вас дозвониться|Два дня не получаю от вас ответа|Буду благодарна за обратную связь|Вдруг вы пропустили моё прошлое сообщение/i;
-// Задачи, которые роботы ставят на ответственного при появлении лида и смене стадии
+// Задачи, которые роботы ставят на ответственного при появлении лида и смене стадии; роботы же их часто и закрывают
 export const ROBOT_TASK = /^(Первые сутки|Вторые сутки|Третьи сутки|Оказать консультацию|Контроль )/i;
-// Изменение карточки в пределах минуты от смены стадии — это и есть смена стадии
-const EDIT_SAME_AS_MOVE_MS = 60e3;
+// Стадии лидов, по которым всё делает автоматика (перемещение, сообщения): «Недозвон третьи сутки» и стадии «Робот…».
+// Действия там записываются на ответственного, но это не работа менеджера.
+export const AUTO_LEAD_STAGES = new Set(["1", "UC_PAXFX3", "UC_8C77HR", "UC_33AW0X", "UC_5ZV4JA", "UC_ZIU6Y3", "UC_I6EXOS"]);
+// «Взят в работу» лид получает вместе с назначением ответственного — это не действие менеджера
+export const ASSIGN_LEAD_STAGE = "IN_PROCESS";
 const TASK_DONE = "5";
 
 const normName = (s) => String(s || "").toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
@@ -32,8 +35,10 @@ export function messageAuthor(msg, isClient, index) {
   return index.ids.has(author) ? author : null;
 }
 
-// Сообщения менеджеров клиентам в одном чате с момента since
-export function messageEvents(dialog, index, since) {
+// Сообщения менеджеров клиентам в одном чате с момента since.
+// auto — чат лида на автоматической стадии: всё, что там уходит от имени менеджера, шлют роботы.
+export function messageEvents(dialog, index, since, auto = false) {
+  if (auto) return [];
   const isClient = new Map((dialog.users || []).map((u) => [String(u.id), Boolean(u.connector)]));
   const out = [];
   for (const x of dialog.messages || []) {
@@ -45,9 +50,11 @@ export function messageEvents(dialog, index, since) {
   return out;
 }
 
-// События из истории задачи: создал (кроме роботов), закрыл, перенёс срок (кроме правки сразу после создания)
+// События из истории задачи: создал, закрыл, перенёс срок (кроме правки сразу после создания).
+// Создание и закрытие задач роботов не считаем — их делает автоматика; перенос срока делает человек.
 export function taskHistoryEvents(taskId, title, history, managerIds, since) {
   const out = [];
+  const robot = ROBOT_TASK.test(title || "");
   const created = history.find((h) => h.field === "NEW");
   const createdAt = created ? Date.parse(created.createdDate) : 0;
   for (const h of history) {
@@ -56,8 +63,8 @@ export function taskHistoryEvents(taskId, title, history, managerIds, since) {
     if (!(at >= since) || !managerIds.has(managerId)) continue;
     const base = { key: `task:${taskId}:${h.id ?? at}:${h.field}`, at, managerId, title };
     const v = h.value || {};
-    if (h.field === "NEW" && !ROBOT_TASK.test(title || "")) out.push({ ...base, kind: "task_new" });
-    else if (h.field === "STATUS" && String(v.to) === TASK_DONE) out.push({ ...base, kind: "task_done" });
+    if (h.field === "NEW") { if (!robot) out.push({ ...base, kind: "task_new" }); }
+    else if (h.field === "STATUS" && String(v.to) === TASK_DONE) { if (!robot) out.push({ ...base, kind: "task_done" }); }
     else if (h.field === "DEADLINE" && !(createdAt && at - createdAt < MOVE_GRACE_MS)) {
       out.push({ ...base, kind: "task_deadline", from: Number(v.from) * 1000 || null, to: Number(v.to) * 1000 || null });
     }
@@ -65,21 +72,15 @@ export function taskHistoryEvents(taskId, title, history, managerIds, since) {
   return out;
 }
 
-// Смена стадии и правка карточки лида или сделки. Bitrix хранит только последнюю смену стадии и последнюю правку.
-export function cardEvents(entity, row, managerIds, since, stageName) {
-  const out = [];
+// Смена стадии лида или сделки (Bitrix хранит только последнюю). Не считаем переходы лида на автоматические стадии
+// и на «Взят в работу» (это назначение ответственного). «Правку карточки» не показываем вовсе: под ней
+// Bitrix записывает на менеджера назначение ответственного и действия роботов.
+export function cardEvents(entity, row, managerIds, since, stageName, stageId) {
   const movedAt = Date.parse(row.MOVED_TIME);
   const movedBy = Number(row.MOVED_BY_ID);
-  if (movedAt >= since && managerIds.has(movedBy)) {
-    out.push({ key: `move:${entity}:${row.ID}:${movedAt}`, at: movedAt, managerId: movedBy, kind: "move", entity, stage: stageName || null });
-  }
-  const editAt = Date.parse(row.DATE_MODIFY);
-  const editBy = Number(row.MODIFY_BY_ID);
-  const sameAsMove = editBy === movedBy && Math.abs(editAt - movedAt) < EDIT_SAME_AS_MOVE_MS;
-  if (editAt >= since && managerIds.has(editBy) && !sameAsMove) {
-    out.push({ key: `edit:${entity}:${row.ID}:${editAt}`, at: editAt, managerId: editBy, kind: "edit", entity });
-  }
-  return out;
+  if (!(movedAt >= since) || !managerIds.has(movedBy)) return [];
+  if (entity === "lead" && (AUTO_LEAD_STAGES.has(stageId) || stageId === ASSIGN_LEAD_STAGE)) return [];
+  return [{ key: `move:${entity}:${row.ID}:${movedAt}`, at: movedAt, managerId: movedBy, kind: "move", entity, stage: stageName || null }];
 }
 
 // Заметки менеджеров в ленте лида или сделки (crm.timeline.comment.list)
@@ -123,12 +124,8 @@ export async function collectLive(bx, managers, { now = Date.now(), tasksSince }
     { entity: "deal", method: "crm.deal.list", stage: "STAGE_ID" },
   ];
   for (const c of cards) {
-    const select = ["ID", c.stage, "MOVED_TIME", "MOVED_BY_ID", "DATE_MODIFY", "MODIFY_BY_ID"];
-    const seen = new Map();
-    for (const filter of [{ ">=MOVED_TIME": iso(since), MOVED_BY_ID: ids }, { ">=DATE_MODIFY": iso(since), MODIFY_BY_ID: ids }]) {
-      for (const row of await bx.list(c.method, { filter, select })) seen.set(row.ID, row);
-    }
-    for (const row of seen.values()) events.push(...cardEvents(c.entity, row, idSet, since, stageNames[c.entity][row[c.stage]]));
+    const rows = await bx.list(c.method, { filter: { ">=MOVED_TIME": iso(since), MOVED_BY_ID: ids }, select: ["ID", c.stage, "MOVED_TIME", "MOVED_BY_ID"] });
+    for (const row of rows) events.push(...cardEvents(c.entity, row, idSet, since, stageNames[c.entity][row[c.stage]], row[c.stage]));
   }
 
   const taskFrom = Math.max(since, tasksSince || since);

@@ -3,7 +3,7 @@
 // Сообщения клиента касанием не считаются; если клиент написал позже нашего касания — clientWaiting.
 
 import { mskDayStart, untouchedMoves, taskState } from "./tasks.js";
-import { managerIndex, messageEvents, commentEvents } from "./activity.js";
+import { managerIndex, messageEvents, commentEvents, AUTO_LEAD_STAGES } from "./activity.js";
 
 const HOUR = 3600e3;
 const DAY = 24 * HOUR;
@@ -168,11 +168,17 @@ export async function collectSnapshot(bx, config) {
   const index = managerIndex([...managers.values()]);
   const daySince = mskDayStart(now);
   const activity = [];
+  // Чаты лидов на автоматических стадиях («Недозвон третьи сутки», «Робот…»): там пишут роботы от имени менеджера
+  const autoChats = new Set();
+  for (const { spec, items, chatsOf } of loaded) {
+    if (spec.entity !== "lead") continue;
+    for (const it of items) if (AUTO_LEAD_STAGES.has(it[spec.stageField])) for (const c of chatsOf.get(it.ID)) autoChats.add(c);
+  }
 
   const lastByChat = new Map();
   for (const c of chatIds) {
     const m = msgs.out["msg_" + c];
-    if (m) activity.push(...messageEvents(m, index, daySince));
+    if (m) activity.push(...messageEvents(m, index, daySince, autoChats.has(c)));
     let ours = 0, client = 0;
     const oursTimes = [];
     if (m) {

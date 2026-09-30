@@ -52,12 +52,21 @@ test("задача: создал, закрыл, перенёс срок", () => 
   assert.equal(ev[1].to, 1759305600 * 1000);
 });
 
-test("задачи роботов и правка срока сразу после создания — не события", () => {
+test("задачи роботов: создание и закрытие — не события, перенос срока — событие", () => {
   const ev = taskHistoryEvents(11, "Первые сутки. Связаться с клиентом", [
     h(1, "NEW", 5, "2026-09-29T10:00:00+03:00"),
     h(2, "DEADLINE", 5, "2026-09-29T10:03:00+03:00", "1", "2"),
+    h(3, "STATUS", 5, "2026-09-29T13:26:28+03:00", "2", "5"),
+    h(4, "DEADLINE", 5, "2026-09-29T15:00:00+03:00", "1", "2"),
   ], ids, since);
-  assert.equal(ev.length, 0);
+  assert.deepEqual(ev.map((e) => e.kind), ["task_deadline"]);
+  assert.equal(ev[0].at, t("2026-09-29T15:00:00+03:00"));
+});
+
+test("в чате лида на автоматической стадии сообщения от имени менеджера — не события", () => {
+  const d = dialog([msg(1, 5, "Здравствуйте! Подскажите, удобно созвониться?")]);
+  assert.equal(messageEvents(d, index, since, true).length, 0);
+  assert.equal(messageEvents(d, index, since, false).length, 1);
 });
 
 test("действия с задачей чужих сотрудников и вчерашние — не события", () => {
@@ -68,16 +77,22 @@ test("действия с задачей чужих сотрудников и в
   assert.equal(ev.length, 0);
 });
 
-test("смена стадии и правка карточки; правка вместе со сменой стадии — одно событие", () => {
-  const moved = { ID: "1", MOVED_TIME: "2026-09-29T12:00:00+03:00", MOVED_BY_ID: "5", DATE_MODIFY: "2026-09-29T12:00:02+03:00", MODIFY_BY_ID: "5" };
-  assert.deepEqual(cardEvents("lead", moved, ids, since, "Взят в работу").map((e) => [e.kind, e.stage]), [["move", "Взят в работу"]]);
-  const edited = { ...moved, DATE_MODIFY: "2026-09-29T15:00:00+03:00", MODIFY_BY_ID: "7" };
-  assert.deepEqual(cardEvents("lead", edited, ids, since, "Взят в работу").map((e) => [e.kind, e.managerId]), [["move", 5], ["edit", 7]]);
+const moved = (stage) => ({ ID: "1", MOVED_TIME: "2026-09-29T12:00:00+03:00", MOVED_BY_ID: "5", STATUS_ID: stage });
+
+test("менеджер перевёл лид на «Недозвон вторые сутки» — событие", () => {
+  assert.deepEqual(cardEvents("lead", moved("PROCESSED"), ids, since, "Недозвон вторые сутки", "PROCESSED").map((e) => [e.kind, e.stage]),
+    [["move", "Недозвон вторые сутки"]]);
 });
 
-test("стадию сменил робот — не событие", () => {
-  const row = { ID: "1", MOVED_TIME: "2026-09-29T10:00:00+03:00", MOVED_BY_ID: "1", DATE_MODIFY: "2026-09-29T10:00:00+03:00", MODIFY_BY_ID: "1" };
-  assert.equal(cardEvents("deal", row, ids, since, "x").length, 0);
+test("автоматические стадии и «Взят в работу» (назначение) — не события, даже если записаны на менеджера", () => {
+  for (const s of ["1", "UC_8C77HR", "UC_33AW0X", "UC_5ZV4JA", "UC_ZIU6Y3", "UC_I6EXOS", "IN_PROCESS"]) {
+    assert.equal(cardEvents("lead", moved(s), ids, since, "x", s).length, 0, s);
+  }
+});
+
+test("стадию сменил робот — не событие; у сделок стадии не фильтруются", () => {
+  assert.equal(cardEvents("deal", { ...moved("C27:NEW"), MOVED_BY_ID: "1" }, ids, since, "x", "C27:NEW").length, 0);
+  assert.equal(cardEvents("deal", moved("C27:PREPARATION"), ids, since, "x", "C27:PREPARATION").length, 1);
 });
 
 test("звонки: исходящий — всегда, входящий — только если ответили", () => {
