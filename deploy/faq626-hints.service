@@ -1,0 +1,16 @@
+[Unit]
+Description=faq626 auto-hints for the «Лиды» tab (headless Claude Code)
+After=network-online.target faq626.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=faq626
+WorkingDirectory=/opt/faq626
+# BITRIX_WEBHOOK, DASHBOARD_*; CLAUDE_CODE_OAUTH_TOKEN lives in its own file
+EnvironmentFile=/etc/faq626.env
+EnvironmentFile=/etc/faq626-claude.env
+Environment=HOME=/var/lib/faq626 CLAUDE_BIN=/var/lib/faq626/.local/bin/claude PORT=3000
+ExecStart=/usr/bin/node hints-auto.js
+TimeoutStartSec=20min
+NoNewPrivileges=true

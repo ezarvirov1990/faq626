@@ -1,0 +1,10 @@
+[Unit]
+Description=Run faq626 auto-hints hourly
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=120
+Persistent=true
+
+[Install]
+WantedBy=timers.target
