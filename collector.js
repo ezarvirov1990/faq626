@@ -77,6 +77,14 @@ export function mergeDealPipelines(fresh, prev) {
   return { ...fresh, views: { ...fresh.views, deals }, ...(activity ? { activity } : {}) };
 }
 
+// When our silence starts. A client's chat outlives leads: a returning client writes into the old chat and
+// Wazzup opens a new lead — that is a new inquiry, so for leads touches before the lead's creation don't count
+// (otherwise a 9-hour-old lead shows «131 days without a touch»). Deals keep the chat of their lead: real silence.
+export function silenceStart(entity, lastTouch, created) {
+  if (!lastTouch) return created;
+  return entity === "lead" ? Math.max(lastTouch, created) : lastTouch;
+}
+
 // Stage ids whose names start with any of the given prefixes
 export function skipStageIds(stages, prefixes = []) {
   return new Set(Object.entries(stages).filter(([, name]) => prefixes.some((p) => String(name).startsWith(p))).map(([id]) => id));
@@ -295,7 +303,7 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
 
       const lastTouch = Math.max(lastOurMsg, lastCall);
       const created = Date.parse(it.DATE_CREATE);
-      const silentSince = lastTouch || created;
+      const silentSince = silenceStart(spec.entity, lastTouch, created);
       if (now - silentSince < spec.thresholdHours * HOUR) continue;
 
       rows.push({
@@ -305,6 +313,7 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
         managerId,
         created: new Date(created).toISOString(),
         silentSince: new Date(silentSince).toISOString(),
+        lastTouch: lastTouch ? new Date(lastTouch).toISOString() : null,
         lastTouchKind: !lastTouch ? null : lastCall > lastOurMsg ? "call" : "msg",
         clientWaiting: lastClient > lastTouch,
         // Последнее событие в лиде — наше или клиента; по нему подсказка помечается «устарела»

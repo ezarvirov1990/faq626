@@ -646,7 +646,7 @@ table.moves { min-width: 900px; }
         showPipe ? el("td", { text: (pipeById.get(x.pipeline) || {}).title || "—" }) : null,
         el("td", { text: x.stage || "—" }),
         el("td", { class: "num" }, el("span", { class: "pill " + sev(x.hours, x.t), text: dur(x.hours) })),
-        el("td", {}, el("span", { text: last }), x.lastTouchKind ? el("span", { class: "muted", text: " · " + fmt.format(new Date(x.silentSince)) }) : null),
+        el("td", {}, el("span", { text: last }), x.lastTouchKind ? el("span", { class: "muted", text: " · " + fmt.format(new Date(x.lastTouch || x.silentSince)) }) : null),
         withHints ? el("td", {}, hintCell(state.hints[x.id], x)) : null,
         el("td", {}, chips)));
     }

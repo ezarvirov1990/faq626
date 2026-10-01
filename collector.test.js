@@ -1,6 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseDealPipelines, skipStageIds, mergeDealPipelines } from "./collector.js";
+import { parseDealPipelines, skipStageIds, mergeDealPipelines, silenceStart } from "./collector.js";
+
+test("returning client: a new lead's silence starts at its creation, not at the old chat's last touch", () => {
+  const may = Date.parse("2026-05-22T10:11:00+03:00"), created = Date.parse("2026-09-30T21:14:00+03:00");
+  assert.equal(silenceStart("lead", may, created), created);
+  assert.equal(silenceStart("lead", created + 3600e3, created), created + 3600e3); // touched after creation
+  assert.equal(silenceStart("lead", 0, created), created); // never touched
+  assert.equal(silenceStart("deal", may, created), may); // deals keep the real silence
+});
 
 const pipe = (id, open, slow = false) => ({ id, title: "P" + id, thresholdHours: 720, totalOpen: Object.values(open).reduce((a, n) => a + n, 0), openByManager: open, slow });
 const item = (id, pipeline, silentSince) => ({ id, pipeline, silentSince, managerId: 1 });
