@@ -67,6 +67,29 @@ test("leads without a hint or with a stale one need a hint, up to the limit", ()
   assert.deepEqual(leadsNeedingHints(snapshot, hints, 2), [1, 3]);
 });
 
+test("leads where the client waits for a reply get hints first; a new client message makes the hint stale", () => {
+  const snapshot = { views: { leads: {
+    items: [
+      { id: 1, lastActivity: "2026-09-28T10:00:00.000Z" },
+      { id: 5, lastActivity: "2026-10-01T09:30:00.000Z" }, // in both lists: a failed call after the client's message
+    ],
+    waiting: [
+      { id: 5, since: "2026-10-01T09:00:00.000Z" },
+      { id: 6, since: "2026-10-01T10:00:00.000Z" },
+      { id: 7, since: "2026-10-01T10:30:00.000Z" },
+      { id: 8, since: "2026-10-01T10:40:00.000Z" },
+    ],
+  } } };
+  const hints = {
+    5: { at: "2026-10-01T09:15:00.000Z" }, // before the call — stale
+    6: { at: "2026-10-01T10:05:00.000Z" }, // after the client's message — fresh
+    7: { at: "2026-10-01T08:00:00.000Z" }, // the client wrote again — stale
+  };
+  assert.deepEqual(leadsNeedingHints(snapshot, hints, 10), [5, 7, 8, 1]);
+  assert.deepEqual(leadsNeedingHints(snapshot, hints, 2), [5, 7]);
+  assert.deepEqual(leadsNeedingHints({ views: {} }, {}, 10), []);
+});
+
 test("chat roles: client, our Wazzup outgoing, Wazzup service notes", () => {
   const lines = chatLines({
     users: [{ id: 9, connector: true, name: "Клиент Ольга" }, { id: 5, name: "Анна" }],

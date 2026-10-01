@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Auto-hints on the server (run as root after setup.sh): Russian root CA for GigaChat + hourly timer.
+# Auto-hints on the server (run as root after setup.sh): Russian root CA for GigaChat + the 5-minute timer.
 # The GigaChat key goes to /etc/faq626-gigachat.env (mode 600):
 #   GIGACHAT_AUTH_KEY=<Authorization Key from developers.sber.ru>
 #   GIGACHAT_SCOPE=GIGACHAT_API_PERS | GIGACHAT_API_B2B | GIGACHAT_API_CORP

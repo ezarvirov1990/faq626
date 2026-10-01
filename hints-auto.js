@@ -1,4 +1,5 @@
-// Hourly auto-hints on the server (faq626-hints.timer): leads of the «Лиды» tab without a fresh hint →
+// Auto-hints on the server (faq626-hints.timer, every 5 min): leads of the «Лиды» tab — both «Клиент ждёт
+// ответа» and «Без касаний» — without a fresh hint →
 // context from Bitrix24 with facts computed here (who wrote last, waiting, calls) → GigaChat (Sber; Claude isn't
 // available from Russia): draft with style examples, then a self-check pass → validated → POST /api/hints.
 // No leads to hint — no model call. Context lives in memory only. Env: BITRIX_WEBHOOK, DASHBOARD_USER,
@@ -58,12 +59,18 @@ export function mskTime(ms) {
   return `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(2, 4)} ${d.slice(11, 16)}`;
 }
 
-// Leads of the tab with no hint or a stale one (activity after the hint)
+// Leads of the tab with no hint or a stale one (activity after the hint). «Клиент ждёт ответа» goes first —
+// the client is waiting right now; its activity is the client's message, so a new message makes the hint stale.
 export function leadsNeedingHints(snapshot, hints, max) {
-  return ((snapshot && snapshot.views.leads && snapshot.views.leads.items) || [])
-    .filter((x) => !hints[x.id] || hintStale(hints[x.id], x.lastActivity))
+  const leads = (snapshot && snapshot.views.leads) || {};
+  const last = new Map(); // id → latest activity (ISO strings in UTC compare as text); keeps the order
+  for (const x of [...(leads.waiting || []).map((w) => ({ id: w.id, lastActivity: w.since })), ...(leads.items || [])]) {
+    last.set(x.id, [last.get(x.id), x.lastActivity].filter(Boolean).sort().pop() || null);
+  }
+  return [...last]
+    .filter(([id, at]) => !hints[id] || hintStale(hints[id], at))
     .slice(0, max)
-    .map((x) => x.id);
+    .map(([id]) => id);
 }
 
 // Chat as lines «time role: text»; Wazzup outgoing marks count as ours, its service notes are shown as such
