@@ -175,6 +175,7 @@ table.moves { min-width: 900px; }
   </section>
 
   <div class="toolbar">
+    <div class="seg" id="lmode" role="group" aria-label="Что показать" hidden></div>
     <div class="seg" id="pipes" role="group" aria-label="Воронка" hidden></div>
     <div class="seg" id="grp" role="group" aria-label="Группа">
       <button type="button" data-grp="" aria-pressed="true">Все группы</button>
@@ -205,14 +206,16 @@ table.moves { min-width: 900px; }
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  const state = { snap: null, hints: {}, status: null, loadError: null, view: "leads", grp: "", pipe: 0, onlyWait: false, manager: null, activity: null, feedLimit: 200 };
+  const state = { snap: null, hints: {}, status: null, loadError: null, view: "leads", grp: "", pipe: 0, lmode: "silent", onlyWait: false, manager: null, activity: null, feedLimit: 200 };
   try {
     const s = JSON.parse(localStorage.getItem("ldash") || "{}");
-    state.view = s.view || "leads"; state.grp = s.grp || ""; state.pipe = Number(s.pipe) || 0; state.onlyWait = !!s.onlyWait;
+    state.view = s.view || "leads"; state.grp = s.grp || ""; state.pipe = Number(s.pipe) || 0; state.lmode = s.lmode === "wait" ? "wait" : "silent"; state.onlyWait = !!s.onlyWait;
   } catch (e) {}
   // Вкладку можно открыть по ссылке: …/#feed, #tasks, #leads, #deals
   if (/^#(feed|tasks|leads|deals)$/.test(location.hash)) state.view = location.hash.slice(1);
-  function save() { try { localStorage.setItem("ldash", JSON.stringify({ view: state.view, grp: state.grp, pipe: state.pipe, onlyWait: state.onlyWait })); } catch (e) {} }
+  // …/#wait — «Лиды» in the «Клиент ждёт ответа» mode
+  if (location.hash === "#wait") { state.view = "leads"; state.lmode = "wait"; }
+  function save() { try { localStorage.setItem("ldash", JSON.stringify({ view: state.view, grp: state.grp, pipe: state.pipe, lmode: state.lmode, onlyWait: state.onlyWait })); } catch (e) {} }
 
   const HOUR = 3600e3;
   const NOUNS = {
@@ -227,6 +230,8 @@ table.moves { min-width: 900px; }
   const LEVELS = {
     lead: { h: 72, c: 168, legend: ["2–3 суток", "3–7 суток", "больше 7 суток"], crit: "больше 7 суток", below: "до 7 суток" },
     deal: { h: 60 * 24, c: 90 * 24, legend: ["30–60 дней", "60–90 дней", "больше 90 дней"], crit: "больше 90 дней", below: "до 90 дней" },
+    // «Клиент ждёт ответа»: how long since the client's last message
+    wait: { h: 1, c: 4, legend: ["до 1 часа", "1–4 часа", "больше 4 часов"], crit: "больше 4 часов", below: "до 4 часов" },
   };
   let lv = LEVELS.lead;
   // t — a deal pipeline's threshold: orange from 2×, red from 3× (30 days → 30–60 / 60–90 / 90+)
@@ -277,6 +282,7 @@ table.moves { min-width: 900px; }
   }
 
   const NOTE_TOUCH = $("note").textContent;
+  const NOTE_WAIT = "Клиент ждёт ответа — в чате открытого лида последним написал клиент, и после этого не было ни нашего сообщения (менеджера или бота), ни состоявшегося звонка. Попытка дозвона без разговора ответом не считается — такой лид остаётся в списке с пометкой «звонили, не дозвонились». Возраст лида не важен: сюда попадают и новые обращения, и вернувшиеся клиенты. Время ожидания идёт подряд, включая ночь и выходные. Данные из Bitrix24 обновляются раз в 15 минут.";
   const NOTE_TASKS = "Перенос без касания — срок задачи по лиду или сделке перенесли, а в тот же день до переноса не было ни нашего звонка, ни нашего сообщения клиенту. Перенос записан на того, кто его сделал; правка срока в первые 10 минут после постановки задачи не считается. Просрочка — у открытой задачи срок прошёл больше 48 часов назад. Данные из Bitrix24 обновляются раз в 15 минут.";
   const DAY_MS = 24 * HOUR;
   const card = (x) => el("a", { href: state.snap.portal + "/crm/" + x.entity + "/details/" + x.id + "/", target: "_blank", rel: "noopener", text: (x.entity === "deal" ? "Сделка #" : "Лид #") + x.id });
@@ -549,6 +555,7 @@ table.moves { min-width: 900px; }
 
     const isTasks = state.view === "tasks";
     $("only-wait-box").hidden = isTasks || isFeed;
+    $("lmode").hidden = true; // shown below, on «Лиды» only
     $("legend").hidden = isTasks || isFeed;
     document.querySelector(".stats").classList.toggle("neutral", isFeed);
     $("note").textContent = isFeed ? NOTE_FEED : isTasks ? NOTE_TASKS : NOTE_TOUCH;
@@ -557,18 +564,35 @@ table.moves { min-width: 900px; }
 
     const view = snap.views[state.view];
     const noun = NOUNS[view.entity] || NOUNS.lead;
-    const items = pick(view);
+    let items = pick(view);
+    // «Лиды»: second mode — every open lead where the client wrote last and got no reply in chat or by a connected call
+    const waitList = view.entity === "lead" && view.waiting
+      ? view.waiting.filter((x) => inGrp(mgrById.get(x.managerId))).map((x) => ({ ...x, silentSince: x.since, lastActivity: x.since, hours: (now - Date.parse(x.since)) / HOUR, hasChat: true }))
+      : null;
+    const waitMode = Boolean(waitList) && state.lmode === "wait";
+    const lm = $("lmode");
+    lm.hidden = !waitList;
+    if (waitList) lm.replaceChildren(...[["silent", "Без касаний 48 часов", items.length], ["wait", "Клиент ждёт ответа", waitList.length]].map(([key, text, n]) => {
+      const b = el("button", { type: "button", "aria-pressed": String(state.lmode === key) }, text + " · " + n);
+      b.addEventListener("click", () => { state.lmode = key; state.manager = null; save(); render(); });
+      return b;
+    }));
+    if (waitMode) items = waitList;
+    $("only-wait-box").hidden = waitMode;
     // Selected deal pipelines (all of them on «Все воронки»); leads have none
     const sel = view.pipelines ? view.pipelines.filter((p) => !state.pipe || p.id === state.pipe) : null;
     const open = (id) => sel ? sel.reduce((a, p) => a + (p.openByManager[id] || 0), 0) : view.openByManager[id] || 0;
     const ts = sel ? [...new Set(sel.map((p) => p.thresholdHours))] : [];
-    lv = sel ? { ...LEVELS.deal, ...dealLevels(ts) } : LEVELS[view.entity] || LEVELS.lead;
+    lv = waitMode ? LEVELS.wait : sel ? { ...LEVELS.deal, ...dealLevels(ts) } : LEVELS[view.entity] || LEVELS.lead;
     const threshold = ts.length === 1 ? ts[0] : view.thresholdHours || snap.thresholdHours;
     // On «Сделки» the cards are whoever owns open deals in the selected pipelines (incl. the upsell group)
     const shownManagers = sel ? [...snap.managers, ...extra].filter((m) => inGrp(m) && open(m.id) > 0) : managers;
 
-    $("title").textContent = noun.heading;
-    if (!sel) $("sub").textContent = "Группы продаж B2C МСК и НСК · открытые лиды без нашего касания больше " + thr(threshold);
+    $("title").textContent = waitMode ? "Клиент ждёт ответа" : noun.heading;
+    if (waitMode) {
+      $("sub").textContent = "Группы продаж B2C МСК и НСК · открытые лиды, где клиент написал последним, а мы не ответили ни в чате, ни состоявшимся звонком";
+      $("note").textContent = NOTE_WAIT;
+    } else if (!sel) $("sub").textContent = "Группы продаж B2C МСК и НСК · открытые лиды без нашего касания больше " + thr(threshold);
     else {
       const groups = sel.every((p) => p === pipes[0]) ? "Группы продаж B2C МСК и НСК" : sel.includes(pipes[0]) ? "Группы продаж и доппродаж B2C" : "Группа доппродаж B2C";
       $("sub").textContent = groups + " · открытые сделки без нашего касания: " + sel.map((p) => "«" + p.title + "» — больше " + thr(p.thresholdHours)).join(", ");
@@ -580,16 +604,18 @@ table.moves { min-width: 900px; }
       const at = fmt.format(new Date(Math.min(...slowSel.map((p) => Date.parse(p.updatedAt)))));
       $("note").textContent = NOTE_TOUCH + " " + (slowSel.length > 1 ? "Данные воронок " + names : "Данные воронки " + names) + " — из сбора в " + at + " МСК.";
     }
-    $("s-crit-l").textContent = "без касаний " + lv.crit;
+    $("s-crit-l").textContent = (waitMode ? "ждут " : "без касаний ") + lv.crit;
     $("legend").replaceChildren(...["warn", "high", "crit"].map((c, i) => el("span", {}, el("i", { style: "background:var(--" + c + ")" }), lv.legend[i])));
     const openTotal = shownManagers.reduce((a, m) => a + open(m.id), 0);
     $("s-total").textContent = items.length;
-    $("s-total-l").textContent = plural(items.length, noun.forms) + " без касаний из " + openTotal + " открытых";
-    $("s-wait").textContent = items.filter((x) => x.clientWaiting).length;
-    $("s-wait-l").textContent = "клиент написал и ждёт ответа";
+    $("s-total-l").textContent = waitMode
+      ? plural(items.length, ["лид, где клиент ждёт ответа,", "лида, где клиент ждёт ответа,", "лидов, где клиент ждёт ответа,"]) + " из " + openTotal + " открытых"
+      : plural(items.length, noun.forms) + " без касаний из " + openTotal + " открытых";
+    $("s-wait").textContent = waitMode ? items.filter((x) => x.attemptAt).length : items.filter((x) => x.clientWaiting).length;
+    $("s-wait-l").textContent = waitMode ? "звонили, но не дозвонились" : "клиент написал и ждёт ответа";
     $("s-week").textContent = items.filter((x) => sev(x.hours, x.t) === "c").length;
     $("s-mgr").textContent = new Set(items.map((x) => x.managerId)).size;
-    $("s-mgr-l").textContent = "менеджеров с просрочкой";
+    $("s-mgr-l").textContent = waitMode ? "менеджеров, у кого ждут ответа" : "менеджеров с просрочкой";
 
     // карточки менеджеров
     const byMgr = new Map();
@@ -601,12 +627,12 @@ table.moves { min-width: 900px; }
     for (const m of sorted) {
       const ls = byMgr.get(m.id) || [];
       const cnt = { w: 0, h: 0, c: 0 }; ls.forEach((x) => cnt[sev(x.hours, x.t)]++);
-      const waiting = ls.filter((x) => x.clientWaiting).length;
+      const waiting = waitMode ? 0 : ls.filter((x) => x.clientWaiting).length;
       const bar = el("div", { class: "bar", "aria-hidden": "true" });
       for (const k of ["c", "h", "w"]) if (cnt[k]) { const i = el("i", { class: k }); i.style.width = (cnt[k] / ls.length) * 100 + "%"; bar.append(i); }
       const card = el("button", {
         type: "button", class: "mgr" + (ls.length ? "" : " zero"), "aria-pressed": String(state.manager === m.id),
-        title: ls.length ? "Показать список" : "Просрочек нет",
+        title: ls.length ? "Показать список" : waitMode ? "Никто не ждёт ответа" : "Просрочек нет",
       },
         el("div", { class: "mgr-top" },
           el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: grpName(m.group) })),
@@ -626,7 +652,9 @@ table.moves { min-width: 900px; }
     // список — только по выбранному менеджеру
     const list = $("list"); list.replaceChildren();
     if (!state.manager) {
-      list.append(el("div", { class: "empty", text: items.length
+      list.append(el("div", { class: "empty", text: waitMode
+        ? (items.length ? "Нажмите на менеджера, чтобы увидеть лиды, где клиент ждёт ответа." : "Сейчас никто из клиентов не ждёт ответа.")
+        : items.length
         ? "Нажмите на менеджера, чтобы увидеть его " + noun.acc + " без касаний."
         : state.onlyWait ? "Нет записей, где клиент ждёт ответа." : "У всех менеджеров были касания за последние " + thr(threshold) + "." }));
       return;
@@ -639,6 +667,7 @@ table.moves { min-width: 900px; }
     for (const x of ls) {
       const chips = el("div", { class: "chips" });
       if (x.clientWaiting) chips.append(el("span", { class: "chip wait", text: "клиент ждёт ответа" }));
+      if (x.attemptAt) chips.append(el("span", { class: "chip", text: "звонили " + fmt.format(new Date(x.attemptAt)) + ", не дозвонились" }));
       if (!x.hasChat) chips.append(el("span", { class: "chip", text: x.hasPhone === true ? "только телефон" : x.hasPhone === false ? "нет чата и телефона" : "нет чата" }));
       const last = x.lastTouchKind === "call" ? "звонок" : x.lastTouchKind === "msg" ? "сообщение" : "не было";
       tbody.append(el("tr", {},
@@ -646,7 +675,8 @@ table.moves { min-width: 900px; }
         showPipe ? el("td", { text: (pipeById.get(x.pipeline) || {}).title || "—" }) : null,
         el("td", { text: x.stage || "—" }),
         el("td", { class: "num" }, el("span", { class: "pill " + sev(x.hours, x.t), text: dur(x.hours) })),
-        el("td", {}, el("span", { text: last }), x.lastTouchKind ? el("span", { class: "muted", text: " · " + fmt.format(new Date(x.lastTouch || x.silentSince)) }) : null),
+        waitMode ? el("td", { text: fmt.format(new Date(x.since)) })
+          : el("td", {}, el("span", { text: last }), x.lastTouchKind ? el("span", { class: "muted", text: " · " + fmt.format(new Date(x.lastTouch || x.silentSince)) }) : null),
         withHints ? el("td", {}, hintCell(state.hints[x.id], x)) : null,
         el("td", {}, chips)));
     }
@@ -657,7 +687,7 @@ table.moves { min-width: 900px; }
         el("div", {}, el("b", { text: m.name }), el("span", { text: "  " + ls.length + " из " + open(m.id) + " открытых · " + grpName(m.group) })),
         close),
       el("div", { class: "tbl-wrap" }, el("table", withHints ? { class: "hinted" } : {},
-        el("thead", {}, el("tr", {}, el("th", { text: noun.col }), showPipe ? el("th", { text: "Воронка" }) : null, el("th", { text: "Стадия" }), el("th", { text: "Без касаний" }), el("th", { text: "Последнее касание" }),
+        el("thead", {}, el("tr", {}, el("th", { text: noun.col }), showPipe ? el("th", { text: "Воронка" }) : null, el("th", { text: "Стадия" }), el("th", { text: waitMode ? "Ждёт ответа" : "Без касаний" }), el("th", { text: waitMode ? "Клиент написал (МСК)" : "Последнее касание" }),
           withHints ? el("th", { text: "Подсказка" }) : null, el("th", { text: "" }))),
         tbody))));
   }
