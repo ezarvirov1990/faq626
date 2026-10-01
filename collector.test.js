@@ -1,6 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseDealPipelines, skipStageIds, mergeDealPipelines, silenceStart } from "./collector.js";
+import { parseDealPipelines, skipStageIds, mergeDealPipelines, silenceStart, waitingAfter } from "./collector.js";
+
+test("client waits: a connected call answers, a failed outgoing call is only an attempt", () => {
+  const wrote = Date.parse("2026-10-01T09:00:00+03:00");
+  const call = (time, type, dur, code) => ({ CALL_START_DATE: time, CALL_TYPE: type, CALL_DURATION: dur, CALL_FAILED_CODE: code });
+  assert.deepEqual(waitingAfter(wrote, []), { waiting: true, attemptAt: null });
+  assert.deepEqual(waitingAfter(wrote, [call("2026-10-01T10:15:00+03:00", "1", "0", "603")]),
+    { waiting: true, attemptAt: Date.parse("2026-10-01T10:15:00+03:00") });
+  assert.equal(waitingAfter(wrote, [call("2026-10-01T10:15:00+03:00", "1", "95", "200")]).waiting, false);
+  assert.equal(waitingAfter(wrote, [call("2026-10-01T10:20:00+03:00", "2", "40", "200")]).waiting, false); // client called in, we talked
+  // a conversation before the client's message doesn't answer it
+  assert.equal(waitingAfter(wrote, [call("2026-10-01T08:00:00+03:00", "1", "95", "200")]).waiting, true);
+});
 
 test("returning client: a new lead's silence starts at its creation, not at the old chat's last touch", () => {
   const may = Date.parse("2026-05-22T10:11:00+03:00"), created = Date.parse("2026-09-30T21:14:00+03:00");

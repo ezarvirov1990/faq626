@@ -85,6 +85,19 @@ export function silenceStart(entity, lastTouch, created) {
   return entity === "lead" ? Math.max(lastTouch, created) : lastTouch;
 }
 
+// Is the client still waiting after their last message, given telephony calls of the lead?
+// A call that connected (either direction) answers the client; a failed outgoing call is only an attempt.
+export function waitingAfter(lastClient, calls) {
+  let attemptAt = 0;
+  for (const c of calls) {
+    const at = Date.parse(c.CALL_START_DATE);
+    if (!(at > lastClient)) continue;
+    if (Number(c.CALL_DURATION) > 0 && String(c.CALL_FAILED_CODE) === "200") return { waiting: false, attemptAt: null };
+    if (Number(c.CALL_TYPE) === 1) attemptAt = Math.max(attemptAt, at);
+  }
+  return { waiting: true, attemptAt: attemptAt || null };
+}
+
 // Stage ids whose names start with any of the given prefixes
 export function skipStageIds(stages, prefixes = []) {
   return new Set(Object.entries(stages).filter(([, name]) => prefixes.some((p) => String(name).startsWith(p))).map(([id]) => id));
@@ -270,6 +283,7 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
   const views = {};
   const taskItems = [];
   const openItems = new Map(); // "L_123" / "D_456" → лид/сделка для вкладки «Задачи»
+  const waitCands = [];
   for (const { spec, stages, items, chatsOf, calls } of loaded) {
     const openByManager = {};
     const rows = [];
@@ -303,6 +317,10 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
 
       const lastTouch = Math.max(lastOurMsg, lastCall);
       const created = Date.parse(it.DATE_CREATE);
+      // «Клиент ждёт ответа»: the client wrote last in the chat, whatever the lead's age
+      if (spec.entity === "lead" && lastClient > lastOurMsg) {
+        waitCands.push({ id: Number(it.ID), stage, managerId, created, lastClient, calledAfter: lastCall > lastClient });
+      }
       const silentSince = silenceStart(spec.entity, lastTouch, created);
       if (now - silentSince < spec.thresholdHours * HOUR) continue;
 
@@ -338,6 +356,22 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
     }
   }
   for (const v of Object.values(views)) v.items.sort((a, b) => a.silentSince.localeCompare(b.silentSince));
+
+  // «Клиент ждёт ответа» on leads. Where we called after the client's message, telephony stats tell
+  // a real conversation (answered — not waiting) from a failed attempt (still waiting, shown as an attempt).
+  if (views.leads) {
+    const called = waitCands.filter((w) => w.calledAfter);
+    const stat = await bx.batch(Object.fromEntries(called.map((w) =>
+      ["vox_" + w.id, `voximplant.statistic.get?FILTER[CRM_ENTITY_TYPE]=LEAD&FILTER[CRM_ENTITY_ID]=${w.id}&SORT=CALL_START_DATE&ORDER=DESC`])));
+    views.leads.waiting = waitCands
+      .map((w) => ({ w, s: waitingAfter(w.lastClient, w.calledAfter ? stat.out["vox_" + w.id] || [] : []) }))
+      .filter((x) => x.s.waiting)
+      .map(({ w, s }) => ({
+        id: w.id, stage: w.stage, managerId: w.managerId, created: new Date(w.created).toISOString(),
+        since: new Date(w.lastClient).toISOString(), attemptAt: s.attemptAt ? new Date(s.attemptAt).toISOString() : null,
+      }))
+      .sort((a, b) => a.since.localeCompare(b.since));
+  }
   if (views.deals) views.deals.extraManagers = [...extraManagers.values()].sort((a, b) => a.name.localeCompare(b.name, "ru"));
 
   // 4) Переносы сроков задач за вчера и сегодня (по Москве) по нашим открытым лидам и сделкам.
