@@ -118,3 +118,16 @@ test("Claude's answer: only requested leads with all fields, long text trimmed",
   assert.equal(h[13].request.length, 400);
   assert.throws(() => parseHints("нет json", [1]));
 });
+
+test("phones and e-mails the model copied from the chat are cut out of the hint", () => {
+  const text = JSON.stringify({ 7: {
+    request: "Просил перезвонить 01.10.26 в 16:00, тест за 27 900 ₽",
+    outcome: "Указал телефон 8 921 000-00-00 и почту test@example.com",
+    next: "Позвонить по номеру +7(921)000-00-00 в 16:00",
+  } });
+  assert.deepEqual(parseHints(text, [7])[7], {
+    request: "Просил перезвонить 01.10.26 в 16:00, тест за 27 900 ₽",
+    outcome: "Указал телефон (в карточке) и почту (в карточке)",
+    next: "Позвонить по номеру (в карточке) в 16:00",
+  });
+});
