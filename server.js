@@ -7,7 +7,7 @@ import { createBitrix, collectSnapshot, loadConfig, mergeDealPipelines } from ".
 import { mergeHints } from "./hints.js";
 import { collectLive } from "./activity.js";
 import { mskDayStart } from "./tasks.js";
-import { decideAlerts, alertText, createMattermost, recipientOnDuty } from "./alerts.js";
+import { decideAlerts, alertText, createMattermost, alertRecipient, BACKUP_ID } from "./alerts.js";
 
 const env = process.env;
 const config = loadConfig(env);
@@ -124,15 +124,18 @@ async function runAlerts(now) {
   }
   const feedUrl = env.PUBLIC_URL ? env.PUBLIC_URL.replace(/\/+$/, "") + "/#feed" : undefined;
   // Руководителю шлём только «нет активности 20 минут» (решение 30.09.2026): без «снова в работе» и «смена началась, действий нет»,
-  // и только в её рабочее время; вне его простой помечен открытым, но не отправляется
+  // в её рабочее время; после него — Кондратьевой (ALERT_MM_BACKUP_USER) в её смену; иначе простой помечен открытым, но не отправляется
   const silent = send.filter((x) => x.kind === "silent");
-  if (silent.length && !recipientOnDuty(now)) { log(`alerts skipped (recipient off duty): ${silent.map((a) => a.manager.name).join(", ")}`); return; }
+  const skipped = [];
   for (const a of silent) {
+    const who = alertRecipient(now, a.manager.id, { absent: live.absent, backupId: env.ALERT_MM_BACKUP_USER ? BACKUP_ID : null });
+    if (!who) { skipped.push(a.manager.name); continue; }
     try {
-      await mattermost.direct(env.ALERT_MM_USER, alertText(a, { online: live.online[a.manager.id], feedUrl }));
-      log(`alert ${a.kind}: ${a.manager.name}`);
+      await mattermost.direct(who === "backup" ? env.ALERT_MM_BACKUP_USER : env.ALERT_MM_USER, alertText(a, { online: live.online[a.manager.id], feedUrl }));
+      log(`alert ${a.kind}${who === "backup" ? " (backup)" : ""}: ${a.manager.name}`);
     } catch (e) { log("alert send error:", e.message); }
   }
+  if (skipped.length) log(`alerts skipped (recipient off duty): ${skipped.join(", ")}`);
 }
 
 // Feed covers the main groups plus other pipelines' people (upsell group); alerts stay with the main groups

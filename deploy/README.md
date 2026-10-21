@@ -5,7 +5,7 @@ Ubuntu 24.04, Node 22 as a systemd service behind Caddy (HTTPS via Let's Encrypt
 1. `bash deploy/setup.sh <domain>` as root — packages, firewall (22/80/443), SSH keys only, auto security updates,
    user `faq626`, code in `/opt/faq626`, data in `/var/lib/faq626/data`, service and Caddy.
 2. Write secrets to `/etc/faq626.env` (mode 600, never in git):
-   `BITRIX_WEBHOOK`, `DASHBOARD_PASSWORD`, `MATTERMOST_URL`, `MATTERMOST_TOKEN`, `ALERT_MM_USER`, `PUBLIC_URL`.
+   `BITRIX_WEBHOOK`, `DASHBOARD_PASSWORD`, `MATTERMOST_URL`, `MATTERMOST_TOKEN`, `ALERT_MM_USER`, `ALERT_MM_BACKUP_USER` (optional: gets alerts after the head's hours), `PUBLIC_URL`.
 3. `systemctl start faq626`; logs: `journalctl -u faq626 -f`.
 
 Auto-hints (GigaChat — Claude isn't available from Russia): `bash deploy/setup-hints.sh` installs the Russian root CA

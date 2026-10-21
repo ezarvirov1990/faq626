@@ -22,6 +22,15 @@ export const SCHEDULES = {
 export const RECIPIENT_HOURS = { tz: 7, from: 9, to: 19, weekdays: true };
 export const recipientOnDuty = (now, hours = RECIPIENT_HOURS) => Boolean(shiftNow(hours, now));
 
+// When the head is off, alerts go to the backup (Кондратьева, decision 21.10.2026) during her own shift,
+// except alerts about the backup herself and days she is absent. Returns "primary", "backup" or null (drop).
+export const BACKUP_ID = "73919";
+export function alertRecipient(now, managerId, { absent = {}, hours = RECIPIENT_HOURS, backupId = BACKUP_ID, schedules = SCHEDULES } = {}) {
+  if (recipientOnDuty(now, hours)) return "primary";
+  if (!backupId || String(managerId) === String(backupId) || absent[backupId]) return null;
+  return shiftNow(schedules[backupId], now) ? "backup" : null;
+}
+
 // Смена сегодня, если сейчас рабочее время: { start, end } (мс) или null
 export function shiftNow(s, now) {
   const local = now + s.tz * HOUR;

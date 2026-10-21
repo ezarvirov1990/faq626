@@ -1,6 +1,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shiftNow, decideAlerts, alertText, SILENCE_MS, recipientOnDuty } from "./alerts.js";
+import { shiftNow, decideAlerts, alertText, SILENCE_MS, recipientOnDuty, alertRecipient } from "./alerts.js";
+
+test("after the head's day alerts go to Кондратьева during her shift (Mon–Fri 10–19 MSK)", () => {
+  const msk = (s) => Date.parse(s + "+03:00");
+  assert.equal(alertRecipient(msk("2026-10-21T14:59:00"), 130142), "primary"); // 18:59 NSK
+  assert.equal(alertRecipient(msk("2026-10-21T15:00:00"), 130142), "backup");
+  assert.equal(alertRecipient(msk("2026-10-21T18:59:00"), 203760), "backup");
+  assert.equal(alertRecipient(msk("2026-10-21T19:00:00"), 130142), null);
+  assert.equal(alertRecipient(msk("2026-10-21T16:00:00"), 73919), null); // about herself
+  assert.equal(alertRecipient(msk("2026-10-21T16:00:00"), "73919"), null);
+  assert.equal(alertRecipient(msk("2026-10-21T16:00:00"), 130142, { absent: { 73919: true } }), null);
+  assert.equal(alertRecipient(msk("2026-10-21T16:00:00"), 130142, { backupId: null }), null);
+  assert.equal(alertRecipient(msk("2026-10-24T12:00:00"), 130142), null); // Saturday
+  assert.equal(alertRecipient(msk("2026-10-21T06:00:00"), 130142), "primary"); // 10:00 NSK
+});
 
 test("alerts go to the head only Mon–Fri 9:00–19:00 Novosibirsk", () => {
   const nsk = (s) => Date.parse(s + "+07:00");
