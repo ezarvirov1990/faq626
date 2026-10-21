@@ -20,6 +20,9 @@ export function loadConfig(env) {
     user: env.DASHBOARD_USER || "mygenetics",
     password: env.DASHBOARD_PASSWORD,
     departments: (env.DEPARTMENTS || "256,198").split(",").map((s) => Number(s.trim())).filter(Boolean),
+    // Home group of people listed in several DEPARTMENTS (otherwise the first one wins):
+    // Самусевич heads both МСК and НСК but works from НСК (21.10.2026)
+    homeDepartment: Object.fromEntries((env.HOME_DEPARTMENT ?? "77:198").split(",").map((s) => s.split(":").map((x) => Number(x.trim()))).filter(([u, d]) => u && d)),
     thresholdHours: Number(env.THRESHOLD_HOURS || 48),
     dealPipelines: parseDealPipelines(env),
     // Чьи переносы сроков задач не показываем (руководитель)
@@ -175,6 +178,10 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
   // Менеджеры выбранных групп
   const managers = new Map();
   for (const dep of departments) for (const m of await deptMembers(dep)) if (!managers.has(m.id)) managers.set(m.id, m);
+  for (const [id, dep] of Object.entries(config.homeDepartment || {})) {
+    const home = managers.has(Number(id)) && departments.includes(dep) && (await deptMembers(dep)).find((m) => m.id === Number(id));
+    if (home) managers.set(home.id, home);
+  }
   const managerIds = [...managers.keys()];
 
   // What to collect: leads of the main groups, then every deal pipeline with its own owners

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseDealPipelines, skipStageIds, mergeDealPipelines, silenceStart, waitingAfter } from "./collector.js";
+import { parseDealPipelines, skipStageIds, mergeDealPipelines, silenceStart, waitingAfter, loadConfig } from "./collector.js";
 
 test("client waits: a connected call answers, a failed outgoing call is only an attempt", () => {
   const wrote = Date.parse("2026-10-01T09:00:00+03:00");
@@ -88,4 +88,10 @@ test("GenConf stages after the ticket purchase are skipped", () => {
   const genconf = parseDealPipelines({}).find((x) => x.id === 53);
   assert.deepEqual([...skipStageIds(stages, genconf.skipStages)].sort(), ["C53:1", "C53:2", "C53:3", "C53:4"]);
   assert.equal(skipStageIds(stages).size, 0);
+});
+
+test("home group: Самусевич defaults to НСК, env overrides or clears it", () => {
+  assert.deepEqual(loadConfig({}).homeDepartment, { 77: 198 });
+  assert.deepEqual(loadConfig({ HOME_DEPARTMENT: "77:256, 5:198" }).homeDepartment, { 77: 256, 5: 198 });
+  assert.deepEqual(loadConfig({ HOME_DEPARTMENT: "" }).homeDepartment, {});
 });
