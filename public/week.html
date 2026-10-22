@@ -11,7 +11,7 @@
 :root {
   --bg: #F2F4F6; --surface: #FFFFFF; --ink: #16202C; --muted: #5B6878; --line: #DCE2E9;
   --accent: #1F6F8B; --accent-soft: #E3EFF3; --on-accent: #FFFFFF;
-  --ok: #2F7D4F; --ok-soft: #E2F2E8; --warn: #A86A12; --warn-soft: #FBF1DE; --crit: #B42318; --crit-soft: #FBE4E2;
+  --ok: #276B43; --ok-soft: #E2F2E8; --warn: #A86A12; --warn-soft: #FBF1DE; --crit: #B42318; --crit-soft: #FBE4E2;
   /* chart series (validated: lightness band, chroma, CVD ΔE ≥ 8) */
   --s-came: #4F5FD0; --s-qual: #2F8A55; --s-bad: #D2551A; --grid: #E8ECF0;
   --font: "Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -64,7 +64,9 @@ h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spa
 button:focus-visible, a:focus-visible, tr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-@media (max-width: 900px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stats .stat:last-child { grid-column: 1 / -1; } }
+.wrap.busy .stats b, .wrap.busy .chart, .wrap.busy .tbl-wrap { opacity: .35; transition: opacity .2s ease-out; }
+.msg button { font: inherit; margin-left: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 4px 12px; cursor: pointer; }
 .stat { background: var(--surface); padding: 14px 18px; display: grid; gap: 2px; align-content: start; }
 .stat .k { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
 .stat .k i { width: 10px; height: 10px; border-radius: 2px; flex: none; }
@@ -74,7 +76,7 @@ button:focus-visible, a:focus-visible, tr:focus-visible { outline: 2px solid var
 .grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 @media (max-width: 960px) { .grid2 { grid-template-columns: 1fr; } }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
-h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+h2 { text-wrap: balance; margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 10px; height: 10px; border-radius: 2px; }
@@ -96,16 +98,22 @@ th { text-align: right; font-weight: 500; color: var(--muted); font-size: 12.5px
 td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); font: 500 14px var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 th:first-child, td:first-child { text-align: left; font-family: var(--font); }
 td.dim, .dim { color: var(--muted); }
-td.anom { color: var(--crit); background: var(--crit-soft); font-weight: 700; }
+td.anom { color: var(--crit); font-weight: 700; }
+td.rate small { display: block; font: 400 11.5px var(--font); color: var(--muted); }
+td.rate.anom small { color: var(--crit); }
+td.rate.few { color: var(--muted); font-weight: 400; }
+tr.team td { font-weight: 600; border-top: 2px solid var(--line); }
+tr.team + tr.total td { border-top-width: 1px; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .stat.conv b { color: var(--accent); }
 tr.total td { font-weight: 700; border-bottom: 0; border-top: 2px solid var(--line); }
-tr.future td { color: var(--muted); opacity: .5; }
+tr.future td { color: var(--muted); }
 tr.today td:first-child::after { content: " · сегодня"; color: var(--muted); font-size: 12px; }
 #owners tbody tr { cursor: pointer; }
 #owners tbody tr:hover td { background: var(--bg); }
 #owners tbody tr[aria-selected="true"] td { background: var(--accent-soft); }
 .who small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
-.note { color: var(--muted); font-size: 13px; margin: 0; max-width: 90ch; }
+.note { color: var(--muted); font-size: 13px; margin: 0; max-width: 72ch; }
 .msg { padding: 24px; text-align: center; color: var(--muted); }
 </style>
 </head>
@@ -152,11 +160,12 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
 
   <div class="grid2">
     <section class="panel">
-      <h2>По дням</h2>
+      <h2>Пришло и закрыто по дням</h2>
       <div class="legend">
         <span><i style="background:var(--s-came)"></i>Пришло</span>
-        <span><i style="background:var(--s-qual)"></i>Качественные</span>
-        <span><i style="background:var(--s-bad)"></i>Не качественные</span>
+        <span>Закрыто:</span>
+        <span><i style="background:var(--s-qual)"></i>качественные</span>
+        <span><i style="background:var(--s-bad)"></i>не качественные</span>
       </div>
       <div class="chart" id="chart"><div class="msg">Загружаю…</div></div>
     </section>
@@ -167,11 +176,11 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
   </div>
 
   <section class="panel">
-    <h2>По менеджерам за неделю <span class="dim" style="text-transform:none;letter-spacing:0;font-weight:400">— нажмите на строку, чтобы график и таблица выше показали только её</span></h2>
+    <h2>По менеджерам за неделю <span class="dim" style="text-transform:none;letter-spacing:0;font-weight:400">· нажмите на строку, чтобы отфильтровать</span></h2>
     <div class="tbl-wrap" id="owners"></div>
   </section>
 
-  <p class="note">Пришло — лиды, созданные в этот день. Качественные и не качественные — лиды, закрытые в этот день с таким статусом, независимо от того, когда они пришли; не качественные — «Не прошёл BANT» и «Недозвон». В работе — сколько открытых лидов осталось на конец дня (сегодня — на текущий момент). Лиды считаются за тем, кто ответственный сейчас; у Савви — те, что всё ещё в его очереди, а пришедшие через него и переданные менеджерам видны в «через Савви». Конверсия — доля качественных (и не качественных) среди лидов, закрытых за неделю. Красным подсвечена конверсия менеджера, если она заметно ниже, чем у команды, и при его числе закрытых лидов (от 10) это уже не случайность. Не учитываются лиды, которые Битрикс создал при нашей рассылке по закрытым лидам 20–21.10. Данные из Bitrix24, обновляются раз в 5 минут.</p>
+  <p class="note">Пришло — лиды, созданные в этот день. Качественные и не качественные — лиды, закрытые в этот день с таким статусом, независимо от того, когда они пришли; не качественные — «Не прошёл BANT» и «Недозвон». В работе — сколько открытых лидов осталось на конец дня (сегодня — на текущий момент). Лиды считаются за тем, кто ответственный сейчас; у Савви — те, что всё ещё в его очереди, а пришедшие через него и переданные менеджерам видны в «через Савви». Конверсия — доля качественных среди лидов, закрытых за неделю. «Команда» — все менеджеры без Савви. Красным подсвечена конверсия менеджера, если она заметно ниже, чем у команды, и при его числе закрытых лидов (от 10) это уже не случайность; при меньшем числе процент показан бледным — по нему рано судить. Не учитываются лиды, которые Битрикс создал при нашей рассылке по закрытым лидам 20–21.10. Данные из Bitrix24, обновляются раз в 5 минут.</p>
 </div>
 
 <script>
@@ -191,7 +200,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
   }
   const svgEl = (tag, attrs) => { const n = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); return n; };
   const num = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-  const pct = (a, b) => (b ? Math.round((100 * a) / b) + " %" : "—");
+  const pct = (a, b) => (b ? Math.round((100 * a) / b) + " %" : "—");
   const addDays = (d, k) => new Date(Date.parse(d + "T12:00:00Z") + k * DAY).toISOString().slice(0, 10);
   const MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
   const WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -217,9 +226,19 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     const D = state.data;
     $("wk").textContent = state.from ? weekLabel(state.from) : "—";
     for (const b of document.querySelectorAll("#grp button")) b.setAttribute("aria-pressed", String(b.dataset.grp === state.grp));
-    if (!D) {
+    document.querySelector(".wrap").classList.toggle("busy", !!state.loading && !!D);
+    if (!D || D.from !== state.from) {
+      // never show another week's numbers under this week's label
       $("fresh").className = "fresh " + (state.error ? "dead" : "stale");
-      $("fresh").textContent = state.error || "Считаю по Bitrix24…";
+      $("fresh").textContent = state.error ? "Не загрузилось" : "Считаю по Bitrix24…";
+      for (const id of ["t-came", "t-qual", "t-bad", "t-conv", "t-work"]) $(id).textContent = "—";
+      for (const id of ["t-came-s", "t-qual-s", "t-conv-s"]) $(id).textContent = "";
+      $("chip").hidden = true;
+      const msg = () => state.error
+        ? el("div", { class: "msg" }, "Не удалось загрузить неделю: " + state.error + ".", el("button", { type: "button", text: "Повторить" }))
+        : el("div", { class: "msg", text: "Загружаю неделю…" });
+      for (const id of ["chart", "days", "owners"]) $(id).replaceChildren(msg());
+      for (const b of document.querySelectorAll(".msg button")) b.addEventListener("click", () => { state.error = null; render(); load(); });
       return;
     }
     $("prev").disabled = D.from <= addDays(D.current, -7 * D.weeksBack);
@@ -244,8 +263,14 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     $("t-qual").textContent = num(T.qual);
     $("t-qual-s").textContent = "закрыты как «Качественный лид»";
     $("t-bad").textContent = num(T.bad);
+    // one team baseline everywhere: all managers, bot excluded
+    const team = zero();
+    for (const o of D.owners) if (o.group !== "бот") for (const d of D.days) add(team, (D.cells[o.id] || {})[d] || zero());
+    const teamN = team.qual + team.bad, p0 = teamN ? team.qual / teamN : 0;
+    const hasBot = ids.includes(String(D.owners.find((o) => o.group === "бот")?.id));
     $("t-conv").textContent = pct(T.qual, T.qual + T.bad);
-    $("t-conv-s").textContent = "в некачественный — " + pct(T.bad, T.qual + T.bad) + " · из " + num(T.qual + T.bad) + " закрытых";
+    $("t-conv-s").textContent = "из " + num(T.qual + T.bad) + " закрытых" +
+      (hasBot ? (ids.length > 1 ? " · без Савви " + pct(team.qual, teamN) : "") : sel || state.grp ? " · у команды " + pct(team.qual, teamN) : "");
     $("t-work").textContent = num(days[last].work);
     $("t-work-s").textContent = D.from === D.current ? "открытых лидов сейчас" : "открытых на конец недели";
 
@@ -271,67 +296,81 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
       return { o, t };
     }).sort((a, b) => (a.o.group === "бот") - (b.o.group === "бот") || b.t.came - a.t.came);
     const ot = zero(); for (const r of orow) add(ot, r.t);
-    const team = zero();
-    for (const o of D.owners) if (o.group !== "бот") for (const d of D.days) add(team, (D.cells[o.id] || {})[d] || zero());
-    const p0 = team.qual + team.bad ? team.qual / (team.qual + team.bad) : 0;
+    const isBot = (r) => r.o.group === "бот";
     const anom = (r) => {
       const n = r.t.qual + r.t.bad;
-      if (r.o.group === "бот" || n < 10 || !p0 || p0 === 1) return null;
-      const z = (r.t.qual / n - p0) / Math.sqrt((p0 * (1 - p0)) / n);
-      return z < -2 ? "Заметно ниже команды (" + pct(team.qual, team.qual + team.bad) + " в качественный): при " + n + " закрытых лидах такое отклонение не случайно" : null;
+      if (isBot(r) || n < 10 || !p0 || p0 === 1) return false;
+      return (r.t.qual / n - p0) / Math.sqrt((p0 * (1 - p0)) / n) < -2;
     };
-    const rateCells = (r) => { const a = anom(r), n = r.t.qual + r.t.bad;
-      return [el("td", { class: a ? "anom" : null, title: a, text: pct(r.t.qual, n) }), el("td", { class: a ? "anom" : null, title: a, text: pct(r.t.bad, n) })]; };
+    const rateCell = (t, bot, flag) => {
+      const n = t.qual + t.bad;
+      if (!n) return el("td", { class: "rate dim", text: "—" });
+      const few = !bot && n < 10;
+      return el("td", { class: "rate" + (flag ? " anom" : few || bot ? " few" : ""), title: few ? "Мало закрытых лидов, по проценту рано судить" : null },
+        pct(t.qual, n), el("small", { text: num(t.qual) + " из " + num(n) }), flag ? el("span", { class: "vh", text: ", заметно ниже команды" }) : null);
+    };
     const tr = (r) => {
-      const n = el("tr", { tabindex: "0", "aria-selected": String(state.owner === String(r.o.id)) },
-        el("td", { class: "who" }, r.o.name, el("small", { text: r.o.group === "бот" ? "очередь бота в Открытых линиях" : r.o.group.replace("Группа продаж ", "") })),
-        el("td", { text: num(r.t.came) }), el("td", { text: r.o.group === "бот" ? "—" : num(r.t.viaBot) }),
-        el("td", { text: num(r.t.qual) }), el("td", { text: num(r.t.bad) }),
-        ...rateCells(r), el("td", { text: num(r.t.work) }));
-      const pick = () => { state.owner = state.owner === String(r.o.id) ? null : String(r.o.id); render(); };
+      const on = state.owner === String(r.o.id);
+      const n = el("tr", { tabindex: "0", role: "button", "aria-pressed": String(on), "aria-selected": String(on), "aria-label": r.o.name + (on ? ", выбран — нажмите, чтобы показать всех" : ", показать только его") },
+        el("td", { class: "who" }, r.o.name, el("small", { text: isBot(r) ? "очередь бота в Открытых линиях" : r.o.group.replace("Группа продаж ", "") })),
+        rateCell(r.t, isBot(r), anom(r)),
+        el("td", { text: num(r.t.came) }), el("td", { text: isBot(r) ? "—" : num(r.t.viaBot) }),
+        el("td", { text: num(r.t.qual) }), el("td", { text: num(r.t.bad) }), el("td", { text: num(r.t.work) }));
+      const pick = () => { state.owner = on ? null : String(r.o.id); render(); };
       n.addEventListener("click", pick);
       n.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
       return n;
     };
+    const sumRow = (cls, name, t, conv) => el("tr", { class: cls }, el("td", { text: name }), conv, el("td", { text: num(t.came) }), el("td", { text: num(t.viaBot) }),
+      el("td", { text: num(t.qual) }), el("td", { text: num(t.bad) }), el("td", { text: num(t.work) }));
+    const mgr = orow.filter((r) => !isBot(r)), mt = zero(); for (const r of mgr) add(mt, r.t);
+    const foot = [];
+    if (mgr.length > 1 && mgr.length < orow.length) foot.push(sumRow("team", "Команда без Савви", mt, rateCell(mt, false, false)));
+    foot.push(sumRow("total", "Итого", ot, rateCell(ot, false, false)));
     $("owners").replaceChildren(el("table", {},
-      el("thead", {}, el("tr", {}, el("th", { text: "Ответственный" }), el("th", { text: "Пришло" }), el("th", { text: "через Савви" }),
-        el("th", { text: "Качеств." }), el("th", { text: "Не качеств." }), el("th", { text: "Конв. в качеств." }), el("th", { text: "Конв. в некачеств." }), el("th", { text: D.from === D.current ? "В работе сейчас" : "В работе на конец недели" }))),
+      el("thead", {}, el("tr", {}, el("th", { text: "Ответственный" }), el("th", { text: "Конверсия в качественный" }), el("th", { text: "Пришло" }), el("th", { text: "через Савви" }),
+        el("th", { text: "Качественные" }), el("th", { text: "Не качественные" }), el("th", { text: D.from === D.current ? "В работе сейчас" : "В работе на конец недели" }))),
       el("tbody", {}, ...orow.map(tr)),
-      el("tfoot", {}, el("tr", { class: "total" }, el("td", { text: "Итого" }), el("td", { text: num(ot.came) }), el("td", { text: num(ot.viaBot) }),
-        el("td", { text: num(ot.qual) }), el("td", { text: num(ot.bad) }), el("td", { text: pct(ot.qual, ot.qual + ot.bad) }), el("td", { text: pct(ot.bad, ot.qual + ot.bad) }), el("td", { text: num(ot.work) })))));
+      el("tfoot", {}, ...foot)));
   }
 
   function drawChart(all, days, have) {
     const box = $("chart");
-    const W = 640, H = 260, L = 34, R = 6, Tp = 10, B = 26;
-    let max = 0; for (const d of have) for (const [k] of KEYS) max = Math.max(max, days[d][k]);
+    // drawn at the container's real width so labels stay at their CSS size on phones
+    const W = Math.max(300, Math.round(box.clientWidth || 640)), H = 260, L = 34, R = 6, Tp = 10, B = 26;
+    let max = 0; for (const d of have) max = Math.max(max, days[d].came, days[d].qual + days[d].bad);
     const step = max <= 10 ? 2 : max <= 50 ? 10 : max <= 100 ? 20 : max <= 250 ? 50 : max <= 500 ? 100 : 200;
     const top = Math.max(step, Math.ceil(max / step) * step);
     const y = (v) => Tp + (H - Tp - B) * (1 - v / top);
-    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Лиды по дням: пришло, качественные, не качественные" });
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Лиды по дням: пришло и закрыто (качественные и не качественные); те же числа — в таблице по дням" });
     for (let v = 0; v <= top; v += step) {
       svg.append(svgEl("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: v ? "var(--grid)" : "var(--line)", "stroke-width": 1 }));
       const t = svgEl("text", { x: L - 6, y: y(v) + 4, "text-anchor": "end" }); t.textContent = num(v); svg.append(t);
     }
-    const gw = (W - L - R) / 7, bw = Math.min(20, (gw - 14) / KEYS.length - 2);
+    const gw = (W - L - R) / 7, bw = Math.max(6, Math.min(24, (gw - 14) / 2 - 2));
+    const bar = (x, y1, y2, fill, round) => {
+      const h = y2 - y1; if (h <= 0) return;
+      const r = round ? Math.min(4, bw / 2, h) : 0;
+      svg.append(svgEl("path", { d: `M${x},${y2} V${y1 + r} Q${x},${y1} ${x + r},${y1} H${x + bw - r} Q${x + bw},${y1} ${x + bw},${y1 + r} V${y2} Z`, fill: `var(${fill})`, "pointer-events": "none" }));
+    };
     const tip = el("div", { class: "tip", hidden: "" });
     all.forEach((d, i) => {
       const x0 = L + i * gw, c = days[d];
       const hit = svgEl("rect", { class: "hit", x: x0 + 2, y: Tp, width: gw - 4, height: H - Tp - B, rx: 6 });
       svg.append(hit);
-      const lbl = svgEl("text", { x: x0 + gw / 2, y: H - 8, "text-anchor": "middle" }); lbl.textContent = WD[i] + " " + dm(d); svg.append(lbl);
+      const lbl = svgEl("text", { x: x0 + gw / 2, y: H - 8, "text-anchor": "middle" }); lbl.textContent = gw < 56 ? WD[i] : WD[i] + " " + dm(d); svg.append(lbl);
       if (!c) return;
-      const gx = x0 + (gw - (bw * KEYS.length + 2 * (KEYS.length - 1))) / 2;
-      KEYS.forEach(([k, , v], j) => {
-        const val = c[k]; if (!val) return;
-        const h = Math.max(2, y(0) - y(val)), x = gx + j * (bw + 2), yy = y(0) - h, r = Math.min(4, bw / 2, h);
-        svg.append(svgEl("path", { d: `M${x},${y(0)} V${yy + r} Q${x},${yy} ${x + r},${yy} H${x + bw - r} Q${x + bw},${yy} ${x + bw},${yy + r} V${y(0)} Z`, fill: `var(${v})`, "pointer-events": "none" }));
-      });
+      const gx = x0 + (gw - (bw * 2 + 3)) / 2, h = (v) => (v ? Math.max(2, y(0) - y(v)) : 0);
+      // left: inflow; right: outcomes stacked (qualified at the base, not qualified on top, 2px surface gap)
+      if (c.came) bar(gx, y(0) - h(c.came), y(0), "--s-came", true);
+      const xq = gx + bw + 3, hq = h(c.qual), hb = h(c.bad);
+      if (hq) bar(xq, y(0) - hq, y(0), "--s-qual", !hb);
+      if (hb) bar(xq, y(0) - hq - (hq ? 2 : 0) - hb, y(0) - hq - (hq ? 2 : 0), "--s-bad", true);
       const show = () => {
         hit.classList.add("on");
         tip.replaceChildren(el("b", { text: WD[i] + ", " + dm(d) }),
           ...KEYS.map(([k, name, v]) => el("div", {}, el("span", {}, el("i", { style: `background:var(${v})` }), name), el("span", { text: num(c[k]) }))),
-          el("div", {}, el("span", { class: "dim", text: "в работе на конец дня" }), el("span", { text: num(c.work) })));
+          el("div", {}, el("span", { class: "dim", text: d === have[have.length - 1] && state.data.from === state.data.current ? "в работе сейчас" : "в работе на конец дня" }), el("span", { text: num(c.work) })));
         tip.hidden = false;
         const bx = box.getBoundingClientRect(), sx = bx.width / W;
         const left = (x0 + gw) * sx + 8;
@@ -345,14 +384,22 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
   }
 
   async function load() {
+    const want = state.from;
+    state.loading = true; render();
     try {
-      const res = await fetch("api/week" + (state.from ? "?from=" + state.from : ""), { cache: "no-store" });
+      const res = await fetch("api/week" + (want ? "?from=" + want : ""), { cache: "no-store" });
       const body = await res.json().catch(() => ({}));
+      if (state.from !== want) return; // the user moved to another week meanwhile
       if (!res.ok) throw new Error(body.error || "сервер ответил " + res.status);
       state.data = body; state.from = body.from; state.cur = body.current; state.error = null;
-    } catch (e) { state.error = e.message === "Failed to fetch" ? "нет связи с сервером" : e.message; }
+    } catch (e) {
+      if (state.from !== want) return;
+      state.error = e.message === "Failed to fetch" ? "нет связи с сервером" : e.message;
+    }
+    state.loading = false;
     render();
   }
+  let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (state.data && state.data.from === state.from) render(); }, 150); });
   function go(k) {
     state.from = addDays(state.from, 7 * k); state.data = null;
     history.replaceState(null, "", state.from === state.cur ? location.pathname : "#from=" + state.from);
@@ -366,6 +413,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     try { localStorage.setItem("ldash-week", JSON.stringify({ grp: state.grp })); } catch (e) {}
     render();
   });
+  { const t = document.querySelector(".tabs"); if (t) t.scrollLeft = t.scrollWidth; } // keep the active «Неделя» tab in view on phones
   render();
   load();
   setInterval(() => { if (state.data && state.data.from === state.data.current) load(); }, 5 * 60e3);
