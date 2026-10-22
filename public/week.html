@@ -13,7 +13,7 @@
   --accent: #1F6F8B; --accent-soft: #E3EFF3; --on-accent: #FFFFFF;
   --ok: #2F7D4F; --ok-soft: #E2F2E8; --warn: #A86A12; --warn-soft: #FBF1DE; --crit: #B42318; --crit-soft: #FBE4E2;
   /* chart series (validated: lightness band, chroma, CVD ΔE ≥ 8) */
-  --s-came: #4F5FD0; --s-qual: #2F8A55; --s-bad: #D2551A; --s-dup: #A3ADB8; --grid: #E8ECF0;
+  --s-came: #4F5FD0; --s-qual: #2F8A55; --s-bad: #D2551A; --grid: #E8ECF0;
   --font: "Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   color-scheme: light;
@@ -23,7 +23,7 @@
     --bg: #0F151C; --surface: #17212B; --ink: #E6EDF3; --muted: #93A1B1; --line: #28343F;
     --accent: #62B4D0; --accent-soft: #17313B; --on-accent: #0F151C;
     --ok: #6BCB92; --ok-soft: #173325; --warn: #E3A948; --warn-soft: #3A2E17; --crit: #F27272; --crit-soft: #401D1E;
-    --s-came: #7F8BE6; --s-qual: #44A86F; --s-bad: #DE6C30; --s-dup: #5E6A78; --grid: #222D38;
+    --s-came: #7F8BE6; --s-qual: #44A86F; --s-bad: #DE6C30; --grid: #222D38;
     color-scheme: dark;
   }
 }
@@ -31,7 +31,7 @@
   --bg: #0F151C; --surface: #17212B; --ink: #E6EDF3; --muted: #93A1B1; --line: #28343F;
   --accent: #62B4D0; --accent-soft: #17313B; --on-accent: #0F151C;
   --ok: #6BCB92; --ok-soft: #173325; --warn: #E3A948; --warn-soft: #3A2E17; --crit: #F27272; --crit-soft: #401D1E;
-  --s-came: #7F8BE6; --s-qual: #44A86F; --s-bad: #DE6C30; --s-dup: #5E6A78; --grid: #222D38;
+  --s-came: #7F8BE6; --s-qual: #44A86F; --s-bad: #DE6C30; --grid: #222D38;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -63,7 +63,7 @@ h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spa
 .chip button { font: inherit; border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 16px; line-height: 1; }
 button:focus-visible, a:focus-visible, tr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 @media (max-width: 900px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .stat { background: var(--surface); padding: 14px 18px; display: grid; gap: 2px; align-content: start; }
 .stat .k { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
@@ -146,7 +146,6 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     <div class="stat"><span class="k"><i style="background:var(--s-came)"></i>Пришло новых</span><b id="t-came">—</b><small id="t-came-s"></small></div>
     <div class="stat"><span class="k"><i style="background:var(--s-qual)"></i>Качественные</span><b id="t-qual">—</b><small id="t-qual-s"></small></div>
     <div class="stat"><span class="k"><i style="background:var(--s-bad)"></i>Не качественные</span><b id="t-bad">—</b><small>не прошли BANT и недозвон</small></div>
-    <div class="stat"><span class="k"><i style="background:var(--s-dup)"></i>Дубли и спам</span><b id="t-dup">—</b><small>закрыты за неделю</small></div>
     <div class="stat conv"><span class="k">Конверсия в качественный</span><b id="t-conv">—</b><small id="t-conv-s"></small></div>
     <div class="stat"><span class="k">В работе</span><b id="t-work">—</b><small id="t-work-s">открытых лидов</small></div>
   </section>
@@ -158,7 +157,6 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
         <span><i style="background:var(--s-came)"></i>Пришло</span>
         <span><i style="background:var(--s-qual)"></i>Качественные</span>
         <span><i style="background:var(--s-bad)"></i>Не качественные</span>
-        <span><i style="background:var(--s-dup)"></i>Дубли и спам</span>
       </div>
       <div class="chart" id="chart"><div class="msg">Загружаю…</div></div>
     </section>
@@ -173,14 +171,14 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     <div class="tbl-wrap" id="owners"></div>
   </section>
 
-  <p class="note">Пришло — лиды, созданные в этот день; «без дублей» — не считая тех, что потом закрыты как дубль или спам. Качественные и не качественные — лиды, закрытые в этот день с таким статусом, независимо от того, когда они пришли; не качественные — «Не прошёл BANT» и «Недозвон». В работе — сколько открытых лидов осталось на конец дня (сегодня — на текущий момент). Лиды считаются за тем, кто ответственный сейчас; у Савви — те, что всё ещё в его очереди, а пришедшие через него и переданные менеджерам видны в «через Савви». Конверсия — доля качественных (и не качественных) среди лидов, закрытых за неделю, без дублей и спама. Красным подсвечена конверсия менеджера, если она заметно ниже, чем у команды, и при его числе закрытых лидов (от 10) это уже не случайность. Не учитываются лиды, которые Битрикс создал при нашей рассылке по закрытым лидам 20–21.10 (452 шт.). Данные из Bitrix24, обновляются раз в 5 минут.</p>
+  <p class="note">Пришло — лиды, созданные в этот день. Качественные и не качественные — лиды, закрытые в этот день с таким статусом, независимо от того, когда они пришли; не качественные — «Не прошёл BANT» и «Недозвон». В работе — сколько открытых лидов осталось на конец дня (сегодня — на текущий момент). Лиды считаются за тем, кто ответственный сейчас; у Савви — те, что всё ещё в его очереди, а пришедшие через него и переданные менеджерам видны в «через Савви». Конверсия — доля качественных (и не качественных) среди лидов, закрытых за неделю. Красным подсвечена конверсия менеджера, если она заметно ниже, чем у команды, и при его числе закрытых лидов (от 10) это уже не случайность. Не учитываются лиды, которые Битрикс создал при нашей рассылке по закрытым лидам 20–21.10. Данные из Bitrix24, обновляются раз в 5 минут.</p>
 </div>
 
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
   const DAY = 864e5;
-  const KEYS = [["came", "Пришло", "--s-came"], ["qual", "Качественные", "--s-qual"], ["bad", "Не качественные", "--s-bad"], ["dup", "Дубли и спам", "--s-dup"]];
+  const KEYS = [["came", "Пришло", "--s-came"], ["qual", "Качественные", "--s-qual"], ["bad", "Не качественные", "--s-bad"]];
   const state = { from: null, data: null, grp: "", owner: null, error: null, loadedAt: 0 };
   try { const s = JSON.parse(localStorage.getItem("ldash-week") || "{}"); state.grp = s.grp || ""; } catch (e) {}
   const m = /from=(\d{4}-\d{2}-\d{2})/.exec(location.hash); if (m) state.from = m[1];
@@ -202,7 +200,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     const to = addDays(from, 6), a = new Date(from + "T12:00:00Z"), b = new Date(to + "T12:00:00Z");
     return a.getUTCMonth() === b.getUTCMonth() ? a.getUTCDate() + "–" + b.getUTCDate() + " " + MONTHS[b.getUTCMonth()] : a.getUTCDate() + " " + MONTHS[a.getUTCMonth()] + " – " + b.getUTCDate() + " " + MONTHS[b.getUTCMonth()];
   }
-  const zero = () => ({ came: 0, cameDup: 0, viaBot: 0, qual: 0, bad: 0, dup: 0, work: 0 });
+  const zero = () => ({ came: 0, viaBot: 0, qual: 0, bad: 0, work: 0 });
   function add(t, c) { for (const k in t) t[k] += c[k] || 0; }
 
   function owners() {
@@ -242,13 +240,12 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     const last = D.days[D.days.length - 1];
     const T = zero(); for (const d of D.days) add(T, days[d]);
     $("t-came").textContent = num(T.came);
-    $("t-came-s").textContent = "без дублей и спама " + num(T.came - T.cameDup) + " · через Савви " + num(T.viaBot);
+    $("t-came-s").textContent = "из них через Савви " + num(T.viaBot);
     $("t-qual").textContent = num(T.qual);
     $("t-qual-s").textContent = "закрыты как «Качественный лид»";
     $("t-bad").textContent = num(T.bad);
-    $("t-dup").textContent = num(T.dup);
     $("t-conv").textContent = pct(T.qual, T.qual + T.bad);
-    $("t-conv-s").textContent = "в некачественный — " + pct(T.bad, T.qual + T.bad) + " · из " + num(T.qual + T.bad) + " закрытых без дублей";
+    $("t-conv-s").textContent = "в некачественный — " + pct(T.bad, T.qual + T.bad) + " · из " + num(T.qual + T.bad) + " закрытых";
     $("t-work").textContent = num(days[last].work);
     $("t-work-s").textContent = D.from === D.current ? "открытых лидов сейчас" : "открытых на конец недели";
 
@@ -258,13 +255,13 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     const today = D.from === D.current ? last : null;
     const rows = all.map((d, i) => {
       const c = days[d];
-      if (!c) return el("tr", { class: "future" }, el("td", { text: WD[i] + " " + dm(d) }), ...[0, 0, 0, 0, 0, 0].map(() => el("td", { text: "—" })));
+      if (!c) return el("tr", { class: "future" }, el("td", { text: WD[i] + " " + dm(d) }), ...[0, 0, 0, 0].map(() => el("td", { text: "—" })));
       return el("tr", { class: d === today ? "today" : null }, el("td", { text: WD[i] + " " + dm(d) }),
-        el("td", { text: num(c.came) }), el("td", { class: "dim", text: num(c.came - c.cameDup) }), el("td", { text: num(c.qual) }), el("td", { text: num(c.bad) }), el("td", { class: "dim", text: num(c.dup) }), el("td", { text: num(c.work) }));
+        el("td", { text: num(c.came) }), el("td", { text: num(c.qual) }), el("td", { text: num(c.bad) }), el("td", { text: num(c.work) }));
     });
-    rows.push(el("tr", { class: "total" }, el("td", { text: "Итого" }), el("td", { text: num(T.came) }), el("td", { text: num(T.came - T.cameDup) }), el("td", { text: num(T.qual) }), el("td", { text: num(T.bad) }), el("td", { text: num(T.dup) }), el("td", { text: "—", title: "Остаток на конец дня, по дням не складывается" })));
+    rows.push(el("tr", { class: "total" }, el("td", { text: "Итого" }), el("td", { text: num(T.came) }), el("td", { text: num(T.qual) }), el("td", { text: num(T.bad) }), el("td", { text: "—", title: "Остаток на конец дня, по дням не складывается" })));
     $("days").replaceChildren(el("table", {},
-      el("thead", {}, el("tr", {}, el("th", { text: "День" }), el("th", { text: "Пришло" }), el("th", { text: "без дублей" }), el("th", { text: "Качеств." }), el("th", { text: "Не качеств." }), el("th", { text: "Дубли, спам" }), el("th", { text: "В работе к концу дня" }))),
+      el("thead", {}, el("tr", {}, el("th", { text: "День" }), el("th", { text: "Пришло" }), el("th", { text: "Качественные" }), el("th", { text: "Не качественные" }), el("th", { text: "В работе к концу дня" }))),
       el("tbody", {}, ...rows)));
 
     // owners table
@@ -288,8 +285,8 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     const tr = (r) => {
       const n = el("tr", { tabindex: "0", "aria-selected": String(state.owner === String(r.o.id)) },
         el("td", { class: "who" }, r.o.name, el("small", { text: r.o.group === "бот" ? "очередь бота в Открытых линиях" : r.o.group.replace("Группа продаж ", "") })),
-        el("td", { text: num(r.t.came) }), el("td", { class: "dim", text: num(r.t.came - r.t.cameDup) }), el("td", { text: r.o.group === "бот" ? "—" : num(r.t.viaBot) }),
-        el("td", { text: num(r.t.qual) }), el("td", { text: num(r.t.bad) }), el("td", { class: "dim", text: num(r.t.dup) }),
+        el("td", { text: num(r.t.came) }), el("td", { text: r.o.group === "бот" ? "—" : num(r.t.viaBot) }),
+        el("td", { text: num(r.t.qual) }), el("td", { text: num(r.t.bad) }),
         ...rateCells(r), el("td", { text: num(r.t.work) }));
       const pick = () => { state.owner = state.owner === String(r.o.id) ? null : String(r.o.id); render(); };
       n.addEventListener("click", pick);
@@ -297,11 +294,11 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
       return n;
     };
     $("owners").replaceChildren(el("table", {},
-      el("thead", {}, el("tr", {}, el("th", { text: "Ответственный" }), el("th", { text: "Пришло" }), el("th", { text: "без дублей" }), el("th", { text: "через Савви" }),
-        el("th", { text: "Качеств." }), el("th", { text: "Не качеств." }), el("th", { text: "Дубли, спам" }), el("th", { text: "Конв. в качеств." }), el("th", { text: "Конв. в некачеств." }), el("th", { text: D.from === D.current ? "В работе сейчас" : "В работе на конец недели" }))),
+      el("thead", {}, el("tr", {}, el("th", { text: "Ответственный" }), el("th", { text: "Пришло" }), el("th", { text: "через Савви" }),
+        el("th", { text: "Качеств." }), el("th", { text: "Не качеств." }), el("th", { text: "Конв. в качеств." }), el("th", { text: "Конв. в некачеств." }), el("th", { text: D.from === D.current ? "В работе сейчас" : "В работе на конец недели" }))),
       el("tbody", {}, ...orow.map(tr)),
-      el("tfoot", {}, el("tr", { class: "total" }, el("td", { text: "Итого" }), el("td", { text: num(ot.came) }), el("td", { text: num(ot.came - ot.cameDup) }), el("td", { text: num(ot.viaBot) }),
-        el("td", { text: num(ot.qual) }), el("td", { text: num(ot.bad) }), el("td", { text: num(ot.dup) }), el("td", { text: pct(ot.qual, ot.qual + ot.bad) }), el("td", { text: pct(ot.bad, ot.qual + ot.bad) }), el("td", { text: num(ot.work) })))));
+      el("tfoot", {}, el("tr", { class: "total" }, el("td", { text: "Итого" }), el("td", { text: num(ot.came) }), el("td", { text: num(ot.viaBot) }),
+        el("td", { text: num(ot.qual) }), el("td", { text: num(ot.bad) }), el("td", { text: pct(ot.qual, ot.qual + ot.bad) }), el("td", { text: pct(ot.bad, ot.qual + ot.bad) }), el("td", { text: num(ot.work) })))));
   }
 
   function drawChart(all, days, have) {
@@ -311,12 +308,12 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     const step = max <= 10 ? 2 : max <= 50 ? 10 : max <= 100 ? 20 : max <= 250 ? 50 : max <= 500 ? 100 : 200;
     const top = Math.max(step, Math.ceil(max / step) * step);
     const y = (v) => Tp + (H - Tp - B) * (1 - v / top);
-    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Лиды по дням: пришло, качественные, не качественные, дубли и спам" });
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Лиды по дням: пришло, качественные, не качественные" });
     for (let v = 0; v <= top; v += step) {
       svg.append(svgEl("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: v ? "var(--grid)" : "var(--line)", "stroke-width": 1 }));
       const t = svgEl("text", { x: L - 6, y: y(v) + 4, "text-anchor": "end" }); t.textContent = num(v); svg.append(t);
     }
-    const gw = (W - L - R) / 7, bw = Math.min(16, (gw - 14) / 4 - 2);
+    const gw = (W - L - R) / 7, bw = Math.min(20, (gw - 14) / KEYS.length - 2);
     const tip = el("div", { class: "tip", hidden: "" });
     all.forEach((d, i) => {
       const x0 = L + i * gw, c = days[d];
@@ -324,7 +321,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
       svg.append(hit);
       const lbl = svgEl("text", { x: x0 + gw / 2, y: H - 8, "text-anchor": "middle" }); lbl.textContent = WD[i] + " " + dm(d); svg.append(lbl);
       if (!c) return;
-      const gx = x0 + (gw - (bw * 4 + 2 * 3)) / 2;
+      const gx = x0 + (gw - (bw * KEYS.length + 2 * (KEYS.length - 1))) / 2;
       KEYS.forEach(([k, , v], j) => {
         const val = c[k]; if (!val) return;
         const h = Math.max(2, y(0) - y(val)), x = gx + j * (bw + 2), yy = y(0) - h, r = Math.min(4, bw / 2, h);
@@ -334,7 +331,6 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
         hit.classList.add("on");
         tip.replaceChildren(el("b", { text: WD[i] + ", " + dm(d) }),
           ...KEYS.map(([k, name, v]) => el("div", {}, el("span", {}, el("i", { style: `background:var(${v})` }), name), el("span", { text: num(c[k]) }))),
-          el("div", {}, el("span", { class: "dim", text: "без дублей пришло" }), el("span", { text: num(c.came - c.cameDup) })),
           el("div", {}, el("span", { class: "dim", text: "в работе на конец дня" }), el("span", { text: num(c.work) })));
         tip.hidden = false;
         const bx = box.getBoundingClientRect(), sx = bx.width / W;

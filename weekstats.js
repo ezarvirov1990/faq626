@@ -1,10 +1,12 @@
 // «Неделя» page: leads of B2C managers and the Suvvy bot per day (MSK) — came in, closed as qualified,
-// closed as not qualified, duplicates/spam, still open at the end of the day. Attributed to the current owner.
+// closed as not qualified, still open at the end of the day. Attributed to the current owner.
+// Leads closed as duplicate or spam are not analysed at all (user decision 22.10.2026) — left out entirely.
 
 export const SUVVY_ID = 367846; // Open Lines service user: the Suvvy bot's queue
 const DAY = 24 * 3600e3;
 const MSK = 3 * 3600e3;
-export const CLOSED = { CONVERTED: "qual", JUNK: "bad", 4: "bad", 2: "dup", 3: "dup" };
+export const CLOSED = { CONVERTED: "qual", JUNK: "bad", 4: "bad" };
+export const IGNORED = ["2", "3"]; // «Дубль», «Спам»
 
 // Monday 00:00 MSK of the week containing `ms`, as "YYYY-MM-DD"
 export function weekStart(ms) {
@@ -25,13 +27,13 @@ export function weekStats({ from, now, owners, leads, exclude = [] }) {
   }
   const ownerSet = new Set(owners.map((o) => String(o.id)));
   const cells = {};
-  const cell = (o, d) => ((cells[o] ||= {})[d] ||= { came: 0, cameDup: 0, viaBot: 0, qual: 0, bad: 0, dup: 0, work: 0 });
+  const cell = (o, d) => ((cells[o] ||= {})[d] ||= { came: 0, viaBot: 0, qual: 0, bad: 0, work: 0 });
   const seen = new Set([...exclude].map(String));
   for (const l of leads) {
     if (seen.has(l.ID)) continue;
     seen.add(l.ID);
     const o = String(l.ASSIGNED_BY_ID);
-    if (!ownerSet.has(o)) continue;
+    if (!ownerSet.has(o) || IGNORED.includes(String(l.STATUS_ID))) continue;
     const created = Date.parse(l.DATE_CREATE);
     const cls = CLOSED[l.STATUS_ID];
     const open = l.STATUS_SEMANTIC_ID === "P" || (!cls && !l.DATE_CLOSED);
@@ -39,7 +41,6 @@ export function weekStats({ from, now, owners, leads, exclude = [] }) {
     const cd = dayKey(created);
     if (days.includes(cd)) {
       cell(o, cd).came++;
-      if (cls === "dup") cell(o, cd).cameDup++;
       if (String(l.CREATED_BY_ID) === String(SUVVY_ID)) cell(o, cd).viaBot++;
     }
     if (closedDay && cls && days.includes(closedDay)) cell(o, closedDay)[cls]++;

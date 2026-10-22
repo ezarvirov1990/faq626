@@ -26,11 +26,11 @@ test("per day: came, closed by kind, open at the end of the day; current owner; 
   const s = weekStats({ from: "2026-10-19", now: Date.parse("2026-10-21T15:00:00+03:00"), owners, leads });
   assert.deepEqual(s.days, ["2026-10-19", "2026-10-20", "2026-10-21"]);
   const a = s.cells["1"];
-  assert.deepEqual(a["2026-10-19"], { came: 1, cameDup: 0, viaBot: 1, qual: 0, bad: 1, dup: 0, work: 1 });
-  assert.deepEqual(a["2026-10-20"], { came: 1, cameDup: 0, viaBot: 0, qual: 1, bad: 0, dup: 0, work: 1 });
+  assert.deepEqual(a["2026-10-19"], { came: 1, viaBot: 1, qual: 0, bad: 1, work: 1 });
+  assert.deepEqual(a["2026-10-20"], { came: 1, viaBot: 0, qual: 1, bad: 0, work: 1 });
   assert.equal(a["2026-10-21"].work, 1);
-  assert.deepEqual(s.cells[String(SUVVY_ID)]["2026-10-21"], { came: 1, cameDup: 1, viaBot: 0, qual: 0, bad: 0, dup: 1, work: 0 });
+  assert.equal(s.cells[String(SUVVY_ID)], undefined); // duplicates are not analysed
   assert.equal(s.cells["9"], undefined);
-  const x = weekStats({ from: "2026-10-19", now: Date.parse("2026-10-21T15:00:00+03:00"), owners, leads, exclude: [4] });
-  assert.equal(x.cells[String(SUVVY_ID)], undefined);
+  const x = weekStats({ from: "2026-10-19", now: Date.parse("2026-10-21T15:00:00+03:00"), owners, leads, exclude: [1] });
+  assert.equal(x.cells["1"]["2026-10-19"].came, 0);
 });
