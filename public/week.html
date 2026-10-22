@@ -63,8 +63,8 @@ h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spa
 .chip button { font: inherit; border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 16px; line-height: 1; }
 button:focus-visible, a:focus-visible, tr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-@media (max-width: 900px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stats .stat:last-child { grid-column: span 2; } }
+.stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+@media (max-width: 900px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .stat { background: var(--surface); padding: 14px 18px; display: grid; gap: 2px; align-content: start; }
 .stat .k { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
 .stat .k i { width: 10px; height: 10px; border-radius: 2px; flex: none; }
@@ -96,6 +96,8 @@ th { text-align: right; font-weight: 500; color: var(--muted); font-size: 12.5px
 td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); font: 500 14px var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 th:first-child, td:first-child { text-align: left; font-family: var(--font); }
 td.dim, .dim { color: var(--muted); }
+td.anom { color: var(--crit); background: var(--crit-soft); font-weight: 700; }
+.stat.conv b { color: var(--accent); }
 tr.total td { font-weight: 700; border-bottom: 0; border-top: 2px solid var(--line); }
 tr.future td { color: var(--muted); opacity: .5; }
 tr.today td:first-child::after { content: " · сегодня"; color: var(--muted); font-size: 12px; }
@@ -145,6 +147,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     <div class="stat"><span class="k"><i style="background:var(--s-qual)"></i>Качественные</span><b id="t-qual">—</b><small id="t-qual-s"></small></div>
     <div class="stat"><span class="k"><i style="background:var(--s-bad)"></i>Не качественные</span><b id="t-bad">—</b><small>не прошли BANT и недозвон</small></div>
     <div class="stat"><span class="k"><i style="background:var(--s-dup)"></i>Дубли и спам</span><b id="t-dup">—</b><small>закрыты за неделю</small></div>
+    <div class="stat conv"><span class="k">Конверсия в качественный</span><b id="t-conv">—</b><small id="t-conv-s"></small></div>
     <div class="stat"><span class="k">В работе</span><b id="t-work">—</b><small id="t-work-s">открытых лидов</small></div>
   </section>
 
@@ -170,7 +173,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     <div class="tbl-wrap" id="owners"></div>
   </section>
 
-  <p class="note">Пришло — лиды, созданные в этот день; «без дублей» — не считая тех, что потом закрыты как дубль или спам. Качественные и не качественные — лиды, закрытые в этот день с таким статусом, независимо от того, когда они пришли; не качественные — «Не прошёл BANT» и «Недозвон». В работе — сколько открытых лидов осталось на конец дня (сегодня — на текущий момент). Лиды считаются за тем, кто ответственный сейчас; у Савви — те, что всё ещё в его очереди, а пришедшие через него и переданные менеджерам видны в «через Савви». Не учитываются лиды, которые Битрикс создал при нашей рассылке по закрытым лидам 20–21.10 (452 шт.). Данные из Bitrix24, обновляются раз в 5 минут.</p>
+  <p class="note">Пришло — лиды, созданные в этот день; «без дублей» — не считая тех, что потом закрыты как дубль или спам. Качественные и не качественные — лиды, закрытые в этот день с таким статусом, независимо от того, когда они пришли; не качественные — «Не прошёл BANT» и «Недозвон». В работе — сколько открытых лидов осталось на конец дня (сегодня — на текущий момент). Лиды считаются за тем, кто ответственный сейчас; у Савви — те, что всё ещё в его очереди, а пришедшие через него и переданные менеджерам видны в «через Савви». Конверсия — доля качественных (и не качественных) среди лидов, закрытых за неделю, без дублей и спама. Красным подсвечена конверсия менеджера, если она заметно ниже, чем у команды, и при его числе закрытых лидов (от 10) это уже не случайность. Не учитываются лиды, которые Битрикс создал при нашей рассылке по закрытым лидам 20–21.10 (452 шт.). Данные из Bitrix24, обновляются раз в 5 минут.</p>
 </div>
 
 <script>
@@ -244,6 +247,8 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     $("t-qual-s").textContent = pct(T.qual, T.qual + T.bad) + " от закрытых (без дублей)";
     $("t-bad").textContent = num(T.bad);
     $("t-dup").textContent = num(T.dup);
+    $("t-conv").textContent = pct(T.qual, T.qual + T.bad);
+    $("t-conv-s").textContent = "в некачественный — " + pct(T.bad, T.qual + T.bad) + " · из " + num(T.qual + T.bad) + " закрытых без дублей";
     $("t-work").textContent = num(days[last].work);
     $("t-work-s").textContent = D.from === D.current ? "открытых лидов сейчас" : "открытых на конец недели";
 
@@ -269,12 +274,23 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
       return { o, t };
     }).sort((a, b) => (a.o.group === "бот") - (b.o.group === "бот") || b.t.came - a.t.came);
     const ot = zero(); for (const r of orow) add(ot, r.t);
+    const team = zero();
+    for (const o of D.owners) if (o.group !== "бот") for (const d of D.days) add(team, (D.cells[o.id] || {})[d] || zero());
+    const p0 = team.qual + team.bad ? team.qual / (team.qual + team.bad) : 0;
+    const anom = (r) => {
+      const n = r.t.qual + r.t.bad;
+      if (r.o.group === "бот" || n < 10 || !p0 || p0 === 1) return null;
+      const z = (r.t.qual / n - p0) / Math.sqrt((p0 * (1 - p0)) / n);
+      return z < -2 ? "Заметно ниже команды (" + pct(team.qual, team.qual + team.bad) + " в качественный): при " + n + " закрытых лидах такое отклонение не случайно" : null;
+    };
+    const rateCells = (r) => { const a = anom(r), n = r.t.qual + r.t.bad;
+      return [el("td", { class: a ? "anom" : null, title: a, text: pct(r.t.qual, n) }), el("td", { class: a ? "anom" : null, title: a, text: pct(r.t.bad, n) })]; };
     const tr = (r) => {
       const n = el("tr", { tabindex: "0", "aria-selected": String(state.owner === String(r.o.id)) },
         el("td", { class: "who" }, r.o.name, el("small", { text: r.o.group === "бот" ? "очередь бота в Открытых линиях" : r.o.group.replace("Группа продаж ", "") })),
         el("td", { text: num(r.t.came) }), el("td", { class: "dim", text: num(r.t.came - r.t.cameDup) }), el("td", { text: r.o.group === "бот" ? "—" : num(r.t.viaBot) }),
         el("td", { text: num(r.t.qual) }), el("td", { text: num(r.t.bad) }), el("td", { class: "dim", text: num(r.t.dup) }),
-        el("td", { text: pct(r.t.qual, r.t.qual + r.t.bad) }), el("td", { text: num(r.t.work) }));
+        ...rateCells(r), el("td", { text: num(r.t.work) }));
       const pick = () => { state.owner = state.owner === String(r.o.id) ? null : String(r.o.id); render(); };
       n.addEventListener("click", pick);
       n.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
@@ -282,10 +298,10 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     };
     $("owners").replaceChildren(el("table", {},
       el("thead", {}, el("tr", {}, el("th", { text: "Ответственный" }), el("th", { text: "Пришло" }), el("th", { text: "без дублей" }), el("th", { text: "через Савви" }),
-        el("th", { text: "Качеств." }), el("th", { text: "Не качеств." }), el("th", { text: "Дубли, спам" }), el("th", { text: "Доля качеств." }), el("th", { text: D.from === D.current ? "В работе сейчас" : "В работе на конец недели" }))),
+        el("th", { text: "Качеств." }), el("th", { text: "Не качеств." }), el("th", { text: "Дубли, спам" }), el("th", { text: "Конв. в качеств." }), el("th", { text: "Конв. в некачеств." }), el("th", { text: D.from === D.current ? "В работе сейчас" : "В работе на конец недели" }))),
       el("tbody", {}, ...orow.map(tr)),
       el("tfoot", {}, el("tr", { class: "total" }, el("td", { text: "Итого" }), el("td", { text: num(ot.came) }), el("td", { text: num(ot.came - ot.cameDup) }), el("td", { text: num(ot.viaBot) }),
-        el("td", { text: num(ot.qual) }), el("td", { text: num(ot.bad) }), el("td", { text: num(ot.dup) }), el("td", { text: pct(ot.qual, ot.qual + ot.bad) }), el("td", { text: num(ot.work) })))));
+        el("td", { text: num(ot.qual) }), el("td", { text: num(ot.bad) }), el("td", { text: num(ot.dup) }), el("td", { text: pct(ot.qual, ot.qual + ot.bad) }), el("td", { text: pct(ot.bad, ot.qual + ot.bad) }), el("td", { text: num(ot.work) })))));
   }
 
   function drawChart(all, days, have) {
