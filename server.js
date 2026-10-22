@@ -9,6 +9,7 @@ import { collectLive } from "./activity.js";
 import { mskDayStart } from "./tasks.js";
 import { decideAlerts, alertText, createMattermost, alertRecipient, BACKUP_ID } from "./alerts.js";
 import { collectWeek, weekStart, SUVVY_ID } from "./weekstats.js";
+import { collectUndelivered } from "./undelivered.js";
 
 const env = process.env;
 const config = loadConfig(env);
@@ -181,6 +182,27 @@ async function refreshLive() {
   }
 }
 
+// «Не доставлено» (undelivered.js): today's manager messages Wazzup could not deliver, nothing reached the
+// client after them. Own run every UNDELIVERED_MINUTES (~30 s: every chat touched today), in memory only.
+const undelivered = { data: null, error: null, running: false };
+const UNDELIVERED_MS = Number(env.UNDELIVERED_MINUTES || 15) * 60e3;
+async function refreshUndelivered() {
+  const managers = feedManagers();
+  if (undelivered.running || !config.webhook || !managers) return;
+  undelivered.running = true;
+  const started = Date.now();
+  try {
+    undelivered.data = await collectUndelivered(createBitrix(config.webhook), managers, { now: started });
+    undelivered.error = null;
+    log(`undelivered ok: ${undelivered.data.items.length} in ${Math.round((Date.now() - started) / 1000)}s`);
+  } catch (e) {
+    undelivered.error = e.message;
+    log("undelivered error:", e.message);
+  } finally {
+    undelivered.running = false;
+  }
+}
+
 function activityPayload() {
   const snap = state.snapshot;
   const day = mskDayStart(Date.now());
@@ -271,6 +293,7 @@ const server = http.createServer((req, res) => {
     return res.end(JSON.stringify({
       snapshot: state.snapshot,
       hints: state.hints,
+      undelivered: undelivered.data && { ...undelivered.data, error: undelivered.error },
       status: { lastAttemptAt: state.lastAttemptAt, lastError: state.lastError, running: state.running },
     }));
   }
@@ -299,6 +322,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(config.port, () => log(`listening on ${config.port}, refresh every ${config.refreshMinutes} min`));
-refresh().then(refreshLive);
+refresh().then(refreshLive).then(refreshUndelivered);
 setInterval(refresh, config.refreshMinutes * 60e3);
 setInterval(refreshLive, LIVE_MS);
+setInterval(refreshUndelivered, UNDELIVERED_MS);

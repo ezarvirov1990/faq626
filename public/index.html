@@ -152,6 +152,7 @@ table.moves { min-width: 900px; }
 @media (max-width: 640px) { .ev { grid-template-columns: 48px minmax(0, 1fr); gap: 2px 10px; } .ev-what { grid-column: 2; } }
 .more { display: flex; justify-content: center; padding: 12px; border-top: 1px solid var(--line); }
 
+.clip2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 32ch; }
 .empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); }
 .note { font-size: 13px; color: var(--muted); max-width: 70ch; margin: 0; }
 </style>
@@ -207,15 +208,16 @@ table.moves { min-width: 900px; }
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  const state = { snap: null, hints: {}, status: null, loadError: null, view: "leads", grp: "", pipe: 0, lmode: "silent", onlyWait: false, manager: null, activity: null, feedLimit: 200 };
+  const state = { snap: null, hints: {}, undeliv: null, status: null, loadError: null, view: "leads", grp: "", pipe: 0, lmode: "silent", onlyWait: false, manager: null, activity: null, feedLimit: 200 };
   try {
     const s = JSON.parse(localStorage.getItem("ldash") || "{}");
-    state.view = s.view || "leads"; state.grp = s.grp || ""; state.pipe = Number(s.pipe) || 0; state.lmode = s.lmode === "wait" ? "wait" : "silent"; state.onlyWait = !!s.onlyWait;
+    state.view = s.view || "leads"; state.grp = s.grp || ""; state.pipe = Number(s.pipe) || 0; state.lmode = ["wait", "undeliv"].includes(s.lmode) ? s.lmode : "silent"; state.onlyWait = !!s.onlyWait;
   } catch (e) {}
   // Вкладку можно открыть по ссылке: …/#feed, #tasks, #leads, #deals
   if (/^#(feed|tasks|leads|deals)$/.test(location.hash)) state.view = location.hash.slice(1);
-  // …/#wait — «Лиды» in the «Клиент ждёт ответа» mode
+  // …/#wait — «Лиды» in the «Клиент ждёт ответа» mode; #undelivered — «Не доставлено» on «Лиды»
   if (location.hash === "#wait") { state.view = "leads"; state.lmode = "wait"; }
+  if (location.hash === "#undelivered") { state.view = "leads"; state.lmode = "undeliv"; }
   function save() { try { localStorage.setItem("ldash", JSON.stringify({ view: state.view, grp: state.grp, pipe: state.pipe, lmode: state.lmode, onlyWait: state.onlyWait })); } catch (e) {} }
 
   const HOUR = 3600e3;
@@ -233,6 +235,8 @@ table.moves { min-width: 900px; }
     deal: { h: 60 * 24, c: 90 * 24, legend: ["30–60 дней", "60–90 дней", "больше 90 дней"], crit: "больше 90 дней", below: "до 90 дней" },
     // «Клиент ждёт ответа»: how long since the client's last message
     wait: { h: 1, c: 4, legend: ["до 1 часа", "1–4 часа", "больше 4 часов"], crit: "больше 4 часов", below: "до 4 часов" },
+    // «Не доставлено»: how long ago the undelivered message was sent
+    undeliv: { h: 1, c: 3, legend: ["до 1 часа", "1–3 часа", "больше 3 часов"], crit: "больше 3 часов", below: "до 3 часов" },
   };
   let lv = LEVELS.lead;
   // t — a deal pipeline's threshold: orange from 2×, red from 3× (30 days → 30–60 / 60–90 / 90+)
@@ -284,8 +288,11 @@ table.moves { min-width: 900px; }
 
   const NOTE_TOUCH = $("note").textContent;
   const NOTE_WAIT = "Клиент ждёт ответа — в чате открытого лида последним написал клиент, и после этого не было ни нашего сообщения (менеджера или бота), ни состоявшегося звонка. Попытка дозвона без разговора ответом не считается — такой лид остаётся в списке с пометкой «звонили, не дозвонились». Возраст лида не важен: сюда попадают и новые обращения, и вернувшиеся клиенты. Время ожидания идёт подряд, включая ночь и выходные. Данные из Bitrix24 обновляются раз в 15 минут.";
+  const NOTE_UNDELIV = "Не доставлено — сегодня менеджер написал клиенту в чат, Wazzup сообщение не доставил, и после этого до клиента ничего не дошло: ни другое наше сообщение, ни ответ самого клиента. Сюда попадают и закрытые лиды и сделки — именно их легко потерять. Не учитываются шаблоны роботов, Савви и автоматические рассылки (уведомления о заказе, отчёте, акции). Запись уходит из списка, когда наше следующее сообщение дошло или клиент написал сам. Проверка — раз в 15 минут.";
   const NOTE_TASKS = "Перенос без касания — срок задачи по лиду или сделке перенесли, а в тот же день до переноса не было ни нашего звонка, ни нашего сообщения клиенту. Перенос записан на того, кто его сделал; правка срока в первые 10 минут после постановки задачи не считается. Просрочка — у открытой задачи срок прошёл больше 48 часов назад. Данные из Bitrix24 обновляются раз в 15 минут.";
   const DAY_MS = 24 * HOUR;
+  // start of the current day in Moscow (UTC+3, no DST)
+  const mskDay = (ms) => Math.floor((ms + 3 * HOUR) / DAY_MS) * DAY_MS - 3 * HOUR;
   const card = (x) => el("a", { href: state.snap.portal + "/crm/" + x.entity + "/details/" + x.id + "/", target: "_blank", rel: "noopener", text: (x.entity === "deal" ? "Сделка #" : "Лид #") + x.id });
   const LEADS = ["лид", "лида", "лидов"], DEALS = ["сделка", "сделки", "сделок"];
   const both = (ls, e1) => {
@@ -572,27 +579,46 @@ table.moves { min-width: 900px; }
     const waitList = view.entity === "lead" && view.waiting
       ? view.waiting.filter((x) => inGrp(mgrById.get(x.managerId))).map((x) => ({ ...x, silentSince: x.since, lastActivity: x.since, hours: (now - Date.parse(x.since)) / HOUR, hasChat: true }))
       : null;
-    const waitMode = Boolean(waitList) && state.lmode === "wait";
+    // «Не доставлено»: today's undelivered manager messages, open and closed cards (server only)
+    const today = mskDay(now);
+    const undelivList = state.undeliv
+      ? state.undeliv.items.filter((x) => x.entity === view.entity && Date.parse(x.at) >= today && inGrp(mgrById.get(x.managerId)) && (!x.pipeline || !state.pipe || x.pipeline === state.pipe))
+        .map((x) => ({ ...x, silentSince: x.at, lastActivity: x.at, hours: (now - Date.parse(x.at)) / HOUR }))
+      : null;
+    const mode = state.lmode === "wait" && waitList ? "wait" : state.lmode === "undeliv" && undelivList ? "undeliv" : "silent";
+    const waitMode = mode === "wait", undelivMode = mode === "undeliv";
+    const modes = [["silent", view.entity === "deal" ? "Без касаний" : "Без касаний 48 часов", items.length]];
+    if (waitList) modes.push(["wait", "Клиент ждёт ответа", waitList.length]);
+    if (undelivList) modes.push(["undeliv", "Не доставлено", undelivList.length]);
     const lm = $("lmode");
-    lm.hidden = !waitList;
-    if (waitList) lm.replaceChildren(...[["silent", "Без касаний 48 часов", items.length], ["wait", "Клиент ждёт ответа", waitList.length]].map(([key, text, n]) => {
-      const b = el("button", { type: "button", "aria-pressed": String(state.lmode === key) }, text + " · " + n);
+    lm.hidden = modes.length < 2;
+    lm.replaceChildren(...modes.map(([key, text, n]) => {
+      const b = el("button", { type: "button", "aria-pressed": String(mode === key) }, text + " · " + n);
       b.addEventListener("click", () => { state.lmode = key; state.manager = null; save(); render(); });
       return b;
     }));
     if (waitMode) items = waitList;
-    $("only-wait-box").hidden = waitMode;
+    if (undelivMode) items = undelivList;
+    $("only-wait-box").hidden = waitMode || undelivMode;
     // Selected deal pipelines (all of them on «Все воронки»); leads have none
     const sel = view.pipelines ? view.pipelines.filter((p) => !state.pipe || p.id === state.pipe) : null;
     const open = (id) => sel ? sel.reduce((a, p) => a + (p.openByManager[id] || 0), 0) : view.openByManager[id] || 0;
     const ts = sel ? [...new Set(sel.map((p) => p.thresholdHours))] : [];
-    lv = waitMode ? LEVELS.wait : sel ? { ...LEVELS.deal, ...dealLevels(ts) } : LEVELS[view.entity] || LEVELS.lead;
+    lv = waitMode ? LEVELS.wait : undelivMode ? LEVELS.undeliv : sel ? { ...LEVELS.deal, ...dealLevels(ts) } : LEVELS[view.entity] || LEVELS.lead;
     const threshold = ts.length === 1 ? ts[0] : view.thresholdHours || snap.thresholdHours;
-    // On «Сделки» the cards are whoever owns open deals in the selected pipelines (incl. the upsell group)
-    const shownManagers = sel ? [...snap.managers, ...extra].filter((m) => inGrp(m) && open(m.id) > 0) : managers;
+    // On «Сделки» the cards are whoever owns open deals in the selected pipelines (incl. the upsell group);
+    // in «Не доставлено» — also whoever wrote the undelivered messages
+    const authors = new Set(items.map((x) => x.managerId));
+    const shownManagers = undelivMode
+      ? [...snap.managers, ...extra.filter((m) => !snap.managers.some((x) => x.id === m.id))].filter((m) => inGrp(m) && (authors.has(m.id) || (!sel && snap.managers.includes(m))))
+      : sel ? [...snap.managers, ...extra].filter((m) => inGrp(m) && open(m.id) > 0) : managers;
 
-    $("title").textContent = waitMode ? "Клиент ждёт ответа" : noun.heading;
-    if (waitMode) {
+    $("title").textContent = waitMode ? "Клиент ждёт ответа" : undelivMode ? (view.entity === "deal" ? "Сделки: сообщение не доставлено" : "Лиды: сообщение не доставлено") : noun.heading;
+    if (undelivMode) {
+      $("sub").textContent = "Сегодня менеджер написал клиенту, Wazzup не доставил, и до клиента после этого ничего не дошло · открытые и закрытые " + noun.acc;
+      const u = state.undeliv;
+      $("note").textContent = NOTE_UNDELIV + " Последняя проверка — " + fmt.format(new Date(u.updatedAt)) + " МСК" + (u.error ? "; следующая не удалась: " + u.error : "") + ".";
+    } else if (waitMode) {
       $("sub").textContent = "Группы продаж B2C МСК и НСК · открытые лиды, где клиент написал последним, а мы не ответили ни в чате, ни состоявшимся звонком";
       $("note").textContent = NOTE_WAIT;
     } else if (!sel) $("sub").textContent = "Группы продаж B2C МСК и НСК · открытые лиды без нашего касания больше " + thr(threshold);
@@ -607,18 +633,19 @@ table.moves { min-width: 900px; }
       const at = fmt.format(new Date(Math.min(...slowSel.map((p) => Date.parse(p.updatedAt)))));
       $("note").textContent = NOTE_TOUCH + " " + (slowSel.length > 1 ? "Данные воронок " + names : "Данные воронки " + names) + " — из сбора в " + at + " МСК.";
     }
-    $("s-crit-l").textContent = (waitMode ? "ждут " : "без касаний ") + lv.crit;
+    $("s-crit-l").textContent = (waitMode ? "ждут " : undelivMode ? "не дошло " : "без касаний ") + lv.crit + (undelivMode ? " назад" : "");
     $("legend").replaceChildren(...["warn", "high", "crit"].map((c, i) => el("span", {}, el("i", { style: "background:var(--" + c + ")" }), lv.legend[i])));
     const openTotal = shownManagers.reduce((a, m) => a + open(m.id), 0);
     $("s-total").textContent = items.length;
     $("s-total-l").textContent = waitMode
       ? plural(items.length, ["лид, где клиент ждёт ответа,", "лида, где клиент ждёт ответа,", "лидов, где клиент ждёт ответа,"]) + " из " + openTotal + " открытых"
+      : undelivMode ? plural(items.length, noun.forms) + ", где сообщение сегодня не дошло"
       : plural(items.length, noun.forms) + " без касаний из " + openTotal + " открытых";
-    $("s-wait").textContent = waitMode ? items.filter((x) => x.attemptAt).length : items.filter((x) => x.clientWaiting).length;
-    $("s-wait-l").textContent = waitMode ? "звонили, но не дозвонились" : "клиент написал и ждёт ответа";
+    $("s-wait").textContent = waitMode ? items.filter((x) => x.attemptAt).length : undelivMode ? items.filter((x) => x.closed).length : items.filter((x) => x.clientWaiting).length;
+    $("s-wait-l").textContent = waitMode ? "звонили, но не дозвонились" : undelivMode ? "из них уже закрыты" : "клиент написал и ждёт ответа";
     $("s-week").textContent = items.filter((x) => sev(x.hours, x.t) === "c").length;
     $("s-mgr").textContent = new Set(items.map((x) => x.managerId)).size;
-    $("s-mgr-l").textContent = waitMode ? "менеджеров, у кого ждут ответа" : "менеджеров с просрочкой";
+    $("s-mgr-l").textContent = waitMode ? "менеджеров, у кого ждут ответа" : undelivMode ? "менеджеров, чьи сообщения не дошли" : "менеджеров с просрочкой";
 
     // карточки менеджеров
     const byMgr = new Map();
@@ -635,14 +662,14 @@ table.moves { min-width: 900px; }
       for (const k of ["c", "h", "w"]) if (cnt[k]) { const i = el("i", { class: k }); i.style.width = (cnt[k] / ls.length) * 100 + "%"; bar.append(i); }
       const card = el("button", {
         type: "button", class: "mgr" + (ls.length ? "" : " zero"), "aria-pressed": String(state.manager === m.id),
-        title: ls.length ? "Показать список" : waitMode ? "Никто не ждёт ответа" : "Просрочек нет",
+        title: ls.length ? "Показать список" : waitMode ? "Никто не ждёт ответа" : undelivMode ? "Все сообщения дошли" : "Просрочек нет",
       },
         el("div", { class: "mgr-top" },
           el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: grpName(m.group) })),
-          el("div", { class: "mgr-count" }, String(ls.length), el("small", { text: " / " + open(m.id) }))),
+          el("div", { class: "mgr-count" }, String(ls.length), undelivMode ? null : el("small", { text: " / " + open(m.id) }))),
         bar,
         el("div", { class: "mgr-meta" },
-          el("span", { text: cnt.c ? cnt.c + " " + lv.crit : ls.length ? lv.below : "всё в порядке" }),
+          el("span", { text: undelivMode ? (!ls.length ? "всё дошло" : ls.some((x) => x.closed) ? ls.filter((x) => x.closed).length + " из них закрыты" : "все открыты") : cnt.c ? cnt.c + " " + lv.crit : ls.length ? lv.below : "всё в порядке" }),
           waiting ? el("span", { class: "wait", text: waiting + " ждут ответа" }) : null));
       if (ls.length) card.addEventListener("click", () => {
         state.manager = state.manager === m.id ? null : m.id;
@@ -657,6 +684,8 @@ table.moves { min-width: 900px; }
     if (!state.manager) {
       list.append(el("div", { class: "empty", text: waitMode
         ? (items.length ? "Нажмите на менеджера, чтобы увидеть лиды, где клиент ждёт ответа." : "Сейчас никто из клиентов не ждёт ответа.")
+        : undelivMode
+        ? (items.length ? "Нажмите на менеджера, чтобы увидеть, какие сообщения не дошли." : "Сегодня все сообщения менеджеров дошли до клиентов (или после них дошло следующее).")
         : items.length
         ? "Нажмите на менеджера, чтобы увидеть его " + noun.acc + " без касаний."
         : state.onlyWait ? "Нет записей, где клиент ждёт ответа." : "У всех менеджеров были касания за последние " + thr(threshold) + "." }));
@@ -664,6 +693,25 @@ table.moves { min-width: 900px; }
     }
     const m = mgrById.get(state.manager);
     const ls = byMgr.get(m.id).sort((a, b) => b.hours - a.hours);
+    if (undelivMode) {
+      const close = el("button", { type: "button", class: "close", text: "Свернуть" });
+      close.addEventListener("click", () => { state.manager = null; render(); });
+      const rows = ls.map((x) => el("tr", {},
+        el("td", {}, el("a", { href: snap.portal + "/crm/" + x.entity + "/details/" + x.id + "/", target: "_blank", rel: "noopener", text: "#" + x.id })),
+        el("td", {}, el("span", { text: x.stage }), x.closed ? el("div", { class: "chips" }, el("span", { class: "chip wait", text: x.won ? "закрыт успешно" : "закрыт" })) : null),
+        el("td", { class: "num" }, el("span", { class: "pill " + sev(x.hours), text: dur(x.hours) })),
+        el("td", { text: fmt.format(new Date(x.at)) + (x.count > 1 ? " · не дошло " + x.count : "") }),
+        el("td", {}, el("div", { class: "hint" }, el("div", {}, el("b", { text: "Что делать: " }), x.hint), el("div", { class: "muted", text: "Wazzup: " + x.reason }))),
+        el("td", {}, el("div", { class: "clip2 muted", title: x.text, text: x.text }))));
+      list.append(el("h2", { text: "Не доставлено · " + m.name }), el("div", { class: "group" },
+        el("div", { class: "group-head" },
+          el("div", {}, el("b", { text: m.name }), el("span", { text: "  " + ls.length + " " + plural(ls.length, noun.forms) + " · " + grpName(m.group) })),
+          close),
+        el("div", { class: "tbl-wrap" }, el("table", { class: "hinted" },
+          el("thead", {}, el("tr", {}, ...[noun.col, "Стадия", "Не дошло", "Отправлено (МСК)", "Причина", "Сообщение"].map((h) => el("th", { text: h })))),
+          el("tbody", {}, ...rows)))));
+      return;
+    }
     const withHints = view.entity === "lead";
     const showPipe = Boolean(sel) && sel.length > 1 && new Set(ls.map((x) => x.pipeline)).size > 1;
     const tbody = el("tbody");
@@ -722,6 +770,7 @@ table.moves { min-width: 900px; }
       state.status = body.status;
       if (body.snapshot) state.snap = body.snapshot;
       state.hints = body.hints || {};
+      state.undeliv = body.undelivered || null;
       state.loadError = null;
     } catch (e) {
       state.loadError = "нет связи с сервером";
