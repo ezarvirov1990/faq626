@@ -244,7 +244,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     $("t-came").textContent = num(T.came);
     $("t-came-s").textContent = "без дублей и спама " + num(T.came - T.cameDup) + " · через Савви " + num(T.viaBot);
     $("t-qual").textContent = num(T.qual);
-    $("t-qual-s").textContent = pct(T.qual, T.qual + T.bad) + " от закрытых (без дублей)";
+    $("t-qual-s").textContent = "закрыты как «Качественный лид»";
     $("t-bad").textContent = num(T.bad);
     $("t-dup").textContent = num(T.dup);
     $("t-conv").textContent = pct(T.qual, T.qual + T.bad);
