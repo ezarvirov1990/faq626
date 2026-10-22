@@ -59,7 +59,8 @@ h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spa
 
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
 .tabs button { font: inherit; font-size: 16px; font-weight: 600; color: var(--muted); background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 14px 9px; margin-bottom: -1px; cursor: pointer; display: inline-flex; align-items: baseline; gap: 8px; white-space: nowrap; }
-.tabs button:hover { color: var(--ink); }
+.tabs button:hover, .tabs a:hover { color: var(--ink); }
+.tabs a { font-size: 16px; font-weight: 600; color: var(--muted); text-decoration: none; border-bottom: 3px solid transparent; padding: 10px 14px 9px; margin-bottom: -1px; white-space: nowrap; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
 .tabs .cnt { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; padding: 1px 7px; border-radius: 999px; background: var(--line); color: var(--ink); }
 .tabs button[aria-selected="true"] .cnt { background: var(--crit-soft); color: var(--crit); }
@@ -552,6 +553,8 @@ table.moves { min-width: 900px; }
       b.addEventListener("click", () => { state.view = "feed"; state.manager = null; state.feedLimit = 200; save(); render(); });
       tabs.append(b);
     }
+    // «Неделя» is its own page on the server (not in the local file build)
+    if (!embedded) tabs.append(el("a", { href: "week", title: "Лиды по дням: пришло, качественные, не качественные, в работе" }, el("span", { text: "Неделя" })));
 
     const isTasks = state.view === "tasks";
     $("only-wait-box").hidden = isTasks || isFeed;

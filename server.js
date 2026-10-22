@@ -8,6 +8,7 @@ import { mergeHints } from "./hints.js";
 import { collectLive } from "./activity.js";
 import { mskDayStart } from "./tasks.js";
 import { decideAlerts, alertText, createMattermost, alertRecipient, BACKUP_ID } from "./alerts.js";
+import { collectWeek, weekStart, SUVVY_ID } from "./weekstats.js";
 
 const env = process.env;
 const config = loadConfig(env);
@@ -205,6 +206,21 @@ function authorized(req) {
 }
 
 const page = await readFile(new URL("./public/index.html", import.meta.url));
+const weekPage = await readFile(new URL("./public/week.html", import.meta.url));
+
+// «Неделя»: computed on request from three lead lists (~5 s), cached 5 min (past weeks — 1 h)
+const weekCache = new Map();
+const WEEKS_BACK = 12;
+function weekData(from) {
+  const now = Date.now();
+  const hit = weekCache.get(from);
+  if (hit && now - hit.at < (from === weekStart(now) ? 5 * 60e3 : 3600e3)) return hit.promise;
+  const owners = [...state.snapshot.managers.map((m) => ({ id: m.id, name: m.name, group: m.group })), { id: SUVVY_ID, name: "Савви (ИИ-агент)", group: "бот" }];
+  const promise = collectWeek(createBitrix(config.webhook), { from, now, owners });
+  weekCache.set(from, { at: now, promise });
+  promise.catch(() => weekCache.delete(from));
+  return promise;
+}
 const baseHeaders = {
   "Cache-Control": "no-store",
   "X-Content-Type-Options": "nosniff",
@@ -254,6 +270,22 @@ const server = http.createServer((req, res) => {
       hints: state.hints,
       status: { lastAttemptAt: state.lastAttemptAt, lastError: state.lastError, running: state.running },
     }));
+  }
+  if (pathname === "/week") {
+    res.writeHead(200, { ...baseHeaders, "Content-Type": "text/html; charset=utf-8" });
+    return res.end(weekPage);
+  }
+  if (pathname === "/api/week") {
+    const now = Date.now();
+    const from = new URL(req.url, "http://localhost").searchParams.get("from") || weekStart(now);
+    const json = (code, body) => { res.writeHead(code, { ...baseHeaders, "Content-Type": "application/json; charset=utf-8" }); res.end(JSON.stringify(body)); };
+    const ms = Date.parse(from + "T12:00:00+03:00");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || weekStart(ms) !== from || ms > now + 864e5 || now - ms > (WEEKS_BACK + 1) * 7 * 864e5) return json(400, { error: "неделя вне диапазона" });
+    if (!state.snapshot) return json(503, { error: "первый сбор данных ещё идёт" });
+    weekData(from).then(
+      (d) => json(200, { ...d, current: weekStart(now), weeksBack: WEEKS_BACK }),
+      (e) => { log("week error:", e.message); json(502, { error: "Bitrix24 не ответил, попробуйте через минуту" }); });
+    return;
   }
   if (pathname === "/api/activity") {
     res.writeHead(200, { ...baseHeaders, "Content-Type": "application/json; charset=utf-8" });
