@@ -31,4 +31,6 @@ test("per day: came, closed by kind, open at the end of the day; current owner; 
   assert.equal(a["2026-10-21"].work, 1);
   assert.deepEqual(s.cells[String(SUVVY_ID)]["2026-10-21"], { came: 1, cameDup: 1, viaBot: 0, qual: 0, bad: 0, dup: 1, work: 0 });
   assert.equal(s.cells["9"], undefined);
+  const x = weekStats({ from: "2026-10-19", now: Date.parse("2026-10-21T15:00:00+03:00"), owners, leads, exclude: [4] });
+  assert.equal(x.cells[String(SUVVY_ID)], undefined);
 });

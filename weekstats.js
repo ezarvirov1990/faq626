@@ -16,7 +16,8 @@ const dayKey = (ms) => new Date(ms + MSK).toISOString().slice(0, 10);
 const startMs = (day) => Date.parse(day + "T00:00:00+03:00");
 
 // Pure: leads (created this week, closed since the week start, open now) → per owner, per day counts
-export function weekStats({ from, now, owners, leads }) {
+// exclude — lead IDs to leave out entirely (leads Bitrix created when we messaged closed clients)
+export function weekStats({ from, now, owners, leads, exclude = [] }) {
   const days = [];
   for (let i = 0; i < 7; i++) {
     const d = dayKey(startMs(from) + i * DAY + 12 * 3600e3);
@@ -25,7 +26,7 @@ export function weekStats({ from, now, owners, leads }) {
   const ownerSet = new Set(owners.map((o) => String(o.id)));
   const cells = {};
   const cell = (o, d) => ((cells[o] ||= {})[d] ||= { came: 0, cameDup: 0, viaBot: 0, qual: 0, bad: 0, dup: 0, work: 0 });
-  const seen = new Set();
+  const seen = new Set([...exclude].map(String));
   for (const l of leads) {
     if (seen.has(l.ID)) continue;
     seen.add(l.ID);
@@ -51,7 +52,7 @@ export function weekStats({ from, now, owners, leads }) {
 }
 
 // Bitrix: three lists, all filtered to the owners
-export async function collectWeek(bx, { from, now = Date.now(), owners }) {
+export async function collectWeek(bx, { from, now = Date.now(), owners, exclude = [] }) {
   const ids = owners.map((o) => o.id);
   const to = dayKey(startMs(from) + 7 * DAY + 12 * 3600e3);
   const select = ["ID", "ASSIGNED_BY_ID", "CREATED_BY_ID", "STATUS_ID", "STATUS_SEMANTIC_ID", "DATE_CREATE", "DATE_CLOSED"];
@@ -60,5 +61,5 @@ export async function collectWeek(bx, { from, now = Date.now(), owners }) {
     bx.list("crm.lead.list", { filter: { ASSIGNED_BY_ID: ids, STATUS_ID: Object.keys(CLOSED), ">=DATE_CLOSED": from + "T00:00:00+03:00" }, select }),
     bx.list("crm.lead.list", { filter: { ASSIGNED_BY_ID: ids, STATUS_SEMANTIC_ID: "P" }, select }),
   ]);
-  return weekStats({ from, now, owners, leads: [...open, ...closed, ...created] });
+  return weekStats({ from, now, owners, exclude, leads: [...open, ...closed, ...created] });
 }

@@ -211,12 +211,15 @@ const weekPage = await readFile(new URL("./public/week.html", import.meta.url));
 // «Неделя»: computed on request from three lead lists (~5 s), cached 5 min (past weeks — 1 h)
 const weekCache = new Map();
 const WEEKS_BACK = 12;
+// {ids:[...]} leads left out of «Неделя»: Bitrix opened them for our win-back sends (20–21.10.2026). Kept out of the public repo
+const weekExcludeFile = path.join(env.DATA_DIR || ".", "week-exclude.json");
 function weekData(from) {
   const now = Date.now();
   const hit = weekCache.get(from);
   if (hit && now - hit.at < (from === weekStart(now) ? 5 * 60e3 : 3600e3)) return hit.promise;
   const owners = [...state.snapshot.managers.map((m) => ({ id: m.id, name: m.name, group: m.group })), { id: SUVVY_ID, name: "Савви (ИИ-агент)", group: "бот" }];
-  const promise = collectWeek(createBitrix(config.webhook), { from, now, owners });
+  const promise = readFile(weekExcludeFile, "utf8").then((t) => JSON.parse(t).ids || [], (e) => { if (e.code !== "ENOENT") log("week exclude read error:", e.message); return []; })
+    .then((exclude) => collectWeek(createBitrix(config.webhook), { from, now, owners, exclude }));
   weekCache.set(from, { at: now, promise });
   promise.catch(() => weekCache.delete(from));
   return promise;
