@@ -2,7 +2,7 @@
 // Касание — наше исходящее действие: сообщение менеджера/бота в чат Открытой линии или звонок.
 // Сообщения клиента касанием не считаются; если клиент написал позже нашего касания — clientWaiting.
 
-import { mskDayStart, untouchedMoves, taskState } from "./tasks.js";
+import { mskDayStart, untouchedMoves, taskState, OVERDUE_MS } from "./tasks.js";
 import { managerIndex, messageEvents, commentEvents, AUTO_LEAD_STAGES } from "./activity.js";
 
 const HOUR = 3600e3;
@@ -208,7 +208,7 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
       key: "deals", entity: "deal", pipeline: p.id, primary: !p.departments,
       title: category.name.replace(/^[^\p{L}\p{N}]+/u, "").trim(), crmType: "DEAL", ownerTypeId: 2,
       listMethod: "crm.deal.list", stageField: "STAGE_ID", stageEntity: `DEAL_STAGE_${p.id}`,
-      filter: { CATEGORY_ID: p.id, STAGE_SEMANTIC_ID: "P" }, extraSelect: [],
+      filter: { CATEGORY_ID: p.id, STAGE_SEMANTIC_ID: "P" }, extraSelect: p.departments ? [] : ["LEAD_ID"],
       thresholdHours: p.days * 24, ownerIds, skipStages: p.skipStages, slow: Boolean(p.slow),
     });
   }
@@ -216,6 +216,7 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
   // 1) Сущности, их чаты и последний звонок
   let batchErrors = 0;
   const loaded = [];
+  const openLeadIds = new Set();
   for (const spec of specs) {
     const stages = {};
     for (const s of (await bx.call("crm.status.list", { filter: { ENTITY_ID: spec.stageEntity } })).result) stages[s.STATUS_ID] = s.NAME;
@@ -236,9 +237,31 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
       if (spec.primary) cmds["task_" + it.ID] =
         `crm.activity.list?filter[OWNER_TYPE_ID]=${spec.ownerTypeId}&filter[OWNER_ID]=${it.ID}&filter[PROVIDER_ID]=CRM_TASKS_TASK` +
         `&filter[COMPLETED]=N&select[]=ID&select[]=DEADLINE`;
+      // A task robots created on the lead stays bound to the lead after it becomes a deal (it shows in the
+      // deal card, but its CRM activity belongs to the lead) — count such tasks for the deal, unless the lead is still open
+      if (spec.primary && spec.entity === "deal" && Number(it.LEAD_ID) && !openLeadIds.has(String(it.LEAD_ID))) cmds["ltask_" + it.ID] =
+        `crm.activity.list?filter[OWNER_TYPE_ID]=1&filter[OWNER_ID]=${it.LEAD_ID}&filter[PROVIDER_ID]=CRM_TASKS_TASK` +
+        `&filter[COMPLETED]=N&select[]=ID&select[]=DEADLINE&select[]=ASSOCIATED_ENTITY_ID`;
+      if (spec.entity === "lead") openLeadIds.add(String(it.ID));
     }
     const res = await bx.batch(cmds);
     batchErrors += res.errors;
+    // Keep only the lead's tasks that are bound to this deal too (UF_CRM_TASK has D_<deal>) — those show in the deal card.
+    // Only overdue ones matter, so only they are checked (a few hundred at most).
+    const leadTasks = [];
+    for (const it of items) for (const a of res.out["ltask_" + it.ID] || []) {
+      if (a.DEADLINE && now - Date.parse(a.DEADLINE) > OVERDUE_MS) leadTasks.push({ deal: it.ID, a });
+    }
+    if (leadTasks.length) {
+      const got = await bx.batch(Object.fromEntries([...new Set(leadTasks.map((x) => x.a.ASSOCIATED_ENTITY_ID))].map((id) => ["t" + id, `tasks.task.get?taskId=${id}&select[]=UF_CRM_TASK`])));
+      batchErrors += got.errors;
+      const keep = new Map();
+      for (const x of leadTasks) if ((((got.out["t" + x.a.ASSOCIATED_ENTITY_ID] || {}).task || {}).ufCrmTask || []).includes("D_" + x.deal)) {
+        if (!keep.has(x.deal)) keep.set(x.deal, []);
+        keep.get(x.deal).push(x.a);
+      }
+      for (const it of items) if (res.out["ltask_" + it.ID]) res.out["ltask_" + it.ID] = keep.get(it.ID) || [];
+    } else for (const it of items) delete res.out["ltask_" + it.ID];
 
     const chatsOf = new Map();
     for (const it of items) {
@@ -312,7 +335,9 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
       touches.push(...itemCalls.map((x) => Date.parse(x.CREATED)));
 
       if (spec.primary) {
-        const ts = taskState(calls["task_" + it.ID] || [], now);
+        const own = calls["task_" + it.ID] || [];
+        const fromLead = (calls["ltask_" + it.ID] || []).filter((a) => !own.some((b) => b.ID === a.ID));
+        const ts = taskState([...own, ...fromLead], now);
         if (ts.kind !== "ok") {
           taskItems.push({
             entity: spec.entity, id: Number(it.ID), stage, managerId, kind: ts.kind,
