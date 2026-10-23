@@ -1,0 +1,24 @@
+[Unit]
+Description=faq626 Q&A in the @b2c-helper Mattermost bot (GigaChat)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=faq626
+WorkingDirectory=/opt/faq626
+# MATTERMOST_URL, MATTERMOST_TOKEN, HELPBOT_ESCALATE; the GigaChat key lives in its own file
+EnvironmentFile=/etc/faq626.env
+EnvironmentFile=/etc/faq626-gigachat.env
+Environment=DATA_DIR=/var/lib/faq626/data NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/russian_trusted_ca.crt
+ExecStart=/usr/bin/node helpbot.js
+Restart=always
+RestartSec=10
+MemoryMax=300M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/faq626/data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
