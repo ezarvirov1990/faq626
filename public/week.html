@@ -101,6 +101,8 @@ td.dim, .dim { color: var(--muted); }
 td.anom { color: var(--crit); font-weight: 700; }
 td.rate small { display: block; font: 400 11.5px var(--font); color: var(--muted); }
 td.rate.anom small { color: var(--crit); }
+td.rate.lean { color: var(--warn); font-weight: 600; }
+td.rate.lean small { color: var(--warn); }
 td.rate.few { color: var(--muted); font-weight: 400; }
 tr.team td { font-weight: 600; border-top: 2px solid var(--line); }
 tr.team + tr.total td { border-top-width: 1px; }
@@ -180,7 +182,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     <div class="tbl-wrap" id="owners"></div>
   </section>
 
-  <p class="note">Пришло — лиды, созданные в этот день. Качественные и не качественные — лиды, закрытые в этот день с таким статусом, независимо от того, когда они пришли; не качественные — «Не прошёл BANT» и «Недозвон». В работе — сколько открытых лидов осталось на конец дня (сегодня — на текущий момент). Лиды считаются за тем, кто ответственный сейчас; у Савви — те, что всё ещё в его очереди, а пришедшие через него и переданные менеджерам видны в «через Савви». Конверсия — доля качественных среди лидов, закрытых за неделю. «Команда» — все менеджеры без Савви. Красным подсвечена конверсия менеджера, если она заметно ниже, чем у команды, и при его числе закрытых лидов (от 10) это уже не случайность; при меньшем числе процент показан бледным — по нему рано судить. Не учитываются лиды, которые Битрикс создал при нашей рассылке по закрытым лидам 20–21.10. Данные из Bitrix24, обновляются раз в 5 минут.</p>
+  <p class="note">Пришло — лиды, созданные в этот день. Качественные и не качественные — лиды, закрытые в этот день с таким статусом, независимо от того, когда они пришли; не качественные — «Не прошёл BANT» и «Недозвон». В работе — сколько открытых лидов осталось на конец дня (сегодня — на текущий момент). Лиды считаются за тем, кто ответственный сейчас; у Савви — те, что всё ещё в его очереди, а пришедшие через него и переданные менеджерам видны в «через Савви». Конверсия в качественный — доля качественных среди лидов, закрытых за неделю, в некачественный — доля не качественных; вместе они дают 100 %. «Команда» — все менеджеры без Савви. Красным подсвечены обе конверсии менеджера, если качественных заметно меньше, чем у команды, и при его числе закрытых лидов (от 10) это уже не случайность; оранжевым — если меньше, но это ещё может быть случайностью. При числе закрытых меньше 10 проценты показаны бледным — по ним рано судить. Не учитываются лиды, которые Битрикс создал при нашей рассылке по закрытым лидам 20–21.10. Данные из Bitrix24, обновляются раз в 5 минут.</p>
 </div>
 
 <script>
@@ -297,23 +299,27 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     }).sort((a, b) => (a.o.group === "бот") - (b.o.group === "бот") || b.t.came - a.t.came);
     const ot = zero(); for (const r of orow) add(ot, r.t);
     const isBot = (r) => r.o.group === "бот";
-    const anom = (r) => {
+    // 2 — clearly worse than the team (z < −2), 1 — borderline (−2 ≤ z < −1), may still be chance
+    const level = (r) => {
       const n = r.t.qual + r.t.bad;
-      if (isBot(r) || n < 10 || !p0 || p0 === 1) return false;
-      return (r.t.qual / n - p0) / Math.sqrt((p0 * (1 - p0)) / n) < -2;
+      if (isBot(r) || n < 10 || !p0 || p0 === 1) return 0;
+      const z = (r.t.qual / n - p0) / Math.sqrt((p0 * (1 - p0)) / n);
+      return z < -2 ? 2 : z < -1 ? 1 : 0;
     };
-    const rateCell = (t, bot, flag) => {
-      const n = t.qual + t.bad;
+    const LEVEL = [null, { cls: " lean", vh: ", ниже команды, пока может быть случайностью" }, { cls: " anom", vh: ", заметно ниже команды" }];
+    // bad: the cell shows the share of not qualified (the complement); the same level colours both cells
+    const rateCell = (t, bot, lvl, bad) => {
+      const n = t.qual + t.bad, k = bad ? t.bad : t.qual;
       if (!n) return el("td", { class: "rate dim", text: "—" });
-      const few = !bot && n < 10;
-      return el("td", { class: "rate" + (flag ? " anom" : few || bot ? " few" : ""), title: few ? "Мало закрытых лидов, по проценту рано судить" : null },
-        pct(t.qual, n), el("small", { text: num(t.qual) + " из " + num(n) }), flag ? el("span", { class: "vh", text: ", заметно ниже команды" }) : null);
+      const few = !bot && n < 10, L = LEVEL[lvl];
+      return el("td", { class: "rate" + (L ? L.cls : few || bot ? " few" : ""), title: few ? "Мало закрытых лидов, по проценту рано судить" : L && lvl === 1 ? "Ниже команды, но при таком числе лидов это ещё может быть случайностью" : null },
+        pct(k, n), el("small", { text: num(k) + " из " + num(n) }), L ? el("span", { class: "vh", text: L.vh }) : null);
     };
     const tr = (r) => {
       const on = state.owner === String(r.o.id);
       const n = el("tr", { tabindex: "0", role: "button", "aria-pressed": String(on), "aria-selected": String(on), "aria-label": r.o.name + (on ? ", выбран — нажмите, чтобы показать всех" : ", показать только его") },
         el("td", { class: "who" }, r.o.name, el("small", { text: isBot(r) ? "очередь бота в Открытых линиях" : r.o.group.replace("Группа продаж ", "") })),
-        rateCell(r.t, isBot(r), anom(r)),
+        rateCell(r.t, isBot(r), level(r)), rateCell(r.t, isBot(r), level(r), true),
         el("td", { text: num(r.t.came) }), el("td", { text: isBot(r) ? "—" : num(r.t.viaBot) }),
         el("td", { text: num(r.t.qual) }), el("td", { text: num(r.t.bad) }), el("td", { text: num(r.t.work) }));
       const pick = () => { state.owner = on ? null : String(r.o.id); render(); };
@@ -321,14 +327,14 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
       n.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
       return n;
     };
-    const sumRow = (cls, name, t, conv) => el("tr", { class: cls }, el("td", { text: name }), conv, el("td", { text: num(t.came) }), el("td", { text: num(t.viaBot) }),
+    const sumRow = (cls, name, t) => el("tr", { class: cls }, el("td", { text: name }), rateCell(t, false, 0), rateCell(t, false, 0, true), el("td", { text: num(t.came) }), el("td", { text: num(t.viaBot) }),
       el("td", { text: num(t.qual) }), el("td", { text: num(t.bad) }), el("td", { text: num(t.work) }));
     const mgr = orow.filter((r) => !isBot(r)), mt = zero(); for (const r of mgr) add(mt, r.t);
     const foot = [];
-    if (mgr.length > 1 && mgr.length < orow.length) foot.push(sumRow("team", "Команда без Савви", mt, rateCell(mt, false, false)));
-    foot.push(sumRow("total", "Итого", ot, rateCell(ot, false, false)));
+    if (mgr.length > 1 && mgr.length < orow.length) foot.push(sumRow("team", "Команда без Савви", mt));
+    foot.push(sumRow("total", "Итого", ot));
     $("owners").replaceChildren(el("table", {},
-      el("thead", {}, el("tr", {}, el("th", { text: "Ответственный" }), el("th", { text: "Конверсия в качественный" }), el("th", { text: "Пришло" }), el("th", { text: "через Савви" }),
+      el("thead", {}, el("tr", {}, el("th", { text: "Ответственный" }), el("th", { text: "Конверсия в качественный" }), el("th", { text: "Конверсия в некачественный" }), el("th", { text: "Пришло" }), el("th", { text: "через Савви" }),
         el("th", { text: "Качественные" }), el("th", { text: "Не качественные" }), el("th", { text: D.from === D.current ? "В работе сейчас" : "В работе на конец недели" }))),
       el("tbody", {}, ...orow.map(tr)),
       el("tfoot", {}, ...foot)));
