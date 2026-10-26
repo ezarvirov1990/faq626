@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildPrompt, parseAnswer, newQuestions, historyText, ESCALATE } from "./helpbot.js";
+import { buildPrompt, parseAnswer, newQuestions, historyText, answersSurvey, ESCALATE } from "./helpbot.js";
 
 const BOT = "bot1";
 const post = (id, user, at, message, type = "") => ({ id, user_id: user, create_at: at, message, type });
@@ -29,4 +29,13 @@ test("history: last 6 posts in order with roles", () => {
 test("prompt carries the reference, the question, today and the escalation rule", () => {
   const p = buildPrompt("СПРАВКА-ТЕКСТ", "Бот: привет", "Что такое касание?", "23 октября 2026 г.");
   for (const s of ["СПРАВКА-ТЕКСТ", "Что такое касание?", "23 октября 2026 г.", ESCALATE + ":"]) assert.ok(p.includes(s), s);
+});
+
+test("a reply to the bot's own survey post is an answer, not a question", () => {
+  const ask = { ...post("s", BOT, 100, "Напишите рабочий график"), props: { survey: "hours" } };
+  const reply = [post("r", "u1", 200, "2/2, 9–21 по Москве")];
+  assert.equal(answersSurvey([ask, ...reply], BOT, reply), true);
+  const later = [post("q", "u1", 400, "Что такое касание?")];
+  assert.equal(answersSurvey([ask, ...reply, post("t", BOT, 300, "Спасибо, записал!"), ...later], BOT, later), false);
+  assert.equal(answersSurvey(reply, BOT, reply), false);
 });

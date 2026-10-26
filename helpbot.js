@@ -45,6 +45,15 @@ export function newQuestions(posts, botId, cursor) {
     .sort((a, b) => a.create_at - b.create_at);
 }
 
+// The bot asked the manager something itself (post props.survey, e.g. working hours) and this is the answer:
+// it is data for us, not a question for GigaChat — thank them and don't escalate
+export const SURVEY_THANKS = "Спасибо, записал!";
+export function answersSurvey(posts, botId, qs) {
+  const first = Math.min(...qs.map((p) => p.create_at));
+  const last = posts.filter((p) => p.user_id === botId && !p.type && p.create_at < first).sort((a, b) => b.create_at - a.create_at)[0];
+  return Boolean(last && last.props && last.props.survey);
+}
+
 export function historyText(posts, botId, names = {}) {
   return posts.filter((p) => !p.type && String(p.message || "").trim()).sort((a, b) => a.create_at - b.create_at).slice(-6)
     .map((p) => (p.user_id === botId ? "Бот: " : (names[p.user_id] || "Менеджер") + ": ") + String(p.message).replace(/\s+/g, " ").slice(0, 600)).join("\n");
@@ -92,6 +101,11 @@ async function main() {
       const question = qs.map((p) => p.message.trim()).join("\n");
       const history = historyText(posts.filter((p) => !qs.includes(p)), me.id, { [asker]: who });
       next = Math.max(next, ...qs.map((p) => p.create_at));
+      if (answersSurvey(posts, me.id, qs)) {
+        await mm("POST", "/posts", { channel_id: c.id, message: SURVEY_THANKS });
+        handled++;
+        continue;
+      }
       const today = new Intl.DateTimeFormat("ru-RU", { dateStyle: "long", timeZone: "Europe/Moscow" }).format(new Date());
       let ans;
       try { ans = parseAnswer((await giga.complete(buildPrompt(kb, history, question, today), { model })).text); }
