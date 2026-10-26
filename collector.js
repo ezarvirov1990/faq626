@@ -336,7 +336,9 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
 
       if (spec.primary) {
         const own = calls["task_" + it.ID] || [];
-        const fromLead = (calls["ltask_" + it.ID] || []).filter((a) => !own.some((b) => b.ID === a.ID));
+        // The lead's task's CRM activity stays on the lead, so the deal card doesn't list it — use it only when
+        // the deal has no open task of its own (otherwise a forgotten lead task flags a deal that looks fine)
+        const fromLead = own.length ? [] : calls["ltask_" + it.ID] || [];
         const ts = taskState([...own, ...fromLead], now);
         if (ts.kind !== "ok") {
           taskItems.push({
