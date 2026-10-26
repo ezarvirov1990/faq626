@@ -182,7 +182,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     <div class="tbl-wrap" id="owners"></div>
   </section>
 
-  <p class="note">Пришло — лиды, созданные в этот день. Качественные и не качественные — лиды, закрытые в этот день с таким статусом, независимо от того, когда они пришли; не качественные — «Не прошёл BANT» и «Недозвон». В работе — сколько открытых лидов осталось на конец дня (сегодня — на текущий момент). Лиды считаются за тем, кто ответственный сейчас; у Савви — те, что всё ещё в его очереди, а пришедшие через него и переданные менеджерам видны в «через Савви». Конверсия в качественный — доля качественных среди лидов, закрытых за неделю, в некачественный — доля не качественных; вместе они дают 100 %. «Команда» — все менеджеры без Савви. Красным подсвечены обе конверсии менеджера, если качественных заметно меньше, чем у команды, и при его числе закрытых лидов (от 10) это уже не случайность; оранжевым — если меньше, но это ещё может быть случайностью. При числе закрытых меньше 10 проценты показаны бледным — по ним рано судить. Не учитываются лиды, которые Битрикс создал при нашей рассылке по закрытым лидам 20–21.10. Данные из Bitrix24, обновляются раз в 5 минут.</p>
+  <p class="note">Пришло — лиды, созданные в этот день. Качественные и не качественные — лиды, закрытые в этот день с таким статусом, независимо от того, когда они пришли; не качественные — «Не прошёл BANT» и «Недозвон». В работе — сколько открытых лидов осталось на конец дня (сегодня — на текущий момент). Лиды считаются за тем, кто ответственный сейчас; у Савви — те, что всё ещё в его очереди, а пришедшие через него и переданные менеджерам видны в «через Савви». Конверсия в качественный — доля качественных среди лидов, закрытых за неделю, в некачественный — доля не качественных; вместе они дают 100 %. Общая конверсия считается без Савви: его очередь почти целиком закрывается как не качественная. «Команда» — все менеджеры без Савви. Красным подсвечены обе конверсии менеджера, если качественных заметно меньше, чем у команды, и при его числе закрытых лидов (от 10) это уже не случайность; оранжевым — если меньше, но это ещё может быть случайностью. При числе закрытых меньше 10 проценты показаны бледным — по ним рано судить. Не учитываются лиды, которые Битрикс создал при нашей рассылке по закрытым лидам 20–21.10. Данные из Bitrix24, обновляются раз в 5 минут.</p>
 </div>
 
 <script>
@@ -269,10 +269,13 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     const team = zero();
     for (const o of D.owners) if (o.group !== "бот") for (const d of D.days) add(team, (D.cells[o.id] || {})[d] || zero());
     const teamN = team.qual + team.bad, p0 = teamN ? team.qual / teamN : 0;
-    const hasBot = ids.includes(String(D.owners.find((o) => o.group === "бот")?.id));
-    $("t-conv").textContent = pct(T.qual, T.qual + T.bad);
-    $("t-conv-s").textContent = "из " + num(T.qual + T.bad) + " закрытых" +
-      (hasBot ? (ids.length > 1 ? " · без Савви " + pct(team.qual, teamN) : "") : sel || state.grp ? " · у команды " + pct(team.qual, teamN) : "");
+    const botId = String(D.owners.find((o) => o.group === "бот")?.id);
+    const onlyBot = ids.length === 1 && ids[0] === botId;
+    // the overall conversion leaves the bot's queue out (user's decision 26.10); the bot alone still shows its own
+    const C = zero(); for (const id of ids) if (onlyBot || id !== botId) for (const d of D.days) add(C, (D.cells[id] || {})[d] || zero());
+    $("t-conv").textContent = pct(C.qual, C.qual + C.bad);
+    $("t-conv-s").textContent = "из " + num(C.qual + C.bad) + " закрытых" +
+      (onlyBot ? " · у команды " + pct(team.qual, teamN) : ids.includes(botId) ? " · без Савви" : sel || state.grp ? " · у команды " + pct(team.qual, teamN) : "");
     $("t-work").textContent = num(days[last].work);
     $("t-work-s").textContent = D.from === D.current ? "открытых лидов сейчас" : "открытых на конец недели";
 
@@ -327,12 +330,15 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
       n.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
       return n;
     };
-    const sumRow = (cls, name, t) => el("tr", { class: cls }, el("td", { text: name }), rateCell(t, false, 0), rateCell(t, false, 0, true), el("td", { text: num(t.came) }), el("td", { text: num(t.viaBot) }),
+    // conv: the row's conversion cells; «Итого» with the bot in it leaves them empty — the overall conversion is without Савви
+    const noConv = () => el("td", { class: "rate dim", text: "—", title: "Конверсия считается без Савви — см. строку «Команда без Савви»" });
+    const sumRow = (cls, name, t, conv = [rateCell(t, false, 0), rateCell(t, false, 0, true)]) => el("tr", { class: cls }, el("td", { text: name }), ...conv, el("td", { text: num(t.came) }), el("td", { text: num(t.viaBot) }),
       el("td", { text: num(t.qual) }), el("td", { text: num(t.bad) }), el("td", { text: num(t.work) }));
     const mgr = orow.filter((r) => !isBot(r)), mt = zero(); for (const r of mgr) add(mt, r.t);
     const foot = [];
-    if (mgr.length > 1 && mgr.length < orow.length) foot.push(sumRow("team", "Команда без Савви", mt));
-    foot.push(sumRow("total", "Итого", ot));
+    if (mgr.length && mgr.length < orow.length) foot.push(sumRow("team", "Команда без Савви", mt));
+    const withBot = mgr.length < orow.length;
+    foot.push(sumRow("total", "Итого", ot, withBot && mgr.length ? [noConv(), noConv()] : undefined));
     $("owners").replaceChildren(el("table", {},
       el("thead", {}, el("tr", {}, el("th", { text: "Ответственный" }), el("th", { text: "Конверсия в качественный" }), el("th", { text: "Конверсия в некачественный" }), el("th", { text: "Пришло" }), el("th", { text: "через Савви" }),
         el("th", { text: "Качественные" }), el("th", { text: "Не качественные" }), el("th", { text: D.from === D.current ? "В работе сейчас" : "В работе на конец недели" }))),
