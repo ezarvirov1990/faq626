@@ -184,7 +184,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
   </section>
 
   <section class="panel">
-    <h2>Скорость ответа клиентам <span class="dim" style="text-transform:none;letter-spacing:0;font-weight:400">· в рабочие часы менеджера</span></h2>
+    <h2>Скорость ответа клиентам <span class="dim" style="text-transform:none;letter-spacing:0;font-weight:400">· только менеджеры, без Савви, в их рабочие часы</span></h2>
     <div class="tbl-wrap" id="replies"></div>
   </section>
 
@@ -379,7 +379,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     const people = ids.filter((id) => R.data.cells[id]);
     const T = repAgg(people), med = repMedian(T);
     $("t-reply").textContent = fmtMin(med);
-    $("t-reply-s").textContent = T.n ? "медиана · за час " + share(T, 60) + " · без ответа " + num(T.waiting) : ids.every((id) => id === String(SUVVY)) ? "у Савви не считается" : "обращений нет";
+    $("t-reply-s").textContent = T.n ? "медиана без Савви · за час " + share(T, 60) + " · без ответа " + num(T.waiting) : ids.every((id) => id === String(SUVVY)) ? "у Савви не считается" : "обращений нет";
     const rows = list.filter((o) => R.data.cells[o.id]).map((o) => ({ o, t: repAgg([String(o.id)]) })).filter((r) => r.t.n).sort((a, b) => b.t.n - a.t.n);
     if (!rows.length) return box.replaceChildren(el("div", { class: "msg", text: "Обращений клиентов за эту неделю нет" }));
     const cells = (t) => [el("td", { text: num(t.n) }), el("td", { text: fmtMin(repMedian(t)) }), el("td", { text: share(t, 15) }), el("td", { text: share(t, 60) }), el("td", { class: t.waiting ? null : "dim", text: num(t.waiting) })];
@@ -396,7 +396,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     box.replaceChildren(el("table", { class: "rep" },
       el("thead", {}, el("tr", {}, el("th", { text: "Ответственный" }), el("th", { text: "Обращений" }), el("th", { text: "Медиана ответа" }), el("th", { text: "За 15 минут" }), el("th", { text: "За 1 час" }), el("th", { text: "Без ответа" }))),
       el("tbody", {}, ...rows.map(tr)),
-      rows.length > 1 ? el("tfoot", {}, el("tr", { class: "total" }, el("td", { text: "Все вместе" }), ...cells(all))) : null));
+      rows.length > 1 ? el("tfoot", {}, el("tr", { class: "total" }, el("td", { text: "Менеджеры без Савви" }), ...cells(all))) : null));
   }
 
   // reply speed comes separately: the server counts it in the background (~2 min for a week not counted yet)
