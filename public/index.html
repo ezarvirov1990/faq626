@@ -700,7 +700,8 @@ table.moves { min-width: 900px; }
         el("td", {}, el("a", { href: snap.portal + "/crm/" + x.entity + "/details/" + x.id + "/", target: "_blank", rel: "noopener", text: "#" + x.id })),
         el("td", {}, el("span", { text: x.stage }), x.closed ? el("div", { class: "chips" }, el("span", { class: "chip wait", text: x.won ? "закрыт успешно" : "закрыт" })) : null),
         el("td", { class: "num" }, el("span", { class: "pill " + sev(x.hours), text: dur(x.hours) })),
-        el("td", { text: fmt.format(new Date(x.at)) + (x.count > 1 ? " · не дошло " + x.count : "") }),
+        el("td", {}, fmt.format(new Date(x.at)) + (x.count > 1 ? " · не дошло " + x.count : ""),
+          x.viaWazzup ? el("div", { class: "muted", title: "Отправлено из Wazzup, не из Битрикса: автор определён по подписи в тексте или это ответственный", text: "из Wazzup" }) : null),
         el("td", {}, el("div", { class: "hint" }, el("div", {}, el("b", { text: "Что делать: " }), x.hint), el("div", { class: "muted", text: "Wazzup: " + x.reason }))),
         el("td", {}, el("div", { class: "clip2 muted", title: x.text, text: x.text }))));
       list.append(el("h2", { text: "Не доставлено · " + m.name }), el("div", { class: "group" },

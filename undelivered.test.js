@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { failureReason, chatFailures, pickCard } from "./undelivered.js";
+import { failureReason, chatFailures, pickCard, introAuthor } from "./undelivered.js";
 
 const since = Date.parse("2026-10-22T00:00:00+03:00");
 const managers = new Set([5, 7]);
@@ -67,4 +67,21 @@ test("a chat bound to several cards: the author's card, else the deal", () => {
   assert.equal(pickCard([lead, deal, own], 5).id, 3);
   assert.equal(pickCard([lead, deal], 5).id, 2);
   assert.equal(pickCard([lead], 5).id, 1);
+});
+
+test("sent from the Wazzup app (no Bitrix original): shown unless a mass send or a service notice; author by introduction", () => {
+  const people = [{ id: 5, name: "Ольга Волокитина" }, { id: 7, name: "Мария Радченко" }, { id: 8, name: "Мария Василевская" }];
+  const wz = { mass: new Set(), managers: people };
+  const own = chatFailures(dialog([msg(900, WZ("Добрый день! Это Ольга из компании MyGenetics", "Сообщение не отправлено из-за подозрения на спам."), "11:00:00")]), managers, since, wz);
+  assert.equal(own.managerId, 5);
+  assert.equal(own.viaWazzup, true);
+  const anon = chatFailures(dialog([msg(900, WZ("Добрый день! Направляю описание исследования", "Сообщение не доставлено."), "11:00:00")]), managers, since, wz);
+  assert.equal(anon.managerId, null); // the card owner is picked later
+  assert.equal(introAuthor("Это Мария из MyGenetics", people), null); // two Marias
+  assert.equal(introAuthor("Добрый день! 🤍 Ольга, менеджер компании", people), 5);
+  const blast = "Отличные новости: с 20 по 28 октября дарим отчёт";
+  assert.equal(chatFailures(dialog([msg(900, WZ(blast, "Сообщение не доставлено."), "11:00:00")]), managers, since, { ...wz, mass: new Set([blast.toLowerCase().slice(0, 60)]) }), null);
+  assert.equal(chatFailures(dialog([msg(900, WZ("Курьерская служба сообщила о получении", "Что-то не так с шаблоном."), "11:00:00")]), managers, since, wz), null);
+  // without the wazzup option (old behaviour) such copies are ignored
+  assert.equal(chatFailures(dialog([msg(900, WZ("Добрый день! Это Ольга", "Сообщение не доставлено."), "11:00:00")]), managers, since), null);
 });
