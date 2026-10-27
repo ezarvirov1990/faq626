@@ -154,10 +154,10 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
 
   <section class="stats" aria-label="Итоги недели">
     <div class="stat"><span class="k"><i style="background:var(--s-came)"></i>Пришло новых</span><b id="t-came">—</b><small id="t-came-s"></small></div>
-    <div class="stat"><span class="k"><i style="background:var(--s-qual)"></i>Качественные</span><b id="t-qual">—</b><small id="t-qual-s"></small></div>
-    <div class="stat"><span class="k"><i style="background:var(--s-bad)"></i>Не качественные</span><b id="t-bad">—</b><small>не прошли BANT и недозвон</small></div>
+    <div class="stat"><span class="k"><i style="background:var(--s-qual)"></i><span id="k-qual">Качественные</span></span><b id="t-qual">—</b><small id="t-qual-s"></small></div>
+    <div class="stat"><span class="k"><i style="background:var(--s-bad)"></i><span id="k-bad">Не качественные</span></span><b id="t-bad">—</b><small id="t-bad-s">не прошли BANT и недозвон</small></div>
     <div class="stat conv"><span class="k">Конверсия в качественный</span><b id="t-conv">—</b><small id="t-conv-s"></small></div>
-    <div class="stat"><span class="k">В работе</span><b id="t-work">—</b><small id="t-work-s">открытых лидов</small></div>
+    <div class="stat"><span class="k" id="k-work">В работе</span><b id="t-work">—</b><small id="t-work-s">открытых лидов</small></div>
     <div class="stat"><span class="k">Ответ клиенту</span><b id="t-reply">—</b><small id="t-reply-s"></small></div>
   </section>
 
@@ -166,9 +166,9 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
       <h2>Пришло и закрыто по дням</h2>
       <div class="legend">
         <span><i style="background:var(--s-came)"></i>Пришло</span>
-        <span>Закрыто:</span>
-        <span><i style="background:var(--s-qual)"></i>качественные</span>
-        <span><i style="background:var(--s-bad)"></i>не качественные</span>
+        <span id="lg-out">Закрыто:</span>
+        <span><i style="background:var(--s-qual)"></i><span id="lg-qual">качественные</span></span>
+        <span><i style="background:var(--s-bad)"></i><span id="lg-bad">не качественные</span></span>
       </div>
       <div class="chart" id="chart"><div class="msg">Загружаю…</div></div>
     </section>
@@ -188,14 +188,18 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     <div class="tbl-wrap" id="replies"></div>
   </section>
 
-  <p class="note">Пришло — лиды, созданные в этот день. Качественные и не качественные — лиды, закрытые в этот день с таким статусом, независимо от того, когда они пришли; не качественные — «Не прошёл BANT» и «Недозвон». В работе — сколько открытых лидов осталось на конец дня (сегодня — на текущий момент). Лиды считаются за тем, кто ответственный сейчас; у Савви — те, что всё ещё в его очереди, а пришедшие через него и переданные менеджерам видны в «через Савви». Конверсия в качественный — доля качественных среди лидов, закрытых за неделю, в некачественный — доля не качественных; вместе они дают 100 %. Общая конверсия считается без Савви: его очередь почти целиком закрывается как не качественная. «Команда» — все менеджеры без Савви. Красным подсвечены обе конверсии менеджера, если качественных заметно меньше, чем у команды, и при его числе закрытых лидов (от 10) это уже не случайность; оранжевым — если меньше, но это ещё может быть случайностью. При числе закрытых меньше 10 проценты показаны бледным — по ним рано судить. Не учитываются лиды, которые Битрикс создал при нашей рассылке по закрытым лидам 20–21.10. Скорость ответа: клиент написал в чат лида или сделки — сколько прошло до первого сообщения менеджера в этом чате или состоявшегося звонка по карточке. Несколько сообщений клиента подряд — одно обращение; «спасибо», «ок», отметки в историях Instagram, служебные пометки и наши же рассылки обращением не считаются; ответы роботов-дожимов не считаются ответом. Время считается только в рабочие часы ответственного (обед не вычитается): сообщение ночью или в выходной начинает отсчёт с начала его следующей смены. Если клиенту ответил бот Савви или коллега до начала смены ответственного, обращение не учитывается. Обращение считается за днём, когда написал клиент, и за тем, кто сейчас ответственный по сделке «В2С Продажа», иначе по лиду. «Без ответа» — ответа нет до сих пор. Самусевич в этой таблице нет: у неё нет графика смен. Скорость ответа пересчитывается раз в 30 минут. Данные из Bitrix24, обновляются раз в 5 минут.</p>
+  <p class="note">Пришло — лиды, созданные в этот день. Качественные и не качественные — лиды, закрытые в этот день с таким статусом, независимо от того, когда они пришли; не качественные — «Не прошёл BANT» и «Недозвон». В работе — сколько открытых лидов осталось на конец дня (сегодня — на текущий момент). Лиды считаются за тем, кто ответственный сейчас; у Савви — те, что всё ещё в его очереди, а пришедшие через него и переданные менеджерам видны в «через Савви». Конверсия в качественный — доля качественных среди лидов, закрытых за неделю, в некачественный — доля не качественных; вместе они дают 100 %. Общая конверсия считается без Савви: его очередь почти целиком закрывается как не качественная. «Команда» — все менеджеры без Савви. Красным подсвечены обе конверсии менеджера, если качественных заметно меньше, чем у команды, и при его числе закрытых лидов (от 10) это уже не случайность; оранжевым — если меньше, но это ещё может быть случайностью. При числе закрытых меньше 10 проценты показаны бледным — по ним рано судить. У Савви свои правила (его задача — разобрать все новые обращения и передать заинтересованных менеджерам): за ним считаются все лиды, которые он создал, даже если ответственный уже менеджер; «Передал менеджерам» — перевёл в «Тёплый» или «Горячий» (или лид сразу стал качественным) — это его «качественные»; «Закрыл сам» — закрыл как не качественный, не передав; конверсия Савви — доля переданных среди разобранных. В строке «Итого» и в режиме «Все» лиды по-прежнему считаются за текущим ответственным, чтобы не считать дважды. Не учитываются лиды, которые Битрикс создал при нашей рассылке по закрытым лидам 20–21.10. Скорость ответа: клиент написал в чат лида или сделки — сколько прошло до первого сообщения менеджера в этом чате или состоявшегося звонка по карточке. Несколько сообщений клиента подряд — одно обращение; «спасибо», «ок», отметки в историях Instagram, служебные пометки и наши же рассылки обращением не считаются; ответы роботов-дожимов не считаются ответом. Время считается только в рабочие часы ответственного (обед не вычитается): сообщение ночью или в выходной начинает отсчёт с начала его следующей смены. Если клиенту ответил бот Савви или коллега до начала смены ответственного, обращение не учитывается. Обращение считается за днём, когда написал клиент, и за тем, кто сейчас ответственный по сделке «В2С Продажа», иначе по лиду. «Без ответа» — ответа нет до сих пор. Самусевич в этой таблице нет: у неё нет графика смен. Скорость ответа пересчитывается раз в 30 минут. Данные из Bitrix24, обновляются раз в 5 минут.</p>
 </div>
 
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
   const DAY = 864e5;
-  const KEYS = [["came", "Пришло", "--s-came"], ["qual", "Качественные", "--s-qual"], ["bad", "Не качественные", "--s-bad"]];
+  // in the bot's own view «qual» / «bad» mean handed to managers / closed by the bot itself (its funnel, see weekstats.js)
+  const LABELS = { qual: "Качественные", bad: "Не качественные", work: "в работе" };
+  const BOT_LABELS = { qual: "Передал менеджерам", bad: "Закрыл сам", work: "у бота" };
+  let LB = LABELS;
+  const KEYS = [["came", "Пришло", "--s-came"], ["qual", "qual", "--s-qual"], ["bad", "bad", "--s-bad"]];
   const state = { from: null, data: null, grp: "", owner: null, error: null, loadedAt: 0 };
   try { const s = JSON.parse(localStorage.getItem("ldash-week") || "{}"); state.grp = s.grp || ""; } catch (e) {}
   const m = /from=(\d{4}-\d{2}-\d{2})/.exec(location.hash); if (m) state.from = m[1];
@@ -237,9 +241,17 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     const D = state.data;
     return D.owners.filter((o) => !state.grp || o.group.includes(state.grp));
   }
-  function byDay(ids) {
+  // funnel: the bot's row is its own funnel (came = every lead it created; handed / closed by it) instead of the
+  // leads it still owns — used for the bot's row and the bot-only view; team totals keep owner-based cells
+  const botIdOf = (D) => (D.owners.find((o) => o.group === "бот") || {}).id;
+  function cellOf(id, d, funnel) {
+    const D = state.data, c = (D.cells[id] || {})[d];
+    const f = funnel && D.bot && String(id) === String(botIdOf(D)) ? D.bot[d] || { came: 0, handed: 0, closed: 0 } : null;
+    return f ? { came: f.came, viaBot: 0, qual: f.handed, bad: f.closed, work: (c || {}).work || 0 } : c;
+  }
+  function byDay(ids, funnel) {
     const D = state.data, out = {};
-    for (const d of D.days) { out[d] = zero(); for (const id of ids) { const c = (D.cells[id] || {})[d]; if (c) add(out[d], c); } }
+    for (const d of D.days) { out[d] = zero(); for (const id of ids) { const c = cellOf(id, d, funnel); if (c) add(out[d], c); } }
     return out;
   }
 
@@ -276,13 +288,20 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     if (sel) $("chip-t").textContent = "Показано: " + sel.name;
     $("days-h").textContent = sel ? "По дням · " + sel.name : "Таблица по дням";
 
-    const days = byDay(ids), all = Array.from({ length: 7 }, (_, i) => addDays(D.from, i));
+    const botView = Boolean(D.bot) && ids.length === 1 && String(ids[0]) === String(botIdOf(D));
+    LB = botView ? BOT_LABELS : LABELS;
+    $("k-qual").textContent = LB.qual; $("k-bad").textContent = LB.bad;
+    $("lg-qual").textContent = LB.qual.toLowerCase(); $("lg-bad").textContent = LB.bad.toLowerCase();
+    $("k-work").textContent = botView ? "У бота" : "В работе";
+    $("lg-out").textContent = botView ? "Разобрал:" : "Закрыто:";
+    $("t-bad-s").textContent = botView ? "не передал, закрыл как не качественные" : "не прошли BANT и недозвон";
+    const days = byDay(ids, botView), all = Array.from({ length: 7 }, (_, i) => addDays(D.from, i));
     const last = D.days[D.days.length - 1];
     const T = zero(); for (const d of D.days) add(T, days[d]);
     $("t-came").textContent = num(T.came);
-    $("t-came-s").textContent = "из них через Савви " + num(T.viaBot);
+    $("t-came-s").textContent = botView ? "все лиды, которые создал бот" : "из них через Савви " + num(T.viaBot);
     $("t-qual").textContent = num(T.qual);
-    $("t-qual-s").textContent = "закрыты как «Качественный лид»";
+    $("t-qual-s").textContent = botView ? "в «Тёплый» / «Горячий» или сразу качественный" : "закрыты как «Качественный лид»";
     $("t-bad").textContent = num(T.bad);
     // one team baseline everywhere: all managers, bot excluded
     const team = zero();
@@ -291,12 +310,12 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     const botId = String(D.owners.find((o) => o.group === "бот")?.id);
     const onlyBot = ids.length === 1 && ids[0] === botId;
     // the overall conversion leaves the bot's queue out (user's decision 26.10); the bot alone still shows its own
-    const C = zero(); for (const id of ids) if (onlyBot || id !== botId) for (const d of D.days) add(C, (D.cells[id] || {})[d] || zero());
+    const C = zero(); for (const id of ids) if (onlyBot || id !== botId) for (const d of D.days) add(C, cellOf(id, d, botView) || zero());
     $("t-conv").textContent = pct(C.qual, C.qual + C.bad);
-    $("t-conv-s").textContent = "из " + num(C.qual + C.bad) + " закрытых" +
-      (onlyBot ? " · у команды " + pct(team.qual, teamN) : ids.includes(botId) ? " · без Савви" : sel || state.grp ? " · у команды " + pct(team.qual, teamN) : "");
+    $("t-conv-s").textContent = (botView ? "передал из " + num(C.qual + C.bad) + " разобранных" : "из " + num(C.qual + C.bad) + " закрытых") +
+      (onlyBot ? (botView ? "" : " · у команды " + pct(team.qual, teamN)) : ids.includes(botId) ? " · без Савви" : sel || state.grp ? " · у команды " + pct(team.qual, teamN) : "");
     $("t-work").textContent = num(days[last].work);
-    $("t-work-s").textContent = D.from === D.current ? "открытых лидов сейчас" : "открытых на конец недели";
+    $("t-work-s").textContent = (D.from === D.current ? "открытых лидов сейчас" : "открытых на конец недели") + (botView ? " в его очереди" : "");
 
     drawChart(all, days, D.days);
 
@@ -310,16 +329,18 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     });
     rows.push(el("tr", { class: "total" }, el("td", { text: "Итого" }), el("td", { text: num(T.came) }), el("td", { text: num(T.qual) }), el("td", { text: num(T.bad) }), el("td", { text: "—", title: "Остаток на конец дня, по дням не складывается" })));
     $("days").replaceChildren(el("table", {},
-      el("thead", {}, el("tr", {}, el("th", { text: "День" }), el("th", { text: "Пришло" }), el("th", { text: "Качественные" }), el("th", { text: "Не качественные" }), el("th", { text: "В работе к концу дня" }))),
+      el("thead", {}, el("tr", {}, el("th", { text: "День" }), el("th", { text: "Пришло" }), el("th", { text: LB.qual }), el("th", { text: LB.bad }), el("th", { text: botView ? "У бота к концу дня" : "В работе к концу дня" }))),
       el("tbody", {}, ...rows)));
 
     // owners table
     const orow = list.map((o) => {
-      const t = zero(); for (const d of D.days) add(t, (D.cells[o.id] || {})[d] || zero());
+      const t = zero(); for (const d of D.days) add(t, cellOf(o.id, d, true) || zero());
       t.work = ((D.cells[o.id] || {})[last] || {}).work || 0;
       return { o, t };
     }).sort((a, b) => (a.o.group === "бот") - (b.o.group === "бот") || b.t.came - a.t.came);
-    const ot = zero(); for (const r of orow) add(ot, r.t);
+    // «Итого» from owner-based cells: the bot's funnel overlaps the managers' leads it handed over
+    const ot = zero(); for (const r of orow) for (const d of D.days) add(ot, (D.cells[r.o.id] || {})[d] || zero());
+    ot.work = orow.reduce((a, r) => a + r.t.work, 0);
     const isBot = (r) => r.o.group === "бот";
     // 2 — clearly worse than the team (z < −2), 1 — borderline (−2 ≤ z < −1), may still be chance
     const level = (r) => {
@@ -340,7 +361,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     const tr = (r) => {
       const on = state.owner === String(r.o.id);
       const n = el("tr", { tabindex: "0", role: "button", "aria-pressed": String(on), "aria-selected": String(on), "aria-label": r.o.name + (on ? ", выбран — нажмите, чтобы показать всех" : ", показать только его") },
-        el("td", { class: "who" }, r.o.name, el("small", { text: isBot(r) ? "очередь бота в Открытых линиях" : r.o.group.replace("Группа продаж ", "") })),
+        el("td", { class: "who" }, r.o.name, el("small", { text: isBot(r) ? (D.bot ? "все его лиды: передал менеджерам / закрыл сам" : "очередь бота в Открытых линиях") : r.o.group.replace("Группа продаж ", "") })),
         rateCell(r.t, isBot(r), level(r)), rateCell(r.t, isBot(r), level(r), true),
         el("td", { text: num(r.t.came) }), el("td", { text: isBot(r) ? "—" : num(r.t.viaBot) }),
         el("td", { text: num(r.t.qual) }), el("td", { text: num(r.t.bad) }), el("td", { text: num(r.t.work) }));
@@ -357,7 +378,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     const foot = [];
     if (mgr.length && mgr.length < orow.length) foot.push(sumRow("team", "Команда без Савви", mt));
     const withBot = mgr.length < orow.length;
-    foot.push(sumRow("total", "Итого", ot, withBot && mgr.length ? [noConv(), noConv()] : undefined));
+    if (orow.length > 1) foot.push(sumRow("total", "Итого", ot, withBot && mgr.length ? [noConv(), noConv()] : undefined));
     $("owners").replaceChildren(el("table", {},
       el("thead", {}, el("tr", {}, el("th", { text: "Ответственный" }), el("th", { text: "Конверсия в качественный" }), el("th", { text: "Конверсия в некачественный" }), el("th", { text: "Пришло" }), el("th", { text: "через Савви" }),
         el("th", { text: "Качественные" }), el("th", { text: "Не качественные" }), el("th", { text: D.from === D.current ? "В работе сейчас" : "В работе на конец недели" }))),
@@ -381,7 +402,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     $("t-reply").textContent = fmtMin(med);
     $("t-reply-s").textContent = T.n ? "медиана без Савви · за час " + share(T, 60) + " · без ответа " + num(T.waiting) : ids.every((id) => id === String(SUVVY)) ? "у Савви не считается" : "обращений нет";
     const rows = list.filter((o) => R.data.cells[o.id]).map((o) => ({ o, t: repAgg([String(o.id)]) })).filter((r) => r.t.n).sort((a, b) => b.t.n - a.t.n);
-    if (!rows.length) return box.replaceChildren(el("div", { class: "msg", text: "Обращений клиентов за эту неделю нет" }));
+    if (!rows.length) return box.replaceChildren(el("div", { class: "msg", text: ids.every((id) => id === String(SUVVY)) ? "У Савви скорость ответа не считается: он отвечает сразу" : "Обращений клиентов за эту неделю нет" }));
     const cells = (t) => [el("td", { text: num(t.n) }), el("td", { text: fmtMin(repMedian(t)) }), el("td", { text: share(t, 15) }), el("td", { text: share(t, 60) }), el("td", { class: t.waiting ? null : "dim", text: num(t.waiting) })];
     const tr = (r) => {
       const on = state.owner === String(r.o.id);
@@ -451,8 +472,8 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
       const show = () => {
         hit.classList.add("on");
         tip.replaceChildren(el("b", { text: WD[i] + ", " + dm(d) }),
-          ...KEYS.map(([k, name, v]) => el("div", {}, el("span", {}, el("i", { style: `background:var(${v})` }), name), el("span", { text: num(c[k]) }))),
-          el("div", {}, el("span", { class: "dim", text: d === have[have.length - 1] && state.data.from === state.data.current ? "в работе сейчас" : "в работе на конец дня" }), el("span", { text: num(c.work) })));
+          ...KEYS.map(([k, name, v]) => el("div", {}, el("span", {}, el("i", { style: `background:var(${v})` }), LB[name] || name), el("span", { text: num(c[k]) }))),
+          el("div", {}, el("span", { class: "dim", text: LB.work + (d === have[have.length - 1] && state.data.from === state.data.current ? " сейчас" : " на конец дня") }), el("span", { text: num(c.work) })));
         tip.hidden = false;
         const bx = box.getBoundingClientRect(), sx = bx.width / W;
         const left = (x0 + gw) * sx + 8;

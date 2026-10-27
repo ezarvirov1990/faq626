@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { weekStart, weekStats, SUVVY_ID } from "./weekstats.js";
+import { weekStart, weekStats, suvvyFunnel, SUVVY_ID } from "./weekstats.js";
 
 test("week starts on Monday 00:00 MSK", () => {
   assert.equal(weekStart(Date.parse("2026-10-22T12:00:00+03:00")), "2026-10-19"); // Thursday
@@ -33,4 +33,23 @@ test("per day: came, closed by kind, open at the end of the day; current owner; 
   assert.equal(s.cells["9"], undefined);
   const x = weekStats({ from: "2026-10-19", now: Date.parse("2026-10-21T15:00:00+03:00"), owners, leads, exclude: [1] });
   assert.equal(x.cells["1"]["2026-10-19"].came, 0);
+});
+
+test("Suvvy funnel: every lead the bot created, handed on its first warm move, closed by the bot when never handed", () => {
+  const lead = (ID, created, status, closed, by = SUVVY_ID) => ({ ID, CREATED_BY_ID: String(by), STATUS_ID: status, DATE_CREATE: created + "T10:00:00+03:00", DATE_CLOSED: closed ? closed + "T12:00:00+03:00" : "" });
+  const created = [
+    lead("1", "2026-10-20", "IN_PROCESS"), // handed 20.10
+    lead("2", "2026-10-20", "4", "2026-10-22"), // closed by the bot
+    lead("3", "2026-10-21", "CONVERTED", "2026-10-21"), // straight to qualified
+    lead("4", "2026-10-21", "2"), // duplicate — ignored
+    lead("5", "2026-10-21", "NEW", "", 181), // not the bot's
+    lead("6", "2026-10-12", "JUNK", "2026-10-23"), // created last week, handed last week, closed by a manager now
+  ];
+  const firstWarm = { 1: Date.parse("2026-10-20T11:00:00+03:00"), 6: Date.parse("2026-10-13T11:00:00+03:00") };
+  const r = suvvyFunnel({ from: "2026-10-19", now: Date.parse("2026-10-26T00:00:00+03:00"), created, closed: [], firstWarm });
+  assert.deepEqual(r.cells, {
+    "2026-10-20": { came: 2, handed: 1, closed: 0 },
+    "2026-10-21": { came: 1, handed: 1, closed: 0 },
+    "2026-10-22": { came: 0, handed: 0, closed: 1 },
+  });
 });
