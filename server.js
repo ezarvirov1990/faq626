@@ -7,9 +7,10 @@ import { createBitrix, collectSnapshot, loadConfig, mergeDealPipelines } from ".
 import { mergeHints } from "./hints.js";
 import { collectLive } from "./activity.js";
 import { mskDayStart } from "./tasks.js";
-import { decideAlerts, alertText, createMattermost, alertRecipient, BACKUP_ID } from "./alerts.js";
+import { decideAlerts, alertText, createMattermost, alertRecipient, BACKUP_ID, SCHEDULES } from "./alerts.js";
 import { collectWeek, weekStart, SUVVY_ID } from "./weekstats.js";
 import { collectUndelivered } from "./undelivered.js";
+import { collectReplies } from "./replies.js";
 
 const env = process.env;
 const config = loadConfig(env);
@@ -246,6 +247,29 @@ function weekData(from) {
   promise.catch(() => weekCache.delete(from));
   return promise;
 }
+// «Неделя» → reply speed: every chat of the week paged through (~2 min), so it is never computed inside a request.
+// The current week is recounted in the background every REPLIES_MINUTES (30) and served from memory meanwhile;
+// a past week is computed on first request and, once it ended 2+ days ago (late answers are in), kept on disk for good.
+const REPLIES_MS = Number(env.REPLIES_MINUTES || 30) * 60e3;
+const repliesCache = new Map(); // from → { data, at, running }
+const repliesFile = (from) => path.join(env.DATA_DIR || ".", `replies-${from}.json`);
+function repliesFor(from, { force = false } = {}) {
+  const now = Date.now();
+  const c = repliesCache.get(from) || repliesCache.set(from, {}).get(from);
+  const fresh = c.data && (c.final || now - c.at < (from === weekStart(now) ? REPLIES_MS : 3600e3));
+  if (c.running || (fresh && !force) || !state.snapshot) return c;
+  c.running = (async () => {
+    if (!c.data) try { Object.assign(c, { data: JSON.parse(await readFile(repliesFile(from), "utf8")), final: true, at: now }); return; } catch {}
+    const managers = state.snapshot.managers.map((m) => ({ id: m.id, name: m.name }));
+    const data = await collectReplies(createBitrix(config.webhook), { from, now, managers, owners: managers.filter((m) => SCHEDULES[m.id]), schedules: SCHEDULES, log });
+    Object.assign(c, { data, at: now, error: null });
+    if (now > Date.parse(from + "T00:00:00+03:00") + 9 * 864e5) {
+      c.final = true;
+      await writeFile(repliesFile(from) + ".tmp", JSON.stringify(data)).then(() => rename(repliesFile(from) + ".tmp", repliesFile(from)));
+    }
+  })().catch((e) => { log("replies error:", e.message); c.error = e.message; }).finally(() => { c.running = null; });
+  return c;
+}
 const baseHeaders = {
   "Cache-Control": "no-store",
   "X-Content-Type-Options": "nosniff",
@@ -313,6 +337,15 @@ const server = http.createServer((req, res) => {
       (e) => { log("week error:", e.message); json(502, { error: "Bitrix24 не ответил, попробуйте через минуту" }); });
     return;
   }
+  if (pathname === "/api/replies") {
+    const now = Date.now();
+    const from = new URL(req.url, "http://localhost").searchParams.get("from") || weekStart(now);
+    const ms = Date.parse(from + "T12:00:00+03:00");
+    res.writeHead(200, { ...baseHeaders, "Content-Type": "application/json; charset=utf-8" });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || weekStart(ms) !== from || ms > now + 864e5 || now - ms > (WEEKS_BACK + 1) * 7 * 864e5) return res.end(JSON.stringify({ error: "неделя вне диапазона" }));
+    const c = repliesFor(from);
+    return res.end(JSON.stringify({ from, data: c.data || null, running: Boolean(c.running), error: c.error || null }));
+  }
   if (pathname === "/api/activity") {
     res.writeHead(200, { ...baseHeaders, "Content-Type": "application/json; charset=utf-8" });
     return res.end(JSON.stringify(activityPayload()));
@@ -322,7 +355,8 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(config.port, () => log(`listening on ${config.port}, refresh every ${config.refreshMinutes} min`));
-refresh().then(refreshLive).then(refreshUndelivered);
+refresh().then(refreshLive).then(refreshUndelivered).then(() => repliesFor(weekStart(Date.now())));
 setInterval(refresh, config.refreshMinutes * 60e3);
 setInterval(refreshLive, LIVE_MS);
 setInterval(refreshUndelivered, UNDELIVERED_MS);
+setInterval(() => repliesFor(weekStart(Date.now()), { force: true }), REPLIES_MS);

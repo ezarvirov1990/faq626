@@ -63,8 +63,8 @@ h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spa
 .chip button { font: inherit; border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 4px; font-size: 16px; line-height: 1; }
 button:focus-visible, a:focus-visible, tr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-@media (max-width: 900px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stats .stat:last-child { grid-column: 1 / -1; } }
+.stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+@media (max-width: 900px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .wrap.busy .stats b, .wrap.busy .chart, .wrap.busy .tbl-wrap { opacity: .35; transition: opacity .2s ease-out; }
 .msg button { font: inherit; margin-left: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 4px 12px; cursor: pointer; }
 .stat { background: var(--surface); padding: 14px 18px; display: grid; gap: 2px; align-content: start; }
@@ -158,6 +158,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     <div class="stat"><span class="k"><i style="background:var(--s-bad)"></i>Не качественные</span><b id="t-bad">—</b><small>не прошли BANT и недозвон</small></div>
     <div class="stat conv"><span class="k">Конверсия в качественный</span><b id="t-conv">—</b><small id="t-conv-s"></small></div>
     <div class="stat"><span class="k">В работе</span><b id="t-work">—</b><small id="t-work-s">открытых лидов</small></div>
+    <div class="stat"><span class="k">Ответ клиенту</span><b id="t-reply">—</b><small id="t-reply-s"></small></div>
   </section>
 
   <div class="grid2">
@@ -182,7 +183,12 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     <div class="tbl-wrap" id="owners"></div>
   </section>
 
-  <p class="note">Пришло — лиды, созданные в этот день. Качественные и не качественные — лиды, закрытые в этот день с таким статусом, независимо от того, когда они пришли; не качественные — «Не прошёл BANT» и «Недозвон». В работе — сколько открытых лидов осталось на конец дня (сегодня — на текущий момент). Лиды считаются за тем, кто ответственный сейчас; у Савви — те, что всё ещё в его очереди, а пришедшие через него и переданные менеджерам видны в «через Савви». Конверсия в качественный — доля качественных среди лидов, закрытых за неделю, в некачественный — доля не качественных; вместе они дают 100 %. Общая конверсия считается без Савви: его очередь почти целиком закрывается как не качественная. «Команда» — все менеджеры без Савви. Красным подсвечены обе конверсии менеджера, если качественных заметно меньше, чем у команды, и при его числе закрытых лидов (от 10) это уже не случайность; оранжевым — если меньше, но это ещё может быть случайностью. При числе закрытых меньше 10 проценты показаны бледным — по ним рано судить. Не учитываются лиды, которые Битрикс создал при нашей рассылке по закрытым лидам 20–21.10. Данные из Bitrix24, обновляются раз в 5 минут.</p>
+  <section class="panel">
+    <h2>Скорость ответа клиентам <span class="dim" style="text-transform:none;letter-spacing:0;font-weight:400">· в рабочие часы менеджера</span></h2>
+    <div class="tbl-wrap" id="replies"></div>
+  </section>
+
+  <p class="note">Пришло — лиды, созданные в этот день. Качественные и не качественные — лиды, закрытые в этот день с таким статусом, независимо от того, когда они пришли; не качественные — «Не прошёл BANT» и «Недозвон». В работе — сколько открытых лидов осталось на конец дня (сегодня — на текущий момент). Лиды считаются за тем, кто ответственный сейчас; у Савви — те, что всё ещё в его очереди, а пришедшие через него и переданные менеджерам видны в «через Савви». Конверсия в качественный — доля качественных среди лидов, закрытых за неделю, в некачественный — доля не качественных; вместе они дают 100 %. Общая конверсия считается без Савви: его очередь почти целиком закрывается как не качественная. «Команда» — все менеджеры без Савви. Красным подсвечены обе конверсии менеджера, если качественных заметно меньше, чем у команды, и при его числе закрытых лидов (от 10) это уже не случайность; оранжевым — если меньше, но это ещё может быть случайностью. При числе закрытых меньше 10 проценты показаны бледным — по ним рано судить. Не учитываются лиды, которые Битрикс создал при нашей рассылке по закрытым лидам 20–21.10. Скорость ответа: клиент написал в чат лида или сделки — сколько прошло до первого сообщения менеджера в этом чате или состоявшегося звонка по карточке. Несколько сообщений клиента подряд — одно обращение; «спасибо», «ок», отметки в историях Instagram, служебные пометки и наши же рассылки обращением не считаются; ответы роботов-дожимов не считаются ответом. Время считается только в рабочие часы ответственного (обед не вычитается): сообщение ночью или в выходной начинает отсчёт с начала его следующей смены. Если клиенту ответил бот Савви или коллега до начала смены ответственного, обращение не учитывается. Обращение считается за днём, когда написал клиент, и за тем, кто сейчас ответственный по сделке «В2С Продажа», иначе по лиду. «Без ответа» — ответа нет до сих пор. Самусевич в этой таблице нет: у неё нет графика смен. Скорость ответа пересчитывается раз в 30 минут. Данные из Bitrix24, обновляются раз в 5 минут.</p>
 </div>
 
 <script>
@@ -212,6 +218,19 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     return a.getUTCMonth() === b.getUTCMonth() ? a.getUTCDate() + "–" + b.getUTCDate() + " " + MONTHS[b.getUTCMonth()] : a.getUTCDate() + " " + MONTHS[a.getUTCMonth()] + " – " + b.getUTCDate() + " " + MONTHS[b.getUTCMonth()];
   }
   const zero = () => ({ came: 0, viaBot: 0, qual: 0, bad: 0, work: 0 });
+  // reply speed: minutes of working time; an unanswered request counts as slower than any answer
+  const fmtMin = (m) => (m == null ? "—" : m === Infinity ? "нет ответа" : m < 60 ? m + " мин" : (m / 60).toFixed(1).replace(".", ",") + " ч");
+  function repAgg(ids) {
+    const R = state.rep && state.rep.from === state.from && state.rep.data, t = { n: 0, waiting: 0, times: [] };
+    if (R) for (const id of ids) for (const c of Object.values(R.cells[id] || {})) { t.n += c.n; t.waiting += c.waiting; t.times.push(...c.times); }
+    return t;
+  }
+  function repMedian(t) {
+    if (!t.n) return null;
+    const s = [...t.times].sort((a, b) => a - b), k = Math.floor(t.n / 2);
+    return k < s.length ? s[k] : Infinity;
+  }
+  const share = (t, max) => pct(t.times.filter((x) => x <= max).length, t.n);
   function add(t, c) { for (const k in t) t[k] += c[k] || 0; }
 
   function owners() {
@@ -233,13 +252,13 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
       // never show another week's numbers under this week's label
       $("fresh").className = "fresh " + (state.error ? "dead" : "stale");
       $("fresh").textContent = state.error ? "Не загрузилось" : "Считаю по Bitrix24…";
-      for (const id of ["t-came", "t-qual", "t-bad", "t-conv", "t-work"]) $(id).textContent = "—";
-      for (const id of ["t-came-s", "t-qual-s", "t-conv-s"]) $(id).textContent = "";
+      for (const id of ["t-came", "t-qual", "t-bad", "t-conv", "t-work", "t-reply"]) $(id).textContent = "—";
+      for (const id of ["t-came-s", "t-qual-s", "t-conv-s", "t-reply-s"]) $(id).textContent = "";
       $("chip").hidden = true;
       const msg = () => state.error
         ? el("div", { class: "msg" }, "Не удалось загрузить неделю: " + state.error + ".", el("button", { type: "button", text: "Повторить" }))
         : el("div", { class: "msg", text: "Загружаю неделю…" });
-      for (const id of ["chart", "days", "owners"]) $(id).replaceChildren(msg());
+      for (const id of ["chart", "days", "owners", "replies"]) $(id).replaceChildren(msg());
       for (const b of document.querySelectorAll(".msg button")) b.addEventListener("click", () => { state.error = null; render(); load(); });
       return;
     }
@@ -344,6 +363,57 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
         el("th", { text: "Качественные" }), el("th", { text: "Не качественные" }), el("th", { text: D.from === D.current ? "В работе сейчас" : "В работе на конец недели" }))),
       el("tbody", {}, ...orow.map(tr)),
       el("tfoot", {}, ...foot)));
+    renderReplies(list, ids);
+  }
+
+  function renderReplies(list, ids) {
+    const R = state.rep && state.rep.from === state.from ? state.rep : null;
+    const box = $("replies");
+    if (!R || !R.data) {
+      $("t-reply").textContent = "—";
+      $("t-reply-s").textContent = R && R.error && !R.running ? "не посчиталось" : "считаю…";
+      box.replaceChildren(el("div", { class: "msg", text: R && R.error && !R.running ? "Не удалось посчитать: " + R.error + ". Попробую ещё раз через минуту." : "Считаю скорость ответа по всем чатам недели — это около двух минут…" }));
+      return;
+    }
+    const SUVVY = (state.data.owners.find((o) => o.group === "бот") || {}).id;
+    const people = ids.filter((id) => R.data.cells[id]);
+    const T = repAgg(people), med = repMedian(T);
+    $("t-reply").textContent = fmtMin(med);
+    $("t-reply-s").textContent = T.n ? "медиана · за час " + share(T, 60) + " · без ответа " + num(T.waiting) : ids.every((id) => id === String(SUVVY)) ? "у Савви не считается" : "обращений нет";
+    const rows = list.filter((o) => R.data.cells[o.id]).map((o) => ({ o, t: repAgg([String(o.id)]) })).filter((r) => r.t.n).sort((a, b) => b.t.n - a.t.n);
+    if (!rows.length) return box.replaceChildren(el("div", { class: "msg", text: "Обращений клиентов за эту неделю нет" }));
+    const cells = (t) => [el("td", { text: num(t.n) }), el("td", { text: fmtMin(repMedian(t)) }), el("td", { text: share(t, 15) }), el("td", { text: share(t, 60) }), el("td", { class: t.waiting ? null : "dim", text: num(t.waiting) })];
+    const tr = (r) => {
+      const on = state.owner === String(r.o.id);
+      const n = el("tr", { tabindex: "0", role: "button", "aria-pressed": String(on), "aria-selected": String(on), "aria-label": r.o.name + (on ? ", выбран — нажмите, чтобы показать всех" : ", показать только его") },
+        el("td", { class: "who" }, r.o.name, el("small", { text: r.o.group.replace("Группа продаж ", "") })), ...cells(r.t));
+      const pick = () => { state.owner = on ? null : String(r.o.id); render(); };
+      n.addEventListener("click", pick);
+      n.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
+      return n;
+    };
+    const all = repAgg(rows.map((r) => String(r.o.id)));
+    box.replaceChildren(el("table", { class: "rep" },
+      el("thead", {}, el("tr", {}, el("th", { text: "Ответственный" }), el("th", { text: "Обращений" }), el("th", { text: "Медиана ответа" }), el("th", { text: "За 15 минут" }), el("th", { text: "За 1 час" }), el("th", { text: "Без ответа" }))),
+      el("tbody", {}, ...rows.map(tr)),
+      rows.length > 1 ? el("tfoot", {}, el("tr", { class: "total" }, el("td", { text: "Все вместе" }), ...cells(all))) : null));
+  }
+
+  // reply speed comes separately: the server counts it in the background (~2 min for a week not counted yet)
+  let repTimer = null;
+  async function loadReplies() {
+    clearTimeout(repTimer);
+    const want = state.from;
+    try {
+      const body = await (await fetch("api/replies" + (want ? "?from=" + want : ""), { cache: "no-store" })).json();
+      if (state.from !== want && want) return;
+      state.rep = body;
+      if (body.running && !body.data) repTimer = setTimeout(loadReplies, 20e3);
+      else if (body.error && !body.data) repTimer = setTimeout(loadReplies, 60e3);
+    } catch (e) {
+      repTimer = setTimeout(loadReplies, 60e3);
+    }
+    if (state.data && state.data.from === state.from) render();
   }
 
   function drawChart(all, days, have) {
@@ -413,9 +483,9 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
   }
   let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (state.data && state.data.from === state.from) render(); }, 150); });
   function go(k) {
-    state.from = addDays(state.from, 7 * k); state.data = null;
+    state.from = addDays(state.from, 7 * k); state.data = null; state.rep = null;
     history.replaceState(null, "", state.from === state.cur ? location.pathname : "#from=" + state.from);
-    render(); load();
+    render(); load(); loadReplies();
   }
   $("prev").addEventListener("click", () => go(-1));
   $("next").addEventListener("click", () => go(1));
@@ -427,8 +497,8 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
   });
   { const t = document.querySelector(".tabs"); if (t) t.scrollLeft = t.scrollWidth; } // keep the active «Неделя» tab in view on phones
   render();
-  load();
-  setInterval(() => { if (state.data && state.data.from === state.data.current) load(); }, 5 * 60e3);
+  load(); loadReplies();
+  setInterval(() => { if (state.data && state.data.from === state.data.current) { load(); loadReplies(); } }, 5 * 60e3);
 })();
 </script>
 </body>
