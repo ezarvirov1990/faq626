@@ -165,11 +165,13 @@ html.glass {
     radial-gradient(55vw 55vw at 70% 75%, #AEE6CB 0, transparent 65%), radial-gradient(45vw 45vw at 20% 90%, #F4C9D9 0, transparent 65%), #E8EEF5;
 }
 @media (prefers-color-scheme: dark) {
+  /* the glass look stays light even with a dark system theme (user's request 28.10.2026) */
   html.glass:not([data-theme="light"]) {
-    --glass: rgba(23, 33, 48, 0.55); --glass-hi: rgba(36, 50, 70, 0.70); --glass-edge: rgba(255, 255, 255, 0.10);
-    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.35); --line: rgba(255, 255, 255, 0.09); --accent-soft: rgba(98, 180, 208, 0.18);
-    --glass-bg: radial-gradient(40vw 40vw at 8% 12%, #123A55 0, transparent 70%), radial-gradient(38vw 38vw at 92% 8%, #2E2357 0, transparent 70%),
-      radial-gradient(45vw 45vw at 78% 88%, #0F3B33 0, transparent 70%), radial-gradient(35vw 35vw at 15% 95%, #3A1F35 0, transparent 70%), #0B1119;
+    color-scheme: light;
+    --bg: #F2F4F6; --ink: #16202C; --muted: #5B6878; --line: rgba(22, 32, 44, 0.10);
+    --accent: #1F6F8B; --accent-soft: rgba(31, 111, 139, 0.14); --on-accent: #FFFFFF;
+    --warn: #A86A12; --warn-soft: #FBF1DE; --high: #C2410C; --high-soft: #FCE9DF;
+    --crit: #B42318; --crit-soft: #FBE4E2; --ok: #2F7D4F; --ok-soft: #E2F2E8;
   }
 }
 html.glass body { background: var(--glass-bg) fixed; min-height: 100vh; }
