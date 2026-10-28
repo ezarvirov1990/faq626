@@ -4,8 +4,10 @@
 // «=== SYSTEM WZ === <reason>» appended, seconds after the manager's original. A copy without such an
 // original in Bitrix was sent outside Bitrix: a manager writing from the Wazzup app, or an automatic / mass send
 // (order notices, promo blasts). Since 27.10.2026 (user's request) the former are shown too: a copy counts as a
-// manager's message unless its text went to MASS_CHATS+ chats today or looks like a service notice; the author is
+// manager's message unless it looks like a service notice or a robot follow-up; the author is
 // the manager who introduces themselves in the text («Это Ольга», «Марина, менеджер»), else the card's owner.
+// Since 28.10.2026 (user's request) a text sent to many chats counts too: WhatsApp past the 24-hour window takes
+// templates only, so managers send the same promo / follow-up template to each client by hand (lead 630896).
 import { mskDayStart } from "./tasks.js";
 import { ROBOT_TEXT } from "./activity.js";
 
@@ -14,7 +16,6 @@ const OUTGOING = /^\s*=+\s*Исходящее сообщение, автор:/;
 // Wazzup notes that are not a delivery failure
 const NOT_FAILURE = /сообщение изменено|сообщение удалено|пропущенный звонок|пропущен звонок/i;
 const TWIN_MS = 10 * 60e3;
-const MASS_CHATS = 3;
 // Service notices and reminders sent by automations through Wazzup
 export const SERVICE_TEXT = /курьер|отч[её]т (готов|My)|генетический отч[её]т|записались на консультацию|трек[- ]?номер|ваш заказ|генетический материал|набор|Лаборатория MyGenetics|спасибо за вашу оценку|напоминаем|ГенКонф|купить нельзя/i;
 
@@ -40,7 +41,6 @@ export function failureReason(text) {
 }
 
 const norm = (s) => String(s || "").replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim();
-export const massKey = (body) => body.toLowerCase().slice(0, 60);
 
 // The manager who introduces themselves in the text: «Это Ольга», «Меня зовут Юлия», «Марина, менеджер».
 // Only a first name no other manager has; null when nobody or ambiguous.
@@ -74,14 +74,9 @@ function failureCopies(dialog) {
   return out;
 }
 
-// Mass-detection keys of a chat's copies without a Bitrix original since `since`
-export function orphanKeys(dialog, since) {
-  return failureCopies(dialog).filter((x) => !x.twin && x.at >= since && x.body).map((x) => massKey(x.body));
-}
-
 // Unresolved failed manager messages of one chat since `since` (the latest per chat, with how many failed).
 // managerIds — whose messages count (Suvvy, robots and our scripts' user are not in it).
-// wazzup: { mass: Set of massKey sent to MASS_CHATS+ chats today, managers: [{ id, name }] } — also report copies
+// wazzup: { managers: [{ id, name }] } — also report copies
 // without a Bitrix original (sent from the Wazzup app); their managerId is the introduced author or null (= card owner)
 export function chatFailures(dialog, managerIds, since, wazzup = null) {
   const isClient = new Map((dialog.users || []).map((u) => [String(u.id), Boolean(u.connector)]));
@@ -91,7 +86,7 @@ export function chatFailures(dialog, managerIds, since, wazzup = null) {
   const failedIds = new Set();
   for (const { m, f, body, at, twin } of failureCopies(dialog)) {
     if (!twin) {
-      if (!wazzup || !body || at < since || wazzup.mass.has(massKey(body)) || SERVICE_TEXT.test(body) || ROBOT_TEXT.test(body)) continue;
+      if (!wazzup || !body || at < since || SERVICE_TEXT.test(body) || ROBOT_TEXT.test(body)) continue;
       failed.push({ ...f, managerId: introAuthor(body, wazzup.managers), viaWazzup: true, at, afterId: Number(m.id), text: body.slice(0, 140) });
       continue;
     }
@@ -140,10 +135,7 @@ export async function collectUndelivered(bx, managers, { now = Date.now() } = {}
     byChat.get(id).push(c);
   }
   const msgs = await bx.batch(Object.fromEntries([...byChat.keys()].map((c) => ["m_" + c, `im.dialog.messages.get?DIALOG_ID=chat${c}&LIMIT=50`])));
-  // texts sent outside Bitrix to MASS_CHATS+ chats today are mass sends, not a manager's message
-  const chatsByKey = new Map();
-  for (const chat of byChat.keys()) for (const k of new Set(orphanKeys(msgs.out["m_" + chat] || {}, since))) chatsByKey.set(k, (chatsByKey.get(k) || 0) + 1);
-  const wazzup = { mass: new Set([...chatsByKey].filter(([, n]) => n >= MASS_CHATS).map(([k]) => k)), managers };
+  const wazzup = { managers };
   const hits = [];
   for (const chat of byChat.keys()) {
     const d = msgs.out["m_" + chat];
