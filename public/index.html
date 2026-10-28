@@ -155,7 +155,47 @@ table.moves { min-width: 900px; }
 .clip2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 32ch; }
 .empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); }
 .note { font-size: 13px; color: var(--muted); max-width: 70ch; margin: 0; }
+
+/* Frosted-glass preview, only with ?glass=1 (user's request 28.10.2026) */
+html.glass {
+  --glass: rgba(255, 255, 255, 0.58); --glass-hi: rgba(255, 255, 255, 0.78); --glass-edge: rgba(255, 255, 255, 0.85);
+  --glass-shadow: 0 8px 32px rgba(31, 60, 100, 0.12); --line: rgba(22, 32, 44, 0.10); --surface: var(--glass);
+  --accent-soft: rgba(31, 111, 139, 0.14);
+  --glass-bg: radial-gradient(40vw 40vw at 8% 12%, #BFE3F2 0, transparent 70%), radial-gradient(38vw 38vw at 92% 8%, #DCD3F7 0, transparent 70%),
+    radial-gradient(45vw 45vw at 78% 88%, #C9EEDC 0, transparent 70%), radial-gradient(35vw 35vw at 15% 95%, #F7DCE6 0, transparent 70%), #EEF2F7;
+}
+@media (prefers-color-scheme: dark) {
+  html.glass:not([data-theme="light"]) {
+    --glass: rgba(23, 33, 48, 0.55); --glass-hi: rgba(36, 50, 70, 0.70); --glass-edge: rgba(255, 255, 255, 0.10);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.35); --line: rgba(255, 255, 255, 0.09); --accent-soft: rgba(98, 180, 208, 0.18);
+    --glass-bg: radial-gradient(40vw 40vw at 8% 12%, #123A55 0, transparent 70%), radial-gradient(38vw 38vw at 92% 8%, #2E2357 0, transparent 70%),
+      radial-gradient(45vw 45vw at 78% 88%, #0F3B33 0, transparent 70%), radial-gradient(35vw 35vw at 15% 95%, #3A1F35 0, transparent 70%), #0B1119;
+  }
+}
+html.glass body { background: var(--glass-bg) fixed; min-height: 100vh; }
+html.glass .stats { gap: 12px; background: none; border: 0; border-radius: 0; overflow: visible; }
+html.glass .stat, html.glass .mgr, html.glass .group, html.glass .empty, html.glass .seg, html.glass .tabs {
+  background: var(--glass); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
+  -webkit-backdrop-filter: blur(20px) saturate(160%); backdrop-filter: blur(20px) saturate(160%);
+}
+html.glass .stat { border-radius: 16px; }
+html.glass .mgr { border-radius: 14px; transition: transform .15s ease, background .15s ease; }
+html.glass .mgr:hover { background: var(--glass-hi); transform: translateY(-1px); }
+html.glass .mgr[aria-pressed="true"] { background: var(--glass-hi); border-color: var(--accent); }
+html.glass .mgr.zero:hover { transform: none; border-color: var(--glass-edge); }
+html.glass .group { border-radius: 16px; }
+html.glass .group-head { background: rgba(255, 255, 255, 0.06); }
+html.glass .tabs { border-radius: 14px; padding: 4px 6px; }
+html.glass .tabs button, html.glass .tabs a { border-radius: 10px; border-bottom: 0; margin-bottom: 0; padding: 8px 14px; }
+html.glass .tabs button[aria-selected="true"] { background: var(--glass-hi); box-shadow: inset 0 -3px 0 var(--accent); }
+html.glass .seg { border-radius: 12px; padding: 3px; gap: 2px; }
+html.glass .seg button { border-radius: 9px; }
+html.glass .seg button + button { border-left: 0; }
+html.glass .fresh { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid var(--glass-edge); }
+html.glass .empty { border-style: dashed; }
+html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
 </style>
+<script>if (/[?&]glass=1/.test(location.search)) document.documentElement.classList.add("glass");</script>
 </head>
 <body>
 <div class="wrap">
