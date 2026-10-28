@@ -158,11 +158,11 @@ table.moves { min-width: 900px; }
 
 /* Frosted-glass preview, only with ?glass=1 (user's request 28.10.2026) */
 html.glass {
-  --glass: rgba(255, 255, 255, 0.58); --glass-hi: rgba(255, 255, 255, 0.78); --glass-edge: rgba(255, 255, 255, 0.85);
-  --glass-shadow: 0 8px 32px rgba(31, 60, 100, 0.12); --line: rgba(22, 32, 44, 0.10); --surface: var(--glass);
+  --glass: rgba(255, 255, 255, 0.42); --glass-hi: rgba(255, 255, 255, 0.70); --glass-edge: rgba(255, 255, 255, 0.75);
+  --glass-shadow: 0 8px 32px rgba(31, 60, 100, 0.14); --line: rgba(22, 32, 44, 0.10); --surface: var(--glass);
   --accent-soft: rgba(31, 111, 139, 0.14);
-  --glass-bg: radial-gradient(40vw 40vw at 8% 12%, #BFE3F2 0, transparent 70%), radial-gradient(38vw 38vw at 92% 8%, #DCD3F7 0, transparent 70%),
-    radial-gradient(45vw 45vw at 78% 88%, #C9EEDC 0, transparent 70%), radial-gradient(35vw 35vw at 15% 95%, #F7DCE6 0, transparent 70%), #EEF2F7;
+  --glass-bg: radial-gradient(55vw 55vw at 5% 10%, #9ED3EC 0, transparent 65%), radial-gradient(50vw 50vw at 95% 15%, #CBBDF5 0, transparent 65%),
+    radial-gradient(55vw 55vw at 70% 75%, #AEE6CB 0, transparent 65%), radial-gradient(45vw 45vw at 20% 90%, #F4C9D9 0, transparent 65%), #E8EEF5;
 }
 @media (prefers-color-scheme: dark) {
   html.glass:not([data-theme="light"]) {
