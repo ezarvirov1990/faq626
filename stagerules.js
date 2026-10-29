@@ -29,6 +29,7 @@ export const RULE_SELECT = ["MOVED_TIME", "OPPORTUNITY", ...Object.values(FIELDS
 export const BIG_AMOUNT = 150000;
 
 const mskDay = (ms) => Math.floor((ms + MSK) / DAY);
+const dayStart = (n) => n * DAY - MSK; // first instant of an MSK day number
 const ddmm = (ms) => new Date(ms + MSK).toISOString().slice(5, 10).split("-").reverse().join(".");
 const days = (n) => n + " " + (n % 10 === 1 && n % 100 !== 11 ? "день" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "дня" : "дней");
 
@@ -44,6 +45,7 @@ export function stageRules(d, now) {
   const lastReply = replies.length ? Math.max(...replies) : null;
   const quiet = (n) => ![...attempts, ...replies].some((t) => now - t < n * DAY);
   const today = mskDay(now);
+  const prevWorkDay = d.prevWorkDay ?? today - 1;
   const over = onStage > st.limitDays;
   const rules = [];
   const add = (code, level, text) => rules.push({ code, level, text });
@@ -52,11 +54,13 @@ export function stageRules(d, now) {
     if (over) add("over", "c", `На этапе ${days(full)} из ${st.limitDays} — передвинуть${st.key === "need" ? " на «Выбран продукт»" : ""} или закрыть`);
     if (onStage >= st.limitDays && !lastReply) add("silent", "c", "Клиент молчит весь срок этапа — закрыть");
     const gap = st.key === "need" ? 5 : 7;
-    const paused = st.key === "need" && d.nextContact && d.nextContact > now;
+    // The planned contact day counts in MSK days: it pauses the rhythm until that day is over
+    const paused = st.key === "need" && d.nextContact && mskDay(d.nextContact) >= today;
     if (onStage >= gap && !paused && quiet(gap)) {
       add("rhythm", "w", st.key === "need" ? "5 дней без попытки связаться" : "7 дней без попытки — узнать дату и способ оплаты");
     }
-    if (st.key === "need" && d.nextContact && d.nextContact <= now && !attempts.some((t) => t >= d.nextContact)) {
+    // Overdue once its MSK day is over with no attempt since the day started
+    if (st.key === "need" && d.nextContact && mskDay(d.nextContact) < today && !attempts.some((t) => t >= dayStart(mskDay(d.nextContact)))) {
       add("next", "w", `Следующий контакт был назначен на ${ddmm(d.nextContact)} — попытки не было`);
     }
     if (onStage >= 1 && !comments.length) add("comment", "w", "Нет комментария менеджера на этом этапе");
@@ -74,7 +78,7 @@ export function stageRules(d, now) {
   if (st.key === "push") {
     if (over) add("over", "c", `На этапе ${days(full)} из 5 — закрыть как «Нереализован» или перевести`);
     if (onStage >= st.limitDays && !lastReply) add("silent", "c", "Клиент не отвечает 5 дней — закрыть как «Нереализован»");
-    if (d.worksToday && onStage >= 1 && !attemptDays.has(today) && !attemptDays.has(today - 1)) add("rhythm", "w", "Нужна попытка связаться сегодня");
+    if (d.worksToday && onStage >= 1 && !attemptDays.has(today) && !attemptDays.has(prevWorkDay)) add("rhythm", "w", "Нужна попытка связаться сегодня");
     if (lastReply && !comments.some((t) => t > lastReply)) add("reason", "w", "Клиент ответил — зафиксируйте причину неоплаты в комментарии");
     if (lastReply && now - lastReply > DAY) add("move", "w", "Клиент ответил — перевести в «Готов оплачивать» с новой датой или в «Выбран продукт»");
   }
@@ -100,21 +104,40 @@ export function massTexts(dialogs) {
   return new Set([...chats].filter(([, n]) => n >= MASS_CHATS).map(([t]) => t));
 }
 
-// One chat → when a manager tried (human message, phone echo, mass template) and when the client wrote.
-// Robot follow-ups, Suvvy, service notices and Wazzup notes are neither.
+// Our voice in a client-side text: the brand, the company, promos. A client's «Хочу получить…» is not ours.
+const OUR_VOICE = /mygenetics|компани|лаборатори|дарим|акци/i;
+const WANT = /^хочу/i;
+const ourVoice = (text) => OUR_VOICE.test(text) && !WANT.test(text.trim());
+
+// Wazzup failure copy: our message posted under the client with a `=== SYSTEM WZ ===` reason after it.
+// The body is ours when it is not empty and not a robot/service text; edits, deletions and missed calls are notes.
+const WZ_NOTE_SKIP = /сообщение изменено|сообщение удалено|пропущенный звонок|пропущен звонок/i;
+function failureAttempt(text) {
+  const at = text.indexOf(WAZZUP_SYSTEM);
+  const body = text.slice(0, at).trim();
+  const note = text.slice(at + WAZZUP_SYSTEM.length);
+  if (!body || WZ_NOTE_SKIP.test(note)) return false;
+  return !(ROBOT_TEXT.test(body) || SERVICE_TEXT.test(body));
+}
+
+// One chat → when a manager tried (human message, phone echo, our mass send, failure copy) and when the client wrote.
+// Robot follow-ups, Suvvy and Wazzup notes are neither.
 export function chatSignals(dialog, index, mass) {
   const isClient = new Map((dialog.users || []).map((u) => [String(u.id), Boolean(u.connector)]));
   const human = [], client = [];
   for (const x of dialog.messages || []) {
     const text = String(x.text || "");
-    if (!Number(x.author_id) || text.includes(WAZZUP_SYSTEM)) continue;
     const at = Date.parse(x.date);
+    if (!Number(x.author_id) || Number.isNaN(at)) continue;
+    if (text.includes(WAZZUP_SYSTEM)) {
+      if (isClient.get(String(x.author_id)) && failureAttempt(text)) human.push(at);
+      continue;
+    }
     if (messageAuthor(x, isClient, index)) { human.push(at); continue; }
     if (!isClient.get(String(x.author_id)) || OUTGOING.test(text)) continue;
-    const t = normText(text);
-    if (SERVICE_TEXT.test(text) || ROBOT_TEXT.test(text)) continue;
-    if (mass.has(t)) human.push(at);
-    else client.push(at);
+    if (!mass.has(normText(text))) { client.push(at); continue; }
+    // A text Wazzup posts under the client in 3+ chats is our send from the Wazzup app: an attempt only in our voice
+    if (ourVoice(text) && !SERVICE_TEXT.test(text) && !ROBOT_TEXT.test(text)) human.push(at);
   }
   return { human: human.sort((a, b) => a - b), client: client.sort((a, b) => a - b) };
 }
@@ -128,17 +151,30 @@ function worksToday(id, now, worked, schedules) {
   return wd !== 0 && wd !== 6;
 }
 
+// The owner's previous working day as an MSK day number: 5/2 — the previous Mon–Fri in their time zone
+// (Monday → Friday); 2/2 — yesterday. The owner's day is taken at its local noon, so it maps to one MSK day.
+function prevWorkDay(id, now, schedules) {
+  const s = schedules[id];
+  if (s && !s.weekdays) return mskDay(now) - 1;
+  const tz = s ? s.tz : 3;
+  let p = Math.floor((now + tz * 3600e3) / DAY) - 1;
+  while ([0, 6].includes(new Date(p * DAY).getUTCDay())) p--;
+  return mskDay(p * DAY + 12 * 3600e3 - tz * 3600e3);
+}
+
 // All open deals → the snapshot's views.deals.rules
 export function buildRules(deals, { now, flow = null, worked = new Set(), schedules = SCHEDULES }) {
   const stages = STAGES.map((s) => ({ key: s.key, name: s.name, limitDays: s.limitDays, byManager: {} }));
   const byKey = new Map(stages.map((s) => [s.key, s]));
   const items = [];
   for (const d of deals) {
-    const r = stageRules({ ...d, worksToday: worksToday(d.managerId, now, worked, schedules) }, now);
+    const r = stageRules({
+      ...d, worksToday: worksToday(d.managerId, now, worked, schedules), prevWorkDay: prevWorkDay(d.managerId, now, schedules),
+    }, now);
     if (!r) continue;
     const m = (byKey.get(r.stage).byManager[d.managerId] ||= { open: 0, sum: 0, over: 0 });
     m.open++;
-    m.sum += d.amount;
+    m.sum += Number(d.amount) || 0;
     if (r.over) m.over++;
     if (r.rules.length) items.push({
       id: d.id, managerId: d.managerId, stage: r.stage, amount: d.amount, daysOnStage: r.daysOnStage, attempts: r.attempts,
@@ -153,7 +189,11 @@ export function stageFlow(rows, since) {
   const idx = new Map(STAGES.map((s, i) => [s.id, i]));
   const out = Object.fromEntries(STAGES.map((s) => [s.key, { entered: 0, forward: 0, back: 0, closed: 0, paid: 0 }]));
   const byDeal = new Map();
-  for (const r of rows) (byDeal.get(String(r.OWNER_ID)) || byDeal.set(String(r.OWNER_ID), []).get(String(r.OWNER_ID))).push({ stage: r.STAGE_ID, at: Date.parse(r.CREATED_TIME) });
+  for (const r of rows) {
+    const id = String(r.OWNER_ID);
+    if (!byDeal.has(id)) byDeal.set(id, []);
+    byDeal.get(id).push({ stage: r.STAGE_ID, at: Date.parse(r.CREATED_TIME) });
+  }
   for (const hs of byDeal.values()) {
     hs.sort((a, b) => a.at - b.at);
     for (let i = 0; i < hs.length; i++) {
@@ -165,6 +205,8 @@ export function stageFlow(rows, since) {
       const from = idx.get(prev);
       if (from === undefined || prev === h.stage) continue;
       const f = out[STAGES[from].key];
+      // A move to an unchecked stage that is neither closed nor paid counts as back: «Консультация оказана»,
+      // «Брошенная корзина» and «Свободная база» come earlier in the pipeline than the checked stages
       if (h.stage === WON) f.paid++;
       else if (CLOSED.has(h.stage)) f.closed++;
       else if (to !== undefined && to > from) f.forward++;
@@ -194,12 +236,21 @@ export async function collectStageFlow(bx, now, { days = 7, pause = 600 } = {}) 
   } while (start);
   const owners = [...new Set(rows.map((r) => String(r.OWNER_ID)))];
   const cmds = {};
-  for (let i = 0; i < owners.length; i += 10) {
-    const q = new URLSearchParams([["entityTypeId", "2"], ...owners.slice(i, i + 10).map((o) => ["filter[OWNER_ID][]", o]),
+  for (let i = 0; i < owners.length; i += 5) {
+    const q = new URLSearchParams([["entityTypeId", "2"], ...owners.slice(i, i + 5).map((o) => ["filter[OWNER_ID][]", o]),
       ["filter[<CREATED_TIME]", sinceIso], ["order[ID]", "DESC"], ["select[]", "OWNER_ID"], ["select[]", "STAGE_ID"], ["select[]", "CREATED_TIME"]]);
     cmds["b" + i] = "crm.stagehistory.list?" + q.toString();
   }
   const before = [];
-  if (owners.length) for (const v of Object.values((await bx.batch(cmds)).out)) before.push(...((v && v.items) || []));
-  return { at: new Date(now).toISOString(), since: sinceIso, stages: stageFlow([...before, ...rows], since) };
+  let partial = false;
+  if (owners.length) {
+    const res = await bx.batch(cmds);
+    if (Object.keys(res.errors || {}).length) partial = true;
+    for (const v of Object.values(res.out || {})) {
+      const items = (v && v.items) || [];
+      if (items.length === 50) partial = true; // a full page may have more rows behind it
+      before.push(...items);
+    }
+  }
+  return { at: new Date(now).toISOString(), since: sinceIso, stages: stageFlow([...before, ...rows], since), partial };
 }

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stageRules, STAGES, chatSignals, massTexts, buildRules, stageFlow } from "./stagerules.js";
+import { stageRules, STAGES, chatSignals, massTexts, buildRules, stageFlow, collectStageFlow } from "./stagerules.js";
 import { managerIndex } from "./activity.js";
 
 const DAY = 864e5;
@@ -74,7 +74,7 @@ const dlg = (messages) => ({ users: [{ id: 900, connector: true }, { id: 5 }, { 
 const m = (id, author, text, time) => ({ id, author_id: author, text, date: `2026-10-28T${time}+03:00` });
 const BLAST = "Отличные новости: с 20 по 28 октября дарим эксклюзивный ДНК-отчёт";
 
-test("chat signals: manager, phone echo and mass template are attempts; robots, Suvvy and service notes are neither", () => {
+test("chat signals: manager, phone echo and our mass send are attempts; Suvvy, robots and Wazzup notes are not", () => {
   const d = dlg([
     m(1, 5, "Добрый день! Подобрала вам тест", "10:00:00"),
     m(2, 900, "=== Исходящее сообщение, автор: Битрикс24 (Ольга Волокитина) === Перезвоню", "11:00:00"),
@@ -83,12 +83,12 @@ test("chat signals: manager, phone echo and mass template are attempts; robots, 
     m(5, 367846, "Я Алина, специалист по подбору", "13:30:00"),
     m(6, 900, "Курьерская служба сообщила о получении вами комплекта", "14:00:00"),
     m(7, 900, "А сколько стоит Эксперт?", "15:00:00"),
-    m(8, 900, "Сообщение не доставлено\n=== SYSTEM WZ === Сообщение не доставлено.", "16:00:00"),
+    m(8, 900, "=== SYSTEM WZ === Сообщение не доставлено.", "16:00:00"),
   ]);
   const mass = massTexts([d, dlg([m(9, 900, BLAST, "09:00:00")]), dlg([m(10, 900, BLAST, "09:00:00")])]);
   const s = chatSignals(d, index, mass);
   assert.deepEqual(s.human, ["10:00", "11:00", "12:00"].map((t) => Date.parse(`2026-10-28T${t}:00+03:00`)));
-  assert.deepEqual(s.client, [Date.parse("2026-10-28T15:00:00+03:00")]);
+  assert.deepEqual(s.client, ["14:00", "15:00"].map((t) => Date.parse(`2026-10-28T${t}:00+03:00`)));
 });
 
 test("buildRules: per-stage open / sum / over by manager, only deals with rules in items, worksToday from schedules", () => {
@@ -117,4 +117,94 @@ test("stageFlow: forward, back, closed and paid from the stage a deal left; entr
   assert.deepEqual(f.need, { entered: 2, forward: 1, back: 0, closed: 1, paid: 0 });
   assert.deepEqual(f.product, { entered: 1, forward: 1, back: 1, closed: 0, paid: 0 });
   assert.deepEqual(f.ready, { entered: 1, forward: 0, back: 0, closed: 0, paid: 1 });
+});
+
+test("pause and next-contact use MSK days: a contact planned for today pauses the rhythm and is not overdue", () => {
+  const base = { stageId: st.need, movedAt: now - 8 * DAY, attempts: [now - 7 * DAY], replies: [now - 6 * DAY], comments: [now - 7 * DAY] };
+  assert.deepEqual(codes(stageRules(deal({ ...base, nextContact: Date.parse("2026-10-29T09:00:00+03:00") }), now)), []);
+  assert.deepEqual(codes(stageRules(deal({ ...base, nextContact: Date.parse("2026-10-29T18:00:00+03:00") }), now)), []);
+});
+
+test("a client text that Wazzup posted in 3+ chats is a manager attempt only in our voice", () => {
+  const HELLO = "Хочу получить бесплатную консультацию. Мой промокод ABC123";
+  const chats = [1, 2, 3].map(() => dlg([m(1, 900, HELLO, "10:00:00")]));
+  const s = chatSignals(chats[0], index, massTexts(chats));
+  assert.deepEqual(s.human, []);
+  assert.deepEqual(s.client, []);
+});
+
+test("a single-chat client message is a reply even when it holds a service word", () => {
+  const d = dlg([m(1, 900, "Какой набор лучше выбрать?", "10:00:00")]);
+  assert.deepEqual(chatSignals(d, index, massTexts([d])).client, [Date.parse("2026-10-28T10:00:00+03:00")]);
+});
+
+test("Wazzup failure copy with a body is a manager attempt; empty bodies, edits and service bodies are not", () => {
+  const d = dlg([
+    m(1, 900, "Добрый день! Подобрала вам тест\n=== SYSTEM WZ === Сообщение не доставлено.", "10:00:00"),
+    m(2, 900, "=== SYSTEM WZ === Сообщение не доставлено.", "11:00:00"),
+    m(3, 900, "Вы ошиблись в тесте\n=== SYSTEM WZ === Сообщение изменено.", "12:00:00"),
+    m(4, 900, "Курьерская служба сообщила о получении\n=== SYSTEM WZ === Сообщение не доставлено.", "13:00:00"),
+    m(5, 900, "Очень жду ваш ответ\n=== SYSTEM WZ === Сообщение не доставлено.", "14:00:00"),
+  ]);
+  const s = chatSignals(d, index, new Set());
+  assert.deepEqual(s.human, [Date.parse("2026-10-28T10:00:00+03:00")]);
+  assert.deepEqual(s.client, []);
+});
+
+test("messages without a valid date are skipped", () => {
+  const d = dlg([{ id: 1, author_id: 5, text: "Добрый день!", date: "не дата" }, { id: 2, author_id: 900, text: "Какой тест лучше?", date: "не дата" }]);
+  assert.deepEqual(chatSignals(d, index, new Set()), { human: [], client: [] });
+});
+
+test("buildRules: a deal without a numeric amount adds nothing to the sum", () => {
+  const deals = [
+    deal({ id: 1, managerId: 73919, stageId: st.need, movedAt: now - 2 * DAY, amount: 27900, attempts: [now - DAY], comments: [now - DAY] }),
+    deal({ id: 2, managerId: 73919, stageId: st.need, movedAt: now - 2 * DAY, amount: undefined, attempts: [now - DAY], comments: [now - DAY] }),
+  ];
+  const R = buildRules(deals, { now, flow: null, worked: new Set() });
+  assert.deepEqual(R.stages.find((s) => s.key === "need").byManager[73919], { open: 2, sum: 27900, over: 0 });
+});
+
+test("Дожимаем rhythm: the owner's previous working day — Friday for a Monday", () => {
+  const monday = Date.parse("2026-11-02T12:00:00+03:00");
+  const schedules = { 1: { tz: 3, weekdays: true } };
+  const rhythmCount = (attempt) => {
+    const deals = [deal({ id: 1, managerId: 1, stageId: st.push, movedAt: Date.parse("2026-10-27T12:00:00+03:00"), comments: [Date.parse("2026-10-27T12:00:00+03:00")], attempts: [attempt] })];
+    const R = buildRules(deals, { now: monday, worked: new Set(), schedules });
+    return R.items.flatMap((x) => x.rules).filter((x) => x.code === "rhythm").length;
+  };
+  assert.equal(rhythmCount(Date.parse("2026-10-30T12:00:00+03:00")), 0);
+  assert.equal(rhythmCount(Date.parse("2026-10-29T12:00:00+03:00")), 1);
+});
+
+test("collectStageFlow: 5 owners per batch command; batch errors or a full 50-row command mark the flow partial", async () => {
+  const owners = Array.from({ length: 12 }, (_, i) => 1000 + i);
+  const rows = owners.map((o) => ({ OWNER_ID: o, STAGE_ID: st.need, CREATED_TIME: "2026-10-28T12:00:00+03:00" }));
+  const fake = ({ errors = {}, fullCmd = null } = {}) => {
+    const cmds = [];
+    return {
+      cmds,
+      call: async () => ({ result: { items: rows } }),
+      batch: async (c) => {
+        cmds.push(c);
+        const out = Object.fromEntries(Object.keys(c).map((k) => [k, { items: k === fullCmd ? Array.from({ length: 50 }, () => rows[0]) : [] }]));
+        return { out, errors };
+      },
+    };
+  };
+  const clean = fake();
+  const ok = await collectStageFlow(clean, now, { pause: 0 });
+  assert.equal(ok.partial, false);
+  assert.equal(clean.cmds.length, 1);
+  const perCommand = Object.values(clean.cmds[0]).map((c) => (decodeURIComponent(c).match(/filter\[OWNER_ID\]\[\]=/g) || []).length);
+  assert.deepEqual(perCommand, [5, 5, 2]);
+  assert.equal((await collectStageFlow(fake({ errors: { b5: "boom" } }), now, { pause: 0 })).partial, true);
+  assert.equal((await collectStageFlow(fake({ fullCmd: "b0" }), now, { pause: 0 })).partial, true);
+});
+
+test("stageFlow: a move from a checked stage to an earlier unchecked stage counts as back", () => {
+  const since = Date.parse("2026-10-22T00:00:00+03:00");
+  const h = (deal, stage, day) => ({ OWNER_ID: deal, STAGE_ID: stage, CREATED_TIME: `2026-10-${day}T12:00:00+03:00` });
+  const f = stageFlow([h(4, st.need, "23"), h(4, "C27:UC_9AD24Z", "24")], since);
+  assert.deepEqual(f.need, { entered: 1, forward: 0, back: 1, closed: 0, paid: 0 });
 });
