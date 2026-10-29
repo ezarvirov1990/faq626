@@ -34,7 +34,9 @@ test("Выявили потребность: next-contact date passed with no at
 test("missing comment counts only after the first day on the stage; empty fields are flagged", () => {
   assert.deepEqual(codes(stageRules(deal({ stageId: st.need, movedAt: now - 3600e3 }), now)), []);
   const r = stageRules(deal({ stageId: st.need, movedAt: now - 2 * DAY, request: false, test: false, attempts: [now - DAY] }), now);
-  assert.deepEqual(codes(r), ["comment:w", "request:w", "test:w"]);
+  assert.deepEqual(codes(r), ["comment:w", "request:w"]);
+  const product = stageRules(deal({ stageId: st.product, movedAt: now - 2 * DAY, test: false, attempts: [now - DAY], comments: [now - DAY] }), now);
+  assert.deepEqual(codes(product), ["test:w"]);
 });
 
 test("Выбран продукт: weekly rhythm, amount checks, 30-day limit", () => {

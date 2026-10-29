@@ -65,7 +65,8 @@ export function stageRules(d, now) {
     }
     if (onStage >= 1 && !comments.length) add("comment", "w", "Нет комментария менеджера на этом этапе");
     if (st.key === "need" && !d.request) add("request", "w", "Не заполнен «Запрос клиента»");
-    if (!d.test) add("test", "w", "Не заполнено «Какой тест планирует купить»");
+    // Required from «Выбран продукт» on (the user's rules); Bitrix returns an empty enumeration as false
+    if (st.key === "product" && !d.test) add("test", "w", "Не заполнено «Какой тест планирует купить»");
     if (st.key === "product" && !(d.amount > 0)) add("amount", "w", "Не указана сумма сделки");
     if (st.key === "product" && d.amount > BIG_AMOUNT) add("bigamount", "w", "Проверьте сумму — больше " + BIG_AMOUNT.toLocaleString("ru-RU") + " ₽");
   }
