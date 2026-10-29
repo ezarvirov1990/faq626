@@ -46,13 +46,20 @@ export function stageRules(d, now) {
   const quiet = (n) => ![...attempts, ...replies].some((t) => now - t < n * DAY);
   const today = mskDay(now);
   const prevWorkDay = d.prevWorkDay ?? today - 1;
-  const over = onStage > st.limitDays;
+  const over = full > st.limitDays;
+  // A cut chat (50 messages, the oldest after the stage move) may hide the client's replies: no «silent», a note instead
+  const silentRule = (text) => {
+    if (d.cut) add("cut", "w", "Длинная переписка — проверьте ответы клиента в чате");
+    else add("silent", "c", text);
+  };
   const rules = [];
   const add = (code, level, text) => rules.push({ code, level, text });
 
   if (st.key === "need" || st.key === "product") {
     if (over) add("over", "c", `На этапе ${days(full)} из ${st.limitDays} — передвинуть${st.key === "need" ? " на «Выбран продукт»" : ""} или закрыть`);
-    if (onStage >= st.limitDays && !lastReply) add("silent", "c", "Клиент молчит весь срок этапа — закрыть");
+    // «Выявили потребность»: a contact time the client named (today or later) is not silence
+    const named = st.key === "need" && d.nextContact && mskDay(d.nextContact) >= today;
+    if (full >= st.limitDays && !lastReply && !named) silentRule("Клиент молчит весь срок этапа — закрыть");
     const gap = st.key === "need" ? 5 : 7;
     // The planned contact day counts in MSK days: it pauses the rhythm until that day is over
     const paused = st.key === "need" && d.nextContact && mskDay(d.nextContact) >= today;
@@ -78,7 +85,7 @@ export function stageRules(d, now) {
   }
   if (st.key === "push") {
     if (over) add("over", "c", `На этапе ${days(full)} из 5 — закрыть как «Нереализован» или перевести`);
-    if (onStage >= st.limitDays && !lastReply) add("silent", "c", "Клиент не отвечает 5 дней — закрыть как «Нереализован»");
+    if (full >= st.limitDays && !lastReply) silentRule("Клиент не отвечает 5 дней — закрыть как «Нереализован»");
     if (d.worksToday && onStage >= 1 && !attemptDays.has(today) && !attemptDays.has(prevWorkDay)) add("rhythm", "w", "Нужна попытка связаться сегодня");
     if (lastReply && !comments.some((t) => t > lastReply)) add("reason", "w", "Клиент ответил — зафиксируйте причину неоплаты в комментарии");
     if (lastReply && now - lastReply > DAY) add("move", "w", "Клиент ответил — перевести в «Готов оплачивать» с новой датой или в «Выбран продукт»");
@@ -126,9 +133,11 @@ function failureAttempt(text) {
 export function chatSignals(dialog, index, mass) {
   const isClient = new Map((dialog.users || []).map((u) => [String(u.id), Boolean(u.connector)]));
   const human = [], client = [];
+  let oldest = null;
   for (const x of dialog.messages || []) {
     const text = String(x.text || "");
     const at = Date.parse(x.date);
+    if (!Number.isNaN(at) && (oldest === null || at < oldest)) oldest = at;
     if (!Number(x.author_id) || Number.isNaN(at)) continue;
     if (text.includes(WAZZUP_SYSTEM)) {
       if (isClient.get(String(x.author_id)) && failureAttempt(text)) human.push(at);
@@ -140,7 +149,8 @@ export function chatSignals(dialog, index, mass) {
     // A text Wazzup posts under the client in 3+ chats is our send from the Wazzup app: an attempt only in our voice
     if (ourVoice(text) && !SERVICE_TEXT.test(text) && !ROBOT_TEXT.test(text)) human.push(at);
   }
-  return { human: human.sort((a, b) => a - b), client: client.sort((a, b) => a - b) };
+  // full: the dialog came back as a whole 50-message page, so older messages may be missing
+  return { human: human.sort((a, b) => a - b), client: client.sort((a, b) => a - b), oldest, full: (dialog.messages || []).length >= 50 };
 }
 
 // Is today a working day of the owner: 5/2 — Mon–Fri in their time zone; 2/2 — any own action today
@@ -178,7 +188,7 @@ export function buildRules(deals, { now, flow = null, worked = new Set(), schedu
     m.sum += Number(d.amount) || 0;
     if (r.over) m.over++;
     if (r.rules.length) items.push({
-      id: d.id, managerId: d.managerId, stage: r.stage, amount: d.amount, daysOnStage: r.daysOnStage, attempts: r.attempts,
+      id: d.id, managerId: d.managerId, stage: r.stage, amount: d.amount, daysOnStage: r.daysOnStage, over: r.over, attempts: r.attempts,
       lastReply: r.lastReply ? new Date(r.lastReply).toISOString() : null, rules: r.rules,
     });
   }

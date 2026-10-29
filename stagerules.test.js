@@ -155,7 +155,39 @@ test("Wazzup failure copy with a body is a manager attempt; empty bodies, edits 
 
 test("messages without a valid date are skipped", () => {
   const d = dlg([{ id: 1, author_id: 5, text: "Добрый день!", date: "не дата" }, { id: 2, author_id: 900, text: "Какой тест лучше?", date: "не дата" }]);
-  assert.deepEqual(chatSignals(d, index, new Set()), { human: [], client: [] });
+  assert.deepEqual(chatSignals(d, index, new Set()), { human: [], client: [], oldest: null, full: false });
+});
+
+test("Выявили потребность: a named contact time for today (or later) suppresses «silent»; a connected call is client contact", () => {
+  const base = { stageId: st.need, movedAt: now - 16 * DAY, attempts: [now - 2 * DAY], comments: [now - 10 * DAY] };
+  assert.deepEqual(codes(stageRules(deal({ ...base, replies: [now - 3 * DAY] }), now)), ["over:c"]);
+  assert.deepEqual(codes(stageRules(deal({ ...base, nextContact: Date.parse("2026-10-29T00:00:00+03:00") }), now)), ["over:c"]);
+  assert.deepEqual(codes(stageRules(deal({ ...base, nextContact: now - 2 * DAY, attempts: [now - 2 * DAY + 3600e3] }), now)), ["over:c", "silent:c"]);
+});
+
+test("cut chat: never «silent», an amber «cut» note appears where silent would have fired", () => {
+  const need = stageRules(deal({ stageId: st.need, movedAt: now - 16 * DAY, attempts: [now - 2 * DAY], comments: [now - 10 * DAY], cut: true }), now);
+  assert.deepEqual(codes(need), ["cut:w", "over:c"]);
+  const push = stageRules(deal({ stageId: st.push, movedAt: now - 6 * DAY, attempts: [now - 3600e3], comments: [now - 3 * DAY], cut: true }), now);
+  assert.deepEqual(codes(push), ["cut:w", "over:c"]);
+  const fresh = stageRules(deal({ stageId: st.need, movedAt: now - 3 * DAY, attempts: [now - DAY], comments: [now - DAY], cut: true }), now);
+  assert.deepEqual(codes(fresh), []);
+});
+
+test("over means whole days above the limit, silent starts at the whole limit; items carry over", () => {
+  const r = stageRules(deal({ stageId: st.need, movedAt: now - 15.5 * DAY, attempts: [now - DAY], comments: [now - 10 * DAY] }), now);
+  assert.equal(r.over, false);
+  assert.deepEqual(codes(r), ["silent:c"]);
+  const R = buildRules([deal({ id: 1, managerId: 73919, stageId: st.need, movedAt: now - 16 * DAY })], { now, worked: new Set() });
+  assert.equal(R.items[0].over, true);
+});
+
+test("chatSignals reports the oldest message and whether the dialog is a full 50-message page", () => {
+  const msgs = Array.from({ length: 50 }, (_, i) => m(i + 1, 900, "Вопрос " + i, "10:00:00"));
+  const s = chatSignals(dlg(msgs), index, new Set());
+  assert.equal(s.full, true);
+  assert.equal(s.oldest, Date.parse("2026-10-28T10:00:00+03:00"));
+  assert.equal(chatSignals(dlg([]), index, new Set()).oldest, null);
 });
 
 test("buildRules: a deal without a numeric amount adds nothing to the sum", () => {

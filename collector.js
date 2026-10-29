@@ -235,7 +235,7 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFlow = 
       cmds["chat_" + it.ID] = `imopenlines.crm.chat.get?CRM_ENTITY_TYPE=${spec.crmType}&CRM_ENTITY=${it.ID}&ACTIVE_ONLY=N`;
       cmds["call_" + it.ID] =
         `crm.activity.list?filter[OWNER_TYPE_ID]=${spec.ownerTypeId}&filter[OWNER_ID]=${it.ID}&filter[TYPE_ID]=2` +
-        `&order[CREATED]=DESC&select[]=ID&select[]=CREATED&select[]=DIRECTION`;
+        `&order[CREATED]=DESC&select[]=ID&select[]=CREATED&select[]=DIRECTION&select[]=START_TIME&select[]=END_TIME`;
       // Open tasks feed only the «Задачи» tab, which covers the main groups
       if (spec.primary) cmds["task_" + it.ID] =
         `crm.activity.list?filter[OWNER_TYPE_ID]=${spec.ownerTypeId}&filter[OWNER_ID]=${it.ID}&filter[PROVIDER_ID]=CRM_TASKS_TASK` +
@@ -283,8 +283,14 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFlow = 
   // Для «Ленты событий»: сообщения менеджеров клиентам за сегодня
   const index = managerIndex([...managers.values(), ...extraManagers.values()]);
   // «Правила этапов»: when managers tried and clients wrote, per chat (mass Wazzup templates are ours)
-  const mass = massTexts([...chatIds].map((c) => msgs.out["msg_" + c]).filter(Boolean));
-  const signals = new Map([...chatIds].map((c) => [c, msgs.out["msg_" + c] ? chatSignals(msgs.out["msg_" + c], index, mass) : { human: [], client: [] }]));
+  // A failure here must not break the collection: the rules view is then just left out
+  let signals = new Map();
+  try {
+    const mass = massTexts([...chatIds].map((c) => msgs.out["msg_" + c]).filter(Boolean));
+    signals = new Map([...chatIds].map((c) => [c, msgs.out["msg_" + c] ? chatSignals(msgs.out["msg_" + c], index, mass) : { human: [], client: [] }]));
+  } catch (e) {
+    console.log("stage rules error:", e.message);
+  }
   const daySince = mskDayStart(now);
   const activity = [];
   // Чаты лидов на автоматических стадиях («Недозвон третьи сутки», «Робот…»): там пишут роботы от имени менеджера
@@ -449,26 +455,36 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFlow = 
   }
 
   // 6) «Правила этапов» on «В2С Продажа»: chats, calls and comments above + the stage flow (hourly)
-  if (views.deals && ruleInputs.length) {
+  if (views.deals && ruleInputs.length) try {
     const ms = (v) => (v ? Date.parse(v) : null);
     // Date-only fields arrive like "2026-10-27T03:00:00+03:00": keep the calendar day, anchored to MSK midnight
     const day = (v) => (v ? Date.parse(String(v).slice(0, 10) + "T00:00:00+03:00") : null);
     const filled = (v) => !(v == null || v === "" || v === false || (Array.isArray(v) && !v.length));
-    const deals = ruleInputs.map(({ it, managerId, chats, calls }) => ({
-      id: Number(it.ID), managerId, stageId: it.STAGE_ID,
-      movedAt: ms(it.MOVED_TIME) || ms(it.DATE_CREATE), amount: Number(it.OPPORTUNITY) || 0,
+    // A call is connected when it lasted (END_TIME - START_TIME > 0; failed calls give 0)
+    const connected = (x) => Date.parse(x.END_TIME) - Date.parse(x.START_TIME) > 0;
+    const deals = ruleInputs.map(({ it, managerId, chats, calls }) => {
+      const movedAt = ms(it.MOVED_TIME) || ms(it.DATE_CREATE);
+      // The 50-message page may not reach back to the stage move: replies before its oldest message are unknown
+      const cut = chats.some((c) => { const sg = signals.get(c); return sg.full && sg.oldest > movedAt; });
+      return {
+      id: Number(it.ID), managerId, stageId: it.STAGE_ID, cut,
+      movedAt, amount: Number(it.OPPORTUNITY) || 0,
       request: filled(it[FIELDS.request]), test: filled(it[FIELDS.test]),
       nextContact: day(it[FIELDS.nextContact]), payDate: day(it[FIELDS.payDate]),
       attempts: [...chats.flatMap((c) => signals.get(c).human), ...calls.filter((x) => String(x.DIRECTION) === "2").map((x) => Date.parse(x.CREATED))],
-      replies: chats.flatMap((c) => signals.get(c).client),
+      replies: [...chats.flatMap((c) => signals.get(c).client), ...calls.filter(connected).map((x) => Date.parse(x.CREATED))],
       comments: (comments.out["cm_deal_" + it.ID] || []).filter((c) => index.ids.has(Number(c.AUTHOR_ID))).map((c) => Date.parse(c.CREATED)),
-    }));
+      };
+    });
     let flow = prevFlow && now - Date.parse(prevFlow.at) < FLOW_MS ? prevFlow : null;
     if (!flow) flow = await collectStageFlow(bx, now).catch(() => prevFlow || null);
     // Everyone with any own action today: feed events plus calls (any direction) on rule deals
     const worked = new Set(activity.map((e) => Number(e.managerId)));
     for (const r of ruleInputs) if (r.calls.some((x) => Date.parse(x.CREATED) >= daySince)) worked.add(Number(r.managerId));
     views.deals.rules = buildRules(deals, { now, flow, worked });
+  } catch (e) {
+    console.log("stage rules error:", e.message);
+    delete views.deals.rules;
   }
 
   const iso = (ms) => (ms ? new Date(ms).toISOString() : null);

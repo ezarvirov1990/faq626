@@ -290,7 +290,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
   if (location.hash === "#wait") { state.view = "leads"; state.lmode = "wait"; }
   if (location.hash === "#undelivered") { state.view = "leads"; state.lmode = "undeliv"; }
   // …/#rules — «Сделки» in the «Правила этапов» mode
-  if (location.hash === "#rules") { state.view = "deals"; state.lmode = "rules"; }
+  if (location.hash === "#rules") { state.view = "deals"; state.lmode = "rules"; state.pipe = 0; }
   function save() { try { localStorage.setItem("ldash", JSON.stringify({ view: state.view, grp: state.grp, pipe: state.pipe, lmode: state.lmode, onlyWait: state.onlyWait })); } catch (e) {} }
 
   const HOUR = 3600e3;
@@ -602,7 +602,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     $("s-total").textContent = items.length;
     $("s-total-l").textContent = plural(items.length, DEALS) + " с нарушениями из " + openTotal + " на этапах";
     $("s-wait").textContent = items.filter((x) => x.rules.some((r) => r.code === "silent" || (x.stage === "push" && r.code === "over"))).length;
-    $("s-wait-l").textContent = "пора закрыть: клиент молчит весь срок";
+    $("s-wait-l").textContent = "пора закрыть: клиент молчит весь срок или «Дожимаем» дольше 5 дней";
     $("s-week").textContent = items.filter((x) => x.rules.some((r) => r.code === "paydate")).length;
     $("s-crit-l").textContent = "дата оплаты прошла или не указана";
     $("s-mgr").textContent = money(items.filter(red).reduce((a, x) => a + x.amount, 0));
@@ -619,8 +619,8 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
         el("div", { class: "stg-name", text: s.name }),
         el("div", { class: "stg-num" }, String(open), el("small", { text: " · " + money(sum) })),
         el("div", { class: "stg-over" + (over ? " bad" : ""), text: over ? over + " дольше срока · " + s.limitDays + " " + plural(s.limitDays, ["день", "дня", "дней"]) : "все в сроке · " + s.limitDays + " " + plural(s.limitDays, ["день", "дня", "дней"]) }),
-        f ? el("div", { class: "stg-flow", title: "За 7 дней по всей воронке: пришло на этап / ушло дальше / вернулось назад / закрыто / оплачено",
-          text: "7 дн: +" + f.entered + " · дальше " + f.forward + " · назад " + f.back + " · закрыто " + f.closed + (f.paid ? " · оплачено " + f.paid : "") }) : null);
+        f ? el("div", { class: "stg-flow", title: "За 7 дней по всей воронке: пришло на этап / ушло дальше / вернулось назад / закрыто / оплачено" + (R.flow.partial ? " (неполные данные)" : ""),
+          text: (R.flow.partial ? "≈ " : "") + "7 дн: +" + f.entered + " · дальше " + f.forward + " · назад " + f.back + " · закрыто " + f.closed + (f.paid ? " · оплачено " + f.paid : "") }) : null);
       b.addEventListener("click", () => { state.ruleStage = state.ruleStage === s.key ? null : s.key; state.manager = null; render(); });
       strip.append(b);
     }
@@ -669,7 +669,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
           el("tbody", {}, ...rows.map((x) => el("tr", {},
             el("td", {}, el("a", { href: snap.portal + "/crm/deal/details/" + x.id + "/", target: "_blank", rel: "noopener", text: "#" + x.id })),
             el("td", { class: "num", text: x.amount ? Math.round(x.amount).toLocaleString("ru-RU") + " ₽" : "—" }),
-            el("td", { class: "num" }, el("span", { class: "pill " + (x.daysOnStage > s.limitDays ? "c" : "w"), text: x.daysOnStage + " из " + s.limitDays })),
+            el("td", { class: "num" }, el("span", { class: "pill " + (x.over ? "c" : "w"), text: x.daysOnStage + " из " + s.limitDays })),
             el("td", { class: "num", text: String(x.attempts) }),
             el("td", { text: x.lastReply ? fmt.format(new Date(x.lastReply)) : "не писал" }),
             el("td", {}, ...x.rules.map((r) => el("span", { class: "rule " + r.level, text: r.text }))))))))));
