@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stageRules, STAGES } from "./stagerules.js";
+import { stageRules, STAGES, chatSignals, massTexts, buildRules, stageFlow } from "./stagerules.js";
+import { managerIndex } from "./activity.js";
 
 const DAY = 864e5;
 const now = Date.parse("2026-10-29T12:00:00+03:00");
@@ -66,4 +67,54 @@ test("attempts are counted as distinct MSK days on the current stage; red rules 
   const r = stageRules(deal({ stageId: st.need, movedAt: now - 16 * DAY, attempts: [now - 20 * DAY, now - 3 * DAY, now - 3 * DAY + 60e3, now - DAY] }), now);
   assert.equal(r.attempts, 2);
   assert.equal(r.rules[0].level, "c");
+});
+
+const index = managerIndex([{ id: 5, name: "Ольга Волокитина" }]);
+const dlg = (messages) => ({ users: [{ id: 900, connector: true }, { id: 5 }, { id: 367846 }], messages });
+const m = (id, author, text, time) => ({ id, author_id: author, text, date: `2026-10-28T${time}+03:00` });
+const BLAST = "Отличные новости: с 20 по 28 октября дарим эксклюзивный ДНК-отчёт";
+
+test("chat signals: manager, phone echo and mass template are attempts; robots, Suvvy and service notes are neither", () => {
+  const d = dlg([
+    m(1, 5, "Добрый день! Подобрала вам тест", "10:00:00"),
+    m(2, 900, "=== Исходящее сообщение, автор: Битрикс24 (Ольга Волокитина) === Перезвоню", "11:00:00"),
+    m(3, 900, BLAST, "12:00:00"),
+    m(4, 5, "Очень жду ваш ответ :)", "13:00:00"),
+    m(5, 367846, "Я Алина, специалист по подбору", "13:30:00"),
+    m(6, 900, "Курьерская служба сообщила о получении вами комплекта", "14:00:00"),
+    m(7, 900, "А сколько стоит Эксперт?", "15:00:00"),
+    m(8, 900, "Сообщение не доставлено\n=== SYSTEM WZ === Сообщение не доставлено.", "16:00:00"),
+  ]);
+  const mass = massTexts([d, dlg([m(9, 900, BLAST, "09:00:00")]), dlg([m(10, 900, BLAST, "09:00:00")])]);
+  const s = chatSignals(d, index, mass);
+  assert.deepEqual(s.human, ["10:00", "11:00", "12:00"].map((t) => Date.parse(`2026-10-28T${t}:00+03:00`)));
+  assert.deepEqual(s.client, [Date.parse("2026-10-28T15:00:00+03:00")]);
+});
+
+test("buildRules: per-stage open / sum / over by manager, only deals with rules in items, worksToday from schedules", () => {
+  const deals = [
+    deal({ id: 1, managerId: 73919, stageId: st.need, movedAt: now - 16 * DAY }),
+    deal({ id: 2, managerId: 73919, stageId: st.need, movedAt: now - 2 * DAY, attempts: [now - DAY], comments: [now - DAY] }),
+    deal({ id: 3, managerId: 242224, stageId: st.push, movedAt: now - 2 * DAY, attempts: [now - 2 * DAY], comments: [now - 2 * DAY] }),
+  ];
+  // 29.10.2026 is a Thursday: the 5/2 manager works; the 2/2 manager (242224) works only if she acted today
+  const R = buildRules(deals, { now, flow: null, worked: new Set() });
+  const need = R.stages.find((s) => s.key === "need");
+  assert.deepEqual(need.byManager[73919], { open: 2, sum: 55800, over: 1 });
+  assert.deepEqual(R.items.map((x) => x.id), [1]);
+  const R2 = buildRules(deals, { now, flow: null, worked: new Set([242224]) });
+  assert.deepEqual(R2.items.map((x) => x.id), [1, 3]);
+});
+
+test("stageFlow: forward, back, closed and paid from the stage a deal left; entries counted on arrival", () => {
+  const since = Date.parse("2026-10-22T00:00:00+03:00");
+  const h = (deal, stage, day) => ({ OWNER_ID: deal, STAGE_ID: stage, CREATED_TIME: `2026-10-${day}T12:00:00+03:00` });
+  const f = stageFlow([
+    h(1, st.need, "10"), h(1, st.product, "23"), h(1, st.ready, "24"), h(1, "C27:WON", "25"),
+    h(2, st.product, "15"), h(2, st.need, "26"),
+    h(3, st.need, "23"), h(3, "C27:LOSE", "27"),
+  ], since);
+  assert.deepEqual(f.need, { entered: 2, forward: 1, back: 0, closed: 1, paid: 0 });
+  assert.deepEqual(f.product, { entered: 1, forward: 1, back: 1, closed: 0, paid: 0 });
+  assert.deepEqual(f.ready, { entered: 1, forward: 0, back: 0, closed: 0, paid: 1 });
 });

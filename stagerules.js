@@ -4,6 +4,8 @@
 // collectStageFlow reads the 7-day stage flow from Bitrix.
 
 import { SCHEDULES } from "./alerts.js";
+import { messageAuthor, ROBOT_TEXT } from "./activity.js";
+import { SERVICE_TEXT } from "./undelivered.js";
 
 const DAY = 864e5;
 const MSK = 3 * 3600e3;
@@ -78,4 +80,126 @@ export function stageRules(d, now) {
   }
   rules.sort((a, b) => (a.level === b.level ? 0 : a.level === "c" ? -1 : 1));
   return { stage: st.key, daysOnStage: full, over, attempts: attemptDays.size, lastReply, rules };
+}
+
+const WAZZUP_SYSTEM = "=== SYSTEM WZ ===";
+const OUTGOING = /^\s*=+\s*Исходящее сообщение/;
+const MASS_CHATS = 3;
+const normText = (t) => String(t || "").replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+// Texts Wazzup posts under the client in MASS_CHATS+ chats: our own sends from the Wazzup app (promo, follow-up
+// templates), not clients' words (29.10.2026: «Отличные новости… Детоксикация мини» showed up as the client's)
+export function massTexts(dialogs) {
+  const chats = new Map();
+  for (const d of dialogs) {
+    const client = new Set((d.users || []).filter((u) => u.connector).map((u) => String(u.id)));
+    for (const t of new Set((d.messages || []).filter((x) => client.has(String(x.author_id))).map((x) => normText(x.text)).filter((t) => t.length >= 25))) {
+      chats.set(t, (chats.get(t) || 0) + 1);
+    }
+  }
+  return new Set([...chats].filter(([, n]) => n >= MASS_CHATS).map(([t]) => t));
+}
+
+// One chat → when a manager tried (human message, phone echo, mass template) and when the client wrote.
+// Robot follow-ups, Suvvy, service notices and Wazzup notes are neither.
+export function chatSignals(dialog, index, mass) {
+  const isClient = new Map((dialog.users || []).map((u) => [String(u.id), Boolean(u.connector)]));
+  const human = [], client = [];
+  for (const x of dialog.messages || []) {
+    const text = String(x.text || "");
+    if (!Number(x.author_id) || text.includes(WAZZUP_SYSTEM)) continue;
+    const at = Date.parse(x.date);
+    if (messageAuthor(x, isClient, index)) { human.push(at); continue; }
+    if (!isClient.get(String(x.author_id)) || OUTGOING.test(text)) continue;
+    const t = normText(text);
+    if (SERVICE_TEXT.test(text) || ROBOT_TEXT.test(text)) continue;
+    if (mass.has(t)) human.push(at);
+    else client.push(at);
+  }
+  return { human: human.sort((a, b) => a - b), client: client.sort((a, b) => a - b) };
+}
+
+// Is today a working day of the owner: 5/2 — Mon–Fri in their time zone; 2/2 — any own action today
+// (the same rule as alerts and «Неделя»); no schedule (the head) — Mon–Fri MSK
+function worksToday(id, now, worked, schedules) {
+  const s = schedules[id];
+  if (s && !s.weekdays) return worked.has(id);
+  const wd = new Date(now + (s ? s.tz : 3) * 3600e3).getUTCDay();
+  return wd !== 0 && wd !== 6;
+}
+
+// All open deals → the snapshot's views.deals.rules
+export function buildRules(deals, { now, flow = null, worked = new Set(), schedules = SCHEDULES }) {
+  const stages = STAGES.map((s) => ({ key: s.key, name: s.name, limitDays: s.limitDays, byManager: {} }));
+  const byKey = new Map(stages.map((s) => [s.key, s]));
+  const items = [];
+  for (const d of deals) {
+    const r = stageRules({ ...d, worksToday: worksToday(d.managerId, now, worked, schedules) }, now);
+    if (!r) continue;
+    const m = (byKey.get(r.stage).byManager[d.managerId] ||= { open: 0, sum: 0, over: 0 });
+    m.open++;
+    m.sum += d.amount;
+    if (r.over) m.over++;
+    if (r.rules.length) items.push({
+      id: d.id, managerId: d.managerId, stage: r.stage, amount: d.amount, daysOnStage: r.daysOnStage, attempts: r.attempts,
+      lastReply: r.lastReply ? new Date(r.lastReply).toISOString() : null, rules: r.rules,
+    });
+  }
+  return { updatedAt: new Date(now).toISOString(), flow, stages, items };
+}
+
+// Stage history rows → per checked stage: deals that arrived since `since`, and where deals went when they left it
+export function stageFlow(rows, since) {
+  const idx = new Map(STAGES.map((s, i) => [s.id, i]));
+  const out = Object.fromEntries(STAGES.map((s) => [s.key, { entered: 0, forward: 0, back: 0, closed: 0, paid: 0 }]));
+  const byDeal = new Map();
+  for (const r of rows) (byDeal.get(String(r.OWNER_ID)) || byDeal.set(String(r.OWNER_ID), []).get(String(r.OWNER_ID))).push({ stage: r.STAGE_ID, at: Date.parse(r.CREATED_TIME) });
+  for (const hs of byDeal.values()) {
+    hs.sort((a, b) => a.at - b.at);
+    for (let i = 0; i < hs.length; i++) {
+      const h = hs[i];
+      if (h.at < since) continue;
+      const to = idx.get(h.stage);
+      if (to !== undefined) out[STAGES[to].key].entered++;
+      const prev = i ? hs[i - 1].stage : null;
+      const from = idx.get(prev);
+      if (from === undefined || prev === h.stage) continue;
+      const f = out[STAGES[from].key];
+      if (h.stage === WON) f.paid++;
+      else if (CLOSED.has(h.stage)) f.closed++;
+      else if (to !== undefined && to > from) f.forward++;
+      else f.back++;
+    }
+  }
+  return out;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Bitrix: stage moves of the last `days` days in «В2С Продажа» plus, for those deals, the last move before the window
+// (where they came from). ~25 paged calls with a pause + ≤3 batches; the server runs it at most once an hour.
+export async function collectStageFlow(bx, now, { days = 7, pause = 600 } = {}) {
+  const since = now - days * DAY;
+  const sinceIso = new Date(since).toISOString();
+  const rows = [];
+  let start = 0;
+  do {
+    const r = await bx.call("crm.stagehistory.list", {
+      entityTypeId: 2, filter: { CATEGORY_ID: RULE_PIPELINE, ">=CREATED_TIME": sinceIso }, order: { ID: "ASC" },
+      select: ["OWNER_ID", "STAGE_ID", "CREATED_TIME"], start,
+    });
+    rows.push(...((r.result && r.result.items) || []));
+    start = r.next;
+    if (start) await sleep(pause);
+  } while (start);
+  const owners = [...new Set(rows.map((r) => String(r.OWNER_ID)))];
+  const cmds = {};
+  for (let i = 0; i < owners.length; i += 10) {
+    const q = new URLSearchParams([["entityTypeId", "2"], ...owners.slice(i, i + 10).map((o) => ["filter[OWNER_ID][]", o]),
+      ["filter[<CREATED_TIME]", sinceIso], ["order[ID]", "DESC"], ["select[]", "OWNER_ID"], ["select[]", "STAGE_ID"], ["select[]", "CREATED_TIME"]]);
+    cmds["b" + i] = "crm.stagehistory.list?" + q.toString();
+  }
+  const before = [];
+  if (owners.length) for (const v of Object.values((await bx.batch(cmds)).out)) before.push(...((v && v.items) || []));
+  return { at: new Date(now).toISOString(), since: sinceIso, stages: stageFlow([...before, ...rows], since) };
 }
