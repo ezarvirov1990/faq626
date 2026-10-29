@@ -618,7 +618,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
       const b = el("button", { type: "button", class: "stg", "aria-pressed": String(state.ruleStage === s.key), title: "Показать только этот этап" },
         el("div", { class: "stg-name", text: s.name }),
         el("div", { class: "stg-num" }, String(open), el("small", { text: " · " + money(sum) })),
-        el("div", { class: "stg-over" + (over ? " bad" : ""), text: over ? over + " дольше " + s.limitDays + " " + plural(s.limitDays, ["дня", "дней", "дней"]) : "все в сроке " + s.limitDays + " " + plural(s.limitDays, ["дня", "дней", "дней"]) }),
+        el("div", { class: "stg-over" + (over ? " bad" : ""), text: over ? over + " дольше срока · " + s.limitDays + " " + plural(s.limitDays, ["день", "дня", "дней"]) : "все в сроке · " + s.limitDays + " " + plural(s.limitDays, ["день", "дня", "дней"]) }),
         f ? el("div", { class: "stg-flow", title: "За 7 дней по всей воронке: пришло на этап / ушло дальше / вернулось назад / закрыто / оплачено",
           text: "7 дн: +" + f.entered + " · дальше " + f.forward + " · назад " + f.back + " · закрыто " + f.closed + (f.paid ? " · оплачено " + f.paid : "") }) : null);
       b.addEventListener("click", () => { state.ruleStage = state.ruleStage === s.key ? null : s.key; state.manager = null; render(); });
