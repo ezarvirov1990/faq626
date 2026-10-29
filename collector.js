@@ -440,7 +440,7 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFlow = 
   for (const { spec, items } of loaded) {
     for (const it of items) {
       commentCmds[`cm_${spec.entity}_${it.ID}`] =
-        `crm.timeline.comment.list?filter[ENTITY_TYPE]=${spec.entity}&filter[ENTITY_ID]=${it.ID}&select[]=ID&select[]=CREATED&select[]=AUTHOR_ID`;
+        `crm.timeline.comment.list?filter[ENTITY_TYPE]=${spec.entity}&filter[ENTITY_ID]=${it.ID}&order[CREATED]=DESC&select[]=ID&select[]=CREATED&select[]=AUTHOR_ID`;
     }
   }
   const comments = await bx.batch(commentCmds);
@@ -465,7 +465,9 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFlow = 
     }));
     let flow = prevFlow && now - Date.parse(prevFlow.at) < FLOW_MS ? prevFlow : null;
     if (!flow) flow = await collectStageFlow(bx, now).catch(() => prevFlow || null);
+    // Everyone with any own action today: feed events plus calls (any direction) on rule deals
     const worked = new Set(activity.map((e) => Number(e.managerId)));
+    for (const r of ruleInputs) if (r.calls.some((x) => Date.parse(x.CREATED) >= daySince)) worked.add(Number(r.managerId));
     views.deals.rules = buildRules(deals, { now, flow, worked });
   }
 
