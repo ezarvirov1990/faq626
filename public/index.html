@@ -156,6 +156,21 @@ table.moves { min-width: 900px; }
 .empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); }
 .note { font-size: 13px; color: var(--muted); max-width: 70ch; margin: 0; }
 
+.stages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 760px) { .stages { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stg { text-align: left; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 6px; cursor: pointer; }
+.stg:hover { border-color: var(--accent); }
+.stg[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.stg-name { font-weight: 600; }
+.stg-num { font: 600 20px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.stg-num small { font: 500 12px var(--font); color: var(--muted); }
+.stg-over { font-size: 13px; }
+.stg-over.bad { color: var(--crit); font-weight: 600; }
+.stg-flow { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rule { display: block; font-size: 13px; line-height: 1.4; }
+.rule.c { color: var(--crit); font-weight: 600; }
+.rule.w { color: var(--warn); }
+
 /* Frosted-glass preview, only with ?glass=1 (user's request 28.10.2026) */
 /* Warm beige glass over a blurred sand / peach / olive backdrop; always light, even with a dark system theme —
    the :not() only lifts specificity above the dark-theme :root rule */
@@ -231,6 +246,11 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     <label class="check" id="only-wait-box"><input type="checkbox" id="only-wait"> Только где клиент ждёт ответа</label>
   </div>
 
+  <section id="stages-box" hidden>
+    <h2>Этапы «В2С Продажа»</h2>
+    <div class="stages" id="stages"></div>
+  </section>
+
   <section>
     <h2>По менеджерам</h2>
     <div class="mgrs" id="mgrs"></div>
@@ -251,16 +271,18 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  const state = { snap: null, hints: {}, undeliv: null, status: null, loadError: null, view: "leads", grp: "", pipe: 0, lmode: "silent", onlyWait: false, manager: null, activity: null, feedLimit: 200 };
+  const state = { ruleStage: null, snap: null, hints: {}, undeliv: null, status: null, loadError: null, view: "leads", grp: "", pipe: 0, lmode: "silent", onlyWait: false, manager: null, activity: null, feedLimit: 200 };
   try {
     const s = JSON.parse(localStorage.getItem("ldash") || "{}");
-    state.view = s.view || "leads"; state.grp = s.grp || ""; state.pipe = Number(s.pipe) || 0; state.lmode = ["wait", "undeliv"].includes(s.lmode) ? s.lmode : "silent"; state.onlyWait = !!s.onlyWait;
+    state.view = s.view || "leads"; state.grp = s.grp || ""; state.pipe = Number(s.pipe) || 0; state.lmode = ["wait", "undeliv", "rules"].includes(s.lmode) ? s.lmode : "silent"; state.onlyWait = !!s.onlyWait;
   } catch (e) {}
   // Вкладку можно открыть по ссылке: …/#feed, #tasks, #leads, #deals
   if (/^#(feed|tasks|leads|deals)$/.test(location.hash)) state.view = location.hash.slice(1);
   // …/#wait — «Лиды» in the «Клиент ждёт ответа» mode; #undelivered — «Не доставлено» on «Лиды»
   if (location.hash === "#wait") { state.view = "leads"; state.lmode = "wait"; }
   if (location.hash === "#undelivered") { state.view = "leads"; state.lmode = "undeliv"; }
+  // …/#rules — «Сделки» in the «Правила этапов» mode
+  if (location.hash === "#rules") { state.view = "deals"; state.lmode = "rules"; }
   function save() { try { localStorage.setItem("ldash", JSON.stringify({ view: state.view, grp: state.grp, pipe: state.pipe, lmode: state.lmode, onlyWait: state.onlyWait })); } catch (e) {} }
 
   const HOUR = 3600e3;
@@ -332,6 +354,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
   const NOTE_TOUCH = $("note").textContent;
   const NOTE_WAIT = "Клиент ждёт ответа — в чате открытого лида последним написал клиент, и после этого не было ни нашего сообщения (менеджера или бота), ни состоявшегося звонка. Попытка дозвона без разговора ответом не считается — такой лид остаётся в списке с пометкой «звонили, не дозвонились». Возраст лида не важен: сюда попадают и новые обращения, и вернувшиеся клиенты. Время ожидания идёт подряд, включая ночь и выходные. Данные из Bitrix24 обновляются раз в 15 минут.";
   const NOTE_UNDELIV = "Не доставлено — сегодня менеджер написал клиенту в чат, Wazzup сообщение не доставил, и после этого до клиента ничего не дошло: ни другое наше сообщение, ни ответ самого клиента. Сюда попадают и закрытые лиды и сделки — именно их легко потерять. Не учитываются шаблоны роботов, Савви и служебные уведомления (о заказе, курьере, готовом отчёте). Запись уходит из списка, когда наше следующее сообщение дошло или клиент написал сам. Проверка — раз в 15 минут.";
+  const NOTE_RULES = "Правила этапов «В2С Продажа»: Выявили потребность — до 15 дней, попытка связаться не реже раза в 5 дней (если клиент не назвал срок в «Дате следующего контакта»), комментарий с потребностью, тестом и датой; Выбран продукт — до 30 дней, попытка раз в неделю, тест и сумма заполнены; Готов оплачивать — 1–2 дня, «Дата Готов оплачивать» не просрочена, в день оплаты связаться; Дожимаем — до 5 дней, попытка каждый рабочий день, причина неоплаты в комментарии. Попытка — день, когда менеджер написал (в том числе с телефона или шаблоном из Wazzup) или позвонил; дожимы роботов и Савви не считаются. Клиент молчит весь срок этапа — сделку пора закрыть. Красным — нужно действие сейчас, жёлтым — менеджер отстаёт от ритма. Движение за 7 дней — по всей воронке. Данные из Bitrix24 обновляются раз в 15 минут.";
   const NOTE_TASKS = "Перенос без касания — срок задачи по лиду или сделке перенесли, а в тот же день до переноса не было ни нашего звонка, ни нашего сообщения клиенту. Перенос записан на того, кто его сделал; правка срока в первые 10 минут после постановки задачи не считается. Просрочка — у открытой задачи срок прошёл больше 48 часов назад. Данные из Bitrix24 обновляются раз в 15 минут.";
   const DAY_MS = 24 * HOUR;
   // start of the current day in Moscow (UTC+3, no DST)
@@ -548,6 +571,106 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     list.append(el("h2", { text: "Лента за сегодня" }), group);
   }
 
+  const money = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1).replace(".", ",") + " млн ₽" : Math.round(n).toLocaleString("ru-RU") + " ₽");
+  // «Правила этапов»: «В2С Продажа» deals that break the stage rules (stagerules.js on the server)
+  function renderRules(R, snap, mgrById, inGrp) {
+    const keys = R.stages.map((s) => s.key);
+    if (state.ruleStage && !keys.includes(state.ruleStage)) state.ruleStage = null;
+    const all = R.items.filter((x) => inGrp(mgrById.get(x.managerId)));
+    const items = state.ruleStage ? all.filter((x) => x.stage === state.ruleStage) : all;
+    const red = (x) => x.rules.some((r) => r.level === "c");
+    const stagesSel = state.ruleStage ? R.stages.filter((s) => s.key === state.ruleStage) : R.stages;
+    const openOf = (id) => stagesSel.reduce((a, s) => a + ((s.byManager[id] || {}).open || 0), 0);
+    $("title").textContent = "Сделки: правила этапов";
+    $("sub").textContent = "«В2С Продажа», группы продаж B2C МСК и НСК · сделки, где нарушены правила этапа: срок, попытки связаться, дата оплаты, комментарий";
+    $("note").textContent = NOTE_RULES + " Последний расчёт — " + fmt.format(new Date(R.updatedAt)) + " МСК.";
+    $("pipes").hidden = true;
+    $("only-wait-box").hidden = true;
+    $("legend").hidden = false;
+    $("legend").replaceChildren(el("span", {}, el("i", { style: "background:var(--crit)" }), "нужно действие сейчас"), el("span", {}, el("i", { style: "background:var(--warn)" }), "отстаёт от ритма"));
+
+    const shownManagers = [...snap.managers].filter((m) => inGrp(m) && openOf(m.id) > 0);
+    const openTotal = shownManagers.reduce((a, m) => a + openOf(m.id), 0);
+    $("s-total").textContent = items.length;
+    $("s-total-l").textContent = plural(items.length, DEALS) + " с нарушениями из " + openTotal + " на этапах";
+    $("s-wait").textContent = items.filter((x) => x.rules.some((r) => r.code === "silent" || (x.stage === "push" && r.code === "over"))).length;
+    $("s-wait-l").textContent = "пора закрыть: клиент молчит весь срок";
+    $("s-week").textContent = items.filter((x) => x.rules.some((r) => r.code === "paydate")).length;
+    $("s-crit-l").textContent = "дата оплаты прошла или не указана";
+    $("s-mgr").textContent = money(items.filter(red).reduce((a, x) => a + x.amount, 0));
+    $("s-mgr-l").textContent = "сумма сделок, где нужно действие сейчас";
+
+    // stage strip: open / sum / over the limit for the selected group, 7-day flow for the whole pipeline
+    const box = $("stages-box"); box.hidden = false;
+    const strip = $("stages"); strip.replaceChildren();
+    for (const s of R.stages) {
+      const ms = Object.entries(s.byManager).filter(([id]) => inGrp(mgrById.get(Number(id))));
+      const open = ms.reduce((a, [, v]) => a + v.open, 0), sum = ms.reduce((a, [, v]) => a + v.sum, 0), over = ms.reduce((a, [, v]) => a + v.over, 0);
+      const f = R.flow && R.flow.stages ? R.flow.stages[s.key] : null;
+      const b = el("button", { type: "button", class: "stg", "aria-pressed": String(state.ruleStage === s.key), title: "Показать только этот этап" },
+        el("div", { class: "stg-name", text: s.name }),
+        el("div", { class: "stg-num" }, String(open), el("small", { text: " · " + money(sum) })),
+        el("div", { class: "stg-over" + (over ? " bad" : ""), text: over ? over + " дольше " + s.limitDays + " " + plural(s.limitDays, ["дня", "дней", "дней"]) : "все в сроке " + s.limitDays + " " + plural(s.limitDays, ["дня", "дней", "дней"]) }),
+        f ? el("div", { class: "stg-flow", title: "За 7 дней по всей воронке: пришло на этап / ушло дальше / вернулось назад / закрыто / оплачено",
+          text: "7 дн: +" + f.entered + " · дальше " + f.forward + " · назад " + f.back + " · закрыто " + f.closed + (f.paid ? " · оплачено " + f.paid : "") }) : null);
+      b.addEventListener("click", () => { state.ruleStage = state.ruleStage === s.key ? null : s.key; state.manager = null; render(); });
+      strip.append(b);
+    }
+
+    // manager cards
+    const byMgr = new Map();
+    for (const x of items) { if (!byMgr.has(x.managerId)) byMgr.set(x.managerId, []); byMgr.get(x.managerId).push(x); }
+    if (state.manager && !(byMgr.get(state.manager) || []).length) state.manager = null;
+    const mgrs = $("mgrs"); mgrs.replaceChildren();
+    for (const m of shownManagers.sort((a, b) => (byMgr.get(b.id)?.length || 0) - (byMgr.get(a.id)?.length || 0) || a.name.localeCompare(b.name, "ru"))) {
+      const ls = byMgr.get(m.id) || [];
+      const c = ls.filter(red).length, w = ls.length - c;
+      const bar = el("div", { class: "bar", "aria-hidden": "true" });
+      for (const [k, n] of [["c", c], ["w", w]]) if (n) { const i = el("i", { class: k }); i.style.width = (n / ls.length) * 100 + "%"; bar.append(i); }
+      const cardBtn = el("button", { type: "button", class: "mgr" + (ls.length ? "" : " zero"), "aria-pressed": String(state.manager === m.id), title: ls.length ? "Показать список" : "Нарушений нет" },
+        el("div", { class: "mgr-top" },
+          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: grpName(m.group) })),
+          el("div", { class: "mgr-count" }, String(ls.length), el("small", { text: " / " + openOf(m.id) }))),
+        bar,
+        el("div", { class: "mgr-meta" }, el("span", { text: ls.length ? (c ? c + " — действие сейчас" : "только ритм") : "всё в порядке" }), w ? el("span", { text: w + " ритм" }) : null));
+      if (ls.length) cardBtn.addEventListener("click", () => {
+        state.manager = state.manager === m.id ? null : m.id;
+        render();
+        if (state.manager) $("list").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+      });
+      mgrs.append(cardBtn);
+    }
+
+    const list = $("list"); list.replaceChildren();
+    if (!state.manager) {
+      list.append(el("div", { class: "empty", text: items.length ? "Нажмите на менеджера, чтобы увидеть его сделки с нарушениями." : "Все сделки на этапах в порядке." }));
+      return;
+    }
+    const m = mgrById.get(state.manager);
+    const ls = byMgr.get(m.id);
+    const close = el("button", { type: "button", class: "close", text: "Свернуть" });
+    close.addEventListener("click", () => { state.manager = null; render(); });
+    const groups = [];
+    for (const s of R.stages) {
+      const rows = ls.filter((x) => x.stage === s.key).sort((a, b) => Number(red(b)) - Number(red(a)) || b.daysOnStage - a.daysOnStage);
+      if (!rows.length) continue;
+      groups.push(el("div", { class: "group" },
+        el("div", { class: "group-head" }, el("div", {}, el("b", { text: s.name }), el("span", { text: "  " + rows.length + " " + plural(rows.length, DEALS) + " · срок " + s.limitDays + " " + plural(s.limitDays, ["день", "дня", "дней"]) }))),
+        el("div", { class: "tbl-wrap" }, el("table", {},
+          el("thead", {}, el("tr", {}, ...["Сделка", "Сумма", "На этапе", "Попыток", "Клиент писал", "Что сделать"].map((h) => el("th", { text: h })))),
+          el("tbody", {}, ...rows.map((x) => el("tr", {},
+            el("td", {}, el("a", { href: snap.portal + "/crm/deal/details/" + x.id + "/", target: "_blank", rel: "noopener", text: "#" + x.id })),
+            el("td", { class: "num", text: x.amount ? Math.round(x.amount).toLocaleString("ru-RU") + " ₽" : "—" }),
+            el("td", { class: "num" }, el("span", { class: "pill " + (x.daysOnStage > s.limitDays ? "c" : "w"), text: x.daysOnStage + " из " + s.limitDays })),
+            el("td", { class: "num", text: String(x.attempts) }),
+            el("td", { text: x.lastReply ? fmt.format(new Date(x.lastReply)) : "не писал" }),
+            el("td", {}, ...x.rules.map((r) => el("span", { class: "rule " + r.level, text: r.text }))))))))));
+    }
+    list.append(el("h2", { text: "Правила этапов · " + m.name }),
+      el("div", { class: "group-head" }, el("div", {}, el("b", { text: m.name }), el("span", { text: "  " + ls.length + " из " + openOf(m.id) + " на этапах · " + grpName(m.group) })), close),
+      el("div", { class: "stack" }, ...groups));
+  }
+
   function render() {
     $("only-wait").checked = state.onlyWait;
     renderFresh();
@@ -609,6 +732,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     const isTasks = state.view === "tasks";
     $("only-wait-box").hidden = isTasks || isFeed;
     $("lmode").hidden = true; // shown below, on «Лиды» only
+    $("stages-box").hidden = true;
     $("legend").hidden = isTasks || isFeed;
     document.querySelector(".stats").classList.toggle("neutral", isFeed);
     $("note").textContent = isFeed ? NOTE_FEED : isTasks ? NOTE_TASKS : NOTE_TOUCH;
@@ -628,18 +752,23 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
       ? state.undeliv.items.filter((x) => x.entity === view.entity && Date.parse(x.at) >= today && inGrp(mgrById.get(x.managerId)) && (!x.pipeline || !state.pipe || x.pipeline === state.pipe))
         .map((x) => ({ ...x, silentSince: x.at, lastActivity: x.at, hours: (now - Date.parse(x.at)) / HOUR }))
       : null;
-    const mode = state.lmode === "wait" && waitList ? "wait" : state.lmode === "undeliv" && undelivList ? "undeliv" : "silent";
+    // «Правила этапов»: «В2С Продажа» only, so it is offered on «Все воронки» and on that pipeline
+    const rules = view.entity === "deal" && view.rules && (!state.pipe || state.pipe === 27) ? view.rules : null;
+    const rulesCount = rules ? rules.items.filter((x) => inGrp(mgrById.get(x.managerId))).length : 0;
+    const mode = state.lmode === "wait" && waitList ? "wait" : state.lmode === "undeliv" && undelivList ? "undeliv" : state.lmode === "rules" && rules ? "rules" : "silent";
     const waitMode = mode === "wait", undelivMode = mode === "undeliv";
     const modes = [["silent", view.entity === "deal" ? "Без касаний" : "Без касаний 48 часов", items.length]];
     if (waitList) modes.push(["wait", "Клиент ждёт ответа", waitList.length]);
     if (undelivList) modes.push(["undeliv", "Не доставлено", undelivList.length]);
+    if (rules) modes.push(["rules", "Правила этапов", rulesCount]);
     const lm = $("lmode");
     lm.hidden = modes.length < 2;
     lm.replaceChildren(...modes.map(([key, text, n]) => {
       const b = el("button", { type: "button", "aria-pressed": String(mode === key) }, text + " · " + n);
-      b.addEventListener("click", () => { state.lmode = key; state.manager = null; save(); render(); });
+      b.addEventListener("click", () => { state.lmode = key; state.manager = null; state.ruleStage = null; save(); render(); });
       return b;
     }));
+    if (mode === "rules") return renderRules(rules, snap, mgrById, inGrp);
     if (waitMode) items = waitList;
     if (undelivMode) items = undelivList;
     $("only-wait-box").hidden = waitMode || undelivMode;
