@@ -4,9 +4,11 @@
 
 import { mskDayStart, untouchedMoves, taskState, OVERDUE_MS } from "./tasks.js";
 import { managerIndex, messageEvents, commentEvents, AUTO_LEAD_STAGES } from "./activity.js";
+import { RULE_PIPELINE, RULE_SELECT, FIELDS, massTexts, chatSignals, buildRules, collectStageFlow } from "./stagerules.js";
 
 const HOUR = 3600e3;
 const DAY = 24 * HOUR;
+const FLOW_MS = HOUR;
 const OUTGOING_MARK = /^\s*=+\s*Исходящее сообщение/;
 // Служебные пометки Wazzup: сообщение не доставлено (лимит «Маркетинг», 24-часовая сессия, спам…),
 // клиент изменил/удалил сообщение, пропущенный звонок. Не касание и не входящее от клиента.
@@ -160,7 +162,8 @@ export function createBitrix(webhook) {
   return { call, list, batch, portal: new URL(base).origin };
 }
 
-export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
+// prevFlow — the previous snapshot's «Правила этапов» flow, reused for up to FLOW_MS
+export async function collectSnapshot(bx, config, { withSlow = true, prevFlow = null } = {}) {
   const now = Date.now();
   const { departments } = config;
 
@@ -208,7 +211,7 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
       key: "deals", entity: "deal", pipeline: p.id, primary: !p.departments,
       title: category.name.replace(/^[^\p{L}\p{N}]+/u, "").trim(), crmType: "DEAL", ownerTypeId: 2,
       listMethod: "crm.deal.list", stageField: "STAGE_ID", stageEntity: `DEAL_STAGE_${p.id}`,
-      filter: { CATEGORY_ID: p.id, STAGE_SEMANTIC_ID: "P" }, extraSelect: p.departments ? [] : ["LEAD_ID"],
+      filter: { CATEGORY_ID: p.id, STAGE_SEMANTIC_ID: "P" }, extraSelect: p.departments ? [] : ["LEAD_ID", ...(p.id === RULE_PIPELINE ? RULE_SELECT : [])],
       thresholdHours: p.days * 24, ownerIds, skipStages: p.skipStages, slow: Boolean(p.slow),
     });
   }
@@ -232,7 +235,7 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
       cmds["chat_" + it.ID] = `imopenlines.crm.chat.get?CRM_ENTITY_TYPE=${spec.crmType}&CRM_ENTITY=${it.ID}&ACTIVE_ONLY=N`;
       cmds["call_" + it.ID] =
         `crm.activity.list?filter[OWNER_TYPE_ID]=${spec.ownerTypeId}&filter[OWNER_ID]=${it.ID}&filter[TYPE_ID]=2` +
-        `&order[CREATED]=DESC&select[]=ID&select[]=CREATED`;
+        `&order[CREATED]=DESC&select[]=ID&select[]=CREATED&select[]=DIRECTION`;
       // Open tasks feed only the «Задачи» tab, which covers the main groups
       if (spec.primary) cmds["task_" + it.ID] =
         `crm.activity.list?filter[OWNER_TYPE_ID]=${spec.ownerTypeId}&filter[OWNER_ID]=${it.ID}&filter[PROVIDER_ID]=CRM_TASKS_TASK` +
@@ -279,6 +282,9 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
 
   // Для «Ленты событий»: сообщения менеджеров клиентам за сегодня
   const index = managerIndex([...managers.values(), ...extraManagers.values()]);
+  // «Правила этапов»: when managers tried and clients wrote, per chat (mass Wazzup templates are ours)
+  const mass = massTexts([...chatIds].map((c) => msgs.out["msg_" + c]).filter(Boolean));
+  const signals = new Map([...chatIds].map((c) => [c, msgs.out["msg_" + c] ? chatSignals(msgs.out["msg_" + c], index, mass) : { human: [], client: [] }]));
   const daySince = mskDayStart(now);
   const activity = [];
   // Чаты лидов на автоматических стадиях («Недозвон третьи сутки», «Робот…»): там пишут роботы от имени менеджера
@@ -314,6 +320,7 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
   const taskItems = [];
   const openItems = new Map(); // "L_123" / "D_456" → лид/сделка для вкладки «Задачи»
   const waitCands = [];
+  const ruleInputs = [];
   for (const { spec, stages, items, chatsOf, calls } of loaded) {
     const openByManager = {};
     const rows = [];
@@ -333,6 +340,7 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
       const itemCalls = calls["call_" + it.ID] || [];
       const lastCall = itemCalls.length ? Date.parse(itemCalls[0].CREATED) : 0;
       touches.push(...itemCalls.map((x) => Date.parse(x.CREATED)));
+      if (spec.pipeline === RULE_PIPELINE && spec.primary) ruleInputs.push({ it, managerId, chats: chatsOf.get(it.ID), calls: itemCalls });
 
       if (spec.primary) {
         const own = calls["task_" + it.ID] || [];
@@ -438,6 +446,27 @@ export async function collectSnapshot(bx, config, { withSlow = true } = {}) {
   const comments = await bx.batch(commentCmds);
   for (const [key, rows] of Object.entries(comments.out)) {
     activity.push(...commentEvents(key.split("_")[1], rows || [], index.ids, daySince));
+  }
+
+  // 6) «Правила этапов» on «В2С Продажа»: chats, calls and comments above + the stage flow (hourly)
+  if (views.deals && ruleInputs.length) {
+    const ms = (v) => (v ? Date.parse(v) : null);
+    // Date-only fields arrive like "2026-10-27T03:00:00+03:00": keep the calendar day, anchored to MSK midnight
+    const day = (v) => (v ? Date.parse(String(v).slice(0, 10) + "T00:00:00+03:00") : null);
+    const filled = (v) => !(v == null || v === "" || v === false || (Array.isArray(v) && !v.length));
+    const deals = ruleInputs.map(({ it, managerId, chats, calls }) => ({
+      id: Number(it.ID), managerId, stageId: it.STAGE_ID,
+      movedAt: ms(it.MOVED_TIME) || ms(it.DATE_CREATE), amount: Number(it.OPPORTUNITY) || 0,
+      request: filled(it[FIELDS.request]), test: filled(it[FIELDS.test]),
+      nextContact: day(it[FIELDS.nextContact]), payDate: day(it[FIELDS.payDate]),
+      attempts: [...chats.flatMap((c) => signals.get(c).human), ...calls.filter((x) => String(x.DIRECTION) === "2").map((x) => Date.parse(x.CREATED))],
+      replies: chats.flatMap((c) => signals.get(c).client),
+      comments: (comments.out["cm_deal_" + it.ID] || []).filter((c) => index.ids.has(Number(c.AUTHOR_ID))).map((c) => Date.parse(c.CREATED)),
+    }));
+    let flow = prevFlow && now - Date.parse(prevFlow.at) < FLOW_MS ? prevFlow : null;
+    if (!flow) flow = await collectStageFlow(bx, now).catch(() => prevFlow || null);
+    const worked = new Set(activity.map((e) => Number(e.managerId)));
+    views.deals.rules = buildRules(deals, { now, flow, worked });
   }
 
   const iso = (ms) => (ms ? new Date(ms).toISOString() : null);

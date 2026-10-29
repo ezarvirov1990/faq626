@@ -75,7 +75,8 @@ async function refresh() {
     const prev = state.snapshot;
     const slowAt = prev && prev.slowUpdatedAt ? Date.parse(prev.slowUpdatedAt) : 0;
     const withSlow = started - slowAt >= (config.slowRefreshMinutes - 1) * 60e3;
-    let snap = await collectSnapshot(createBitrix(config.webhook), config, { withSlow });
+    const prevFlow = prev && prev.views && prev.views.deals && prev.views.deals.rules ? prev.views.deals.rules.flow : null;
+    let snap = await collectSnapshot(createBitrix(config.webhook), config, { withSlow, prevFlow });
     // При ошибках отдельных запросов оставляем прежний снимок: на странице будет видно, что он устарел
     if (snap.batchErrors > 0) throw new Error(`Bitrix вернул ошибки в ${snap.batchErrors} запросах`);
     snap = withSlow ? { ...snap, slowUpdatedAt: snap.updatedAt } : { ...mergeDealPipelines(snap, prev), slowUpdatedAt: prev && prev.slowUpdatedAt };
