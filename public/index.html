@@ -170,6 +170,14 @@ table.moves { min-width: 900px; }
 .rule { display: block; font-size: 13px; line-height: 1.4; }
 .rule.c { color: var(--crit); font-weight: 600; }
 .rule.w { color: var(--warn); }
+table.rules { min-width: 860px; }
+table.rules th:nth-child(1) { width: 100px; }
+table.rules th:nth-child(2) { width: 110px; }
+table.rules th:nth-child(3) { width: 100px; }
+table.rules th:nth-child(4) { width: 80px; }
+table.rules th:nth-child(5) { width: 120px; }
+table.rules th:nth-child(6) { width: auto; }
+.rule + .rule { margin-top: 2px; }
 
 /* Frosted-glass preview, only with ?glass=1 (user's request 28.10.2026) */
 /* Warm beige glass over a blurred sand / peach / olive backdrop; always light, even with a dark system theme —
@@ -656,7 +664,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
       if (!rows.length) continue;
       groups.push(el("div", { class: "group" },
         el("div", { class: "group-head" }, el("div", {}, el("b", { text: s.name }), el("span", { text: "  " + rows.length + " " + plural(rows.length, DEALS) + " · срок " + s.limitDays + " " + plural(s.limitDays, ["день", "дня", "дней"]) }))),
-        el("div", { class: "tbl-wrap" }, el("table", {},
+        el("div", { class: "tbl-wrap" }, el("table", { class: "rules" },
           el("thead", {}, el("tr", {}, ...["Сделка", "Сумма", "На этапе", "Попыток", "Клиент писал", "Что сделать"].map((h) => el("th", { text: h })))),
           el("tbody", {}, ...rows.map((x) => el("tr", {},
             el("td", {}, el("a", { href: snap.portal + "/crm/deal/details/" + x.id + "/", target: "_blank", rel: "noopener", text: "#" + x.id })),
