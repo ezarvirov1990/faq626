@@ -180,7 +180,7 @@ test("Дожимаем rhythm: the owner's previous working day — Friday for a
 test("collectStageFlow: 5 owners per batch command; batch errors or a full 50-row command mark the flow partial", async () => {
   const owners = Array.from({ length: 12 }, (_, i) => 1000 + i);
   const rows = owners.map((o) => ({ OWNER_ID: o, STAGE_ID: st.need, CREATED_TIME: "2026-10-28T12:00:00+03:00" }));
-  const fake = ({ errors = {}, fullCmd = null } = {}) => {
+  const fake = ({ errors = 0, fullCmd = null } = {}) => {
     const cmds = [];
     return {
       cmds,
@@ -198,7 +198,7 @@ test("collectStageFlow: 5 owners per batch command; batch errors or a full 50-ro
   assert.equal(clean.cmds.length, 1);
   const perCommand = Object.values(clean.cmds[0]).map((c) => (decodeURIComponent(c).match(/filter\[OWNER_ID\]\[\]=/g) || []).length);
   assert.deepEqual(perCommand, [5, 5, 2]);
-  assert.equal((await collectStageFlow(fake({ errors: { b5: "boom" } }), now, { pause: 0 })).partial, true);
+  assert.equal((await collectStageFlow(fake({ errors: 1 }), now, { pause: 0 })).partial, true);
   assert.equal((await collectStageFlow(fake({ fullCmd: "b0" }), now, { pause: 0 })).partial, true);
 });
 
@@ -207,4 +207,28 @@ test("stageFlow: a move from a checked stage to an earlier unchecked stage count
   const h = (deal, stage, day) => ({ OWNER_ID: deal, STAGE_ID: stage, CREATED_TIME: `2026-10-${day}T12:00:00+03:00` });
   const f = stageFlow([h(4, st.need, "23"), h(4, "C27:UC_9AD24Z", "24")], since);
   assert.deepEqual(f.need, { entered: 1, forward: 0, back: 1, closed: 0, paid: 0 });
+});
+
+test("collectStageFlow: batch errors (a count) mark the flow partial; a clean batch does not", async () => {
+  const fakeBx = (errors) => ({
+    call: async () => ({ result: { items: [{ OWNER_ID: 1, STAGE_ID: st.product, CREATED_TIME: "2026-10-28T12:00:00+03:00" }] } }),
+    batch: async () => ({
+      out: { b0: { items: [{ OWNER_ID: 1, STAGE_ID: st.need, CREATED_TIME: "2026-10-20T12:00:00+03:00" }] } },
+      errors,
+    }),
+  });
+  const bad = await collectStageFlow(fakeBx(1), now, { pause: 0 });
+  assert.equal(bad.partial, true);
+  assert.equal(bad.stages.need.forward, 1);
+  const clean = await collectStageFlow(fakeBx(0), now, { pause: 0 });
+  assert.equal(clean.partial, false);
+  assert.equal(clean.stages.need.forward, 1);
+});
+
+test("Дожимаем rhythm, 2/2 owner: yesterday counts, a Sunday attempt is the previous day", () => {
+  const monday = Date.parse("2026-11-02T12:00:00+03:00");
+  const schedules = { 242224: { tz: 3, weekdays: false } };
+  const deals = [deal({ id: 3, managerId: 242224, stageId: st.push, movedAt: Date.parse("2026-10-27T12:00:00+03:00"), comments: [Date.parse("2026-10-27T12:00:00+03:00")], attempts: [Date.parse("2026-11-01T12:00:00+03:00")] })];
+  const R = buildRules(deals, { now: monday, worked: new Set([242224]), schedules });
+  assert.equal(R.items.flatMap((x) => x.rules).filter((x) => x.code === "rhythm").length, 0);
 });

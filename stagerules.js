@@ -245,7 +245,7 @@ export async function collectStageFlow(bx, now, { days = 7, pause = 600 } = {}) 
   let partial = false;
   if (owners.length) {
     const res = await bx.batch(cmds);
-    if (Object.keys(res.errors || {}).length) partial = true;
+    if (res.errors > 0) partial = true; // createBitrix().batch reports errors as a count
     for (const v of Object.values(res.out || {})) {
       const items = (v && v.items) || [];
       if (items.length === 50) partial = true; // a full page may have more rows behind it
