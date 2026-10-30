@@ -75,8 +75,10 @@ async function refresh() {
     const prev = state.snapshot;
     const slowAt = prev && prev.slowUpdatedAt ? Date.parse(prev.slowUpdatedAt) : 0;
     const withSlow = started - slowAt >= (config.slowRefreshMinutes - 1) * 60e3;
-    const prevFlow = prev && prev.views && prev.views.deals && prev.views.deals.rules ? prev.views.deals.rules.flow : null;
-    let snap = await collectSnapshot(createBitrix(config.webhook), config, { withSlow, prevFlow });
+    const prevRules = prev && prev.views && prev.views.deals && prev.views.deals.rules;
+    // a snapshot from before the weeks has a rolling 7-day flow and no `weeks`: not reused as the current week
+    const prevFunnel = prevRules && prevRules.weeks ? { current: prevRules.flow, weeks: prevRules.weeks } : null;
+    let snap = await collectSnapshot(createBitrix(config.webhook), config, { withSlow, prevFunnel });
     // При ошибках отдельных запросов оставляем прежний снимок: на странице будет видно, что он устарел
     if (snap.batchErrors > 0) throw new Error(`Bitrix вернул ошибки в ${snap.batchErrors} запросах`);
     snap = withSlow ? { ...snap, slowUpdatedAt: snap.updatedAt } : { ...mergeDealPipelines(snap, prev), slowUpdatedAt: prev && prev.slowUpdatedAt };

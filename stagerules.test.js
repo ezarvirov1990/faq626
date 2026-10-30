@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stageRules, STAGES, chatSignals, massTexts, buildRules, stageFlow, collectStageFlow } from "./stagerules.js";
+import { stageRules, contactNote, payReason, STAGES, chatSignals, massTexts, buildRules, stageFlow, collectStageFlow, collectFunnelWeeks, weekStartMsk } from "./stagerules.js";
 import { managerIndex } from "./activity.js";
 
 const DAY = 864e5;
@@ -8,6 +8,39 @@ const now = Date.parse("2026-10-29T12:00:00+03:00");
 const st = Object.fromEntries(STAGES.map((s) => [s.key, s.id]));
 const deal = (o) => ({ amount: 27900, request: true, test: true, nextContact: null, payDate: null, attempts: [], replies: [], comments: [], worksToday: true, ...o });
 const codes = (r) => r.rules.map((x) => x.code + ":" + x.level).sort();
+
+test("last attempt: the latest one, even from before the stage; null when there was none", () => {
+  const r = stageRules(deal({ stageId: st.need, movedAt: now - 3 * DAY, attempts: [now - 20 * DAY, now - 5 * DAY, now + DAY] }), now);
+  assert.equal(r.attempts, 0);
+  assert.equal(r.lastAttempt, now - 5 * DAY);
+  assert.equal(stageRules(deal({ stageId: st.need, movedAt: now - 3 * DAY }), now).lastAttempt, null);
+});
+
+test("a fresh manager comment (contact outside Bitrix) turns «закрыть» into «перевести»; not an attempt", () => {
+  // deal 907014: 15 days on «Дожимаем», the manager noted «договорились что оплатит сегодня завтра» 2 days ago
+  const push = stageRules(deal({ stageId: st.push, movedAt: now - 15 * DAY, comments: [now - 2 * DAY], contactNotes: [now - 2 * DAY] }), now);
+  assert.match(push.rules.find((r) => r.code === "over").text, /перевести в «Готов оплачивать»/);
+  assert.doesNotMatch(push.rules.find((r) => r.code === "over").text, /закрыть/);
+  assert.ok(!push.rules.some((r) => r.code === "silent"));
+  assert.ok(push.rules.some((r) => r.code === "rhythm"));
+  assert.equal(push.lastComment, now - 2 * DAY);
+  const need = stageRules(deal({ stageId: st.need, movedAt: now - 20 * DAY, comments: [now - 3 * DAY], contactNotes: [now - 3 * DAY] }), now);
+  assert.deepEqual(codes(need), ["noted:w", "over:c", "rhythm:w"]);
+  // an old note (older than the stage limit) or a plain comment changes nothing
+  const old = stageRules(deal({ stageId: st.push, movedAt: now - 15 * DAY, comments: [now - 10 * DAY], contactNotes: [now - 10 * DAY] }), now);
+  assert.match(old.rules.find((r) => r.code === "over").text, /закрыть/);
+  const plain = stageRules(deal({ stageId: st.need, movedAt: now - 20 * DAY, comments: [now - 3 * DAY] }), now);
+  assert.ok(plain.rules.some((r) => r.code === "silent"));
+});
+
+test("contact notes: the manager says the client is in touch; «не отвечает» wins", () => {
+  assert.equal(contactNote("договорились что оплатит сегодня завтра и сделаем 1 печатку в подарок"), true);
+  assert.equal(contactNote("с личного ответила в среду после командировки будет удобно пообщаться"), true);
+  assert.equal(contactNote("Клиент на связи в ватсапе"), true);
+  assert.equal(contactNote("не отвечает, недозвон"), false);
+  assert.equal(contactNote("написала, клиент не ответил"), false);
+  assert.equal(contactNote("Интересует ДНК-диета, бюджет 30к"), false);
+});
 
 test("stages outside the rules are not checked", () => {
   assert.equal(stageRules(deal({ stageId: "C27:NEW", movedAt: now - 40 * DAY }), now), null);
@@ -63,6 +96,39 @@ test("Дожимаем: daily attempts only on working days; a reply needs a rea
   assert.deepEqual(codes(stageRules(deal({ ...base, replies: [now - 3 * DAY + 3600e3], worksToday: false }), now)), ["move:w", "reason:w"]);
   const silent = stageRules(deal({ ...base, movedAt: now - 6 * DAY, attempts: [now - 3600e3] }), now);
   assert.deepEqual(codes(silent), ["over:c", "silent:c"]);
+});
+
+test("every deal needs an open task; its date is the agreed contact day (pauses the rhythm, overdue without an attempt)", () => {
+  // no open task — red, on every stage
+  const none = stageRules(deal({ stageId: st.ready, movedAt: now - 3600e3, payDate: now, tasks: [] }), now);
+  assert.deepEqual(codes(none), ["notask:c"]);
+  // a future task pauses the weekly attempt on «Выбран продукт»
+  const base = { stageId: st.product, movedAt: now - 9 * DAY, attempts: [now - 8 * DAY], replies: [now - 8 * DAY], comments: [now - DAY] };
+  assert.deepEqual(codes(stageRules(deal({ ...base, tasks: [now + 3 * DAY] }), now)), []);
+  // the task day passed with no attempt since that day began
+  const due = stageRules(deal({ ...base, tasks: [now - 2 * DAY] }), now);
+  assert.deepEqual(codes(due), ["rhythm:w", "taskdue:w"]);
+  assert.match(due.rules.find((r) => r.code === "taskdue").text, /27\.10/);
+  assert.equal(due.taskDue, now - 2 * DAY);
+  // an attempt on or after the task day clears it; a task without a deadline is still a task
+  assert.deepEqual(codes(stageRules(deal({ ...base, attempts: [now - DAY], tasks: [now - 2 * DAY] }), now)), []);
+  assert.deepEqual(codes(stageRules(deal({ ...base, attempts: [now - DAY], tasks: [null] }), now)), []);
+  // «Дожимаем» keeps its daily attempt even with a future task
+  const push = stageRules(deal({ stageId: st.push, movedAt: now - 3 * DAY, attempts: [now - 3 * DAY], comments: [now - 3 * DAY], tasks: [now + DAY] }), now);
+  assert.deepEqual(codes(push), ["rhythm:w"]);
+});
+
+test("Выбран продукт: the comment must say why the client won't pay now", () => {
+  const base = { stageId: st.product, movedAt: now - 3 * DAY, attempts: [now - DAY], comments: [now - DAY] };
+  assert.deepEqual(codes(stageRules(deal({ ...base, reasonNotes: [] }), now)), ["why:w"]);
+  assert.deepEqual(codes(stageRules(deal({ ...base, reasonNotes: [now - DAY] }), now)), []);
+  // no comment at all — only the «no comment» rule
+  assert.deepEqual(codes(stageRules(deal({ ...base, comments: [], reasonNotes: [] }), now)), ["comment:w"]);
+  assert.equal(payReason("Ждёт зарплату 10.11, тогда оплатит"), true);
+  assert.equal(payReason("хочет посоветоваться с мужем"), true);
+  assert.equal(payReason("Связаться после отпуска"), true);
+  assert.equal(payReason("ДНК-диета"), false);
+  assert.equal(payReason("[DISK FILE ID=n2788540]"), false);
 });
 
 test("attempts are counted as distinct MSK days on the current stage; red rules come first", () => {
@@ -234,6 +300,55 @@ test("collectStageFlow: 5 owners per batch command; batch errors or a full 50-ro
   assert.deepEqual(perCommand, [5, 5, 2]);
   assert.equal((await collectStageFlow(fake({ errors: 1 }), now, { pause: 0 })).partial, true);
   assert.equal((await collectStageFlow(fake({ fullCmd: "b0" }), now, { pause: 0 })).partial, true);
+});
+
+test("weekStartMsk: Monday 00:00 MSK", () => {
+  assert.equal(new Date(weekStartMsk(Date.parse("2026-10-30T12:00:00+03:00"))).toISOString(), "2026-10-25T21:00:00.000Z");
+  assert.equal(new Date(weekStartMsk(Date.parse("2026-10-26T00:30:00+03:00"))).toISOString(), "2026-10-25T21:00:00.000Z");
+  assert.equal(new Date(weekStartMsk(Date.parse("2026-11-01T23:59:00+03:00"))).toISOString(), "2026-10-25T21:00:00.000Z");
+});
+
+test("stageFlow: a week window [since, until) and the ids of paid deals", () => {
+  const since = Date.parse("2026-10-19T00:00:00+03:00"), until = Date.parse("2026-10-26T00:00:00+03:00");
+  const h = (deal, stage, day) => ({ OWNER_ID: deal, STAGE_ID: stage, CREATED_TIME: `2026-10-${day}T12:00:00+03:00` });
+  const f = stageFlow([h(1, st.ready, "20"), h(1, "C27:WON", "21"), h(2, st.ready, "22"), h(2, "C27:WON", "27"), h(3, st.need, "27")], since, until);
+  assert.equal(f.ready.entered, 2);
+  assert.equal(f.ready.paid, 1);
+  assert.equal(f.need.entered, 0);
+  assert.deepEqual(f.paidIds, ["1"]);
+});
+
+test("collectFunnelWeeks: the current week hourly, a finished week once and kept; amounts of paid deals", async () => {
+  const now = Date.parse("2026-11-03T12:00:00+03:00"); // Tuesday
+  const calls = [];
+  const bx = {
+    call: async (method, params) => {
+      calls.push({ method, params });
+      if (method === "crm.deal.list") return { result: [{ ID: "7", ASSIGNED_BY_ID: "251414", OPPORTUNITY: "34010" }, { ID: "8", ASSIGNED_BY_ID: "91397", OPPORTUNITY: "0" }] };
+      return { result: { items: [
+        { OWNER_ID: 7, STAGE_ID: st.push, CREATED_TIME: "2026-10-28T12:00:00+03:00" }, { OWNER_ID: 7, STAGE_ID: "C27:WON", CREATED_TIME: "2026-10-29T12:00:00+03:00" },
+        { OWNER_ID: 8, STAGE_ID: st.need, CREATED_TIME: "2026-10-27T12:00:00+03:00" }, { OWNER_ID: 8, STAGE_ID: "C27:LOSE", CREATED_TIME: "2026-10-30T12:00:00+03:00" },
+        { OWNER_ID: 9, STAGE_ID: "C27:WON", CREATED_TIME: "2026-10-30T12:00:00+03:00" }, // a site order straight to «Оплачено»
+      ] } };
+    },
+    batch: async () => ({ out: {}, errors: 0 }),
+  };
+  const r = await collectFunnelWeeks(bx, now, null, { pause: 0 });
+  assert.equal(r.current.since, "2026-11-01T21:00:00.000Z");
+  const last = r.weeks["2026-10-25T21:00:00.000Z"];
+  assert.equal(last.stages.push.paid, 1);
+  assert.equal(last.paidSum, 34010);
+  // per manager — by the deal's current owner; the site order (no checked stage) isn't looked up
+  assert.equal(last.byManager[251414].stages.push.paid, 1);
+  assert.equal(last.byManager[251414].paidSum, 34010);
+  assert.equal(last.byManager[91397].stages.need.closed, 1);
+  assert.deepEqual(calls.find((c) => c.method === "crm.deal.list").params.filter.ID.sort(), ["7", "8"]);
+  // an hour later: nothing is collected again; a week later the finished week is kept and the next one added
+  const n = calls.length;
+  await collectFunnelWeeks(bx, now + 30 * 60e3, r, { pause: 0 });
+  assert.equal(calls.length, n);
+  const next = await collectFunnelWeeks(bx, now + 7 * DAY, r, { pause: 0 });
+  assert.deepEqual(Object.keys(next.weeks).sort(), ["2026-10-25T21:00:00.000Z", "2026-11-01T21:00:00.000Z"]);
 });
 
 test("stageFlow: a move from a checked stage to an earlier unchecked stage counts as back", () => {

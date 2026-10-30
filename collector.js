@@ -4,7 +4,7 @@
 
 import { mskDayStart, untouchedMoves, taskState, OVERDUE_MS } from "./tasks.js";
 import { managerIndex, messageEvents, commentEvents, AUTO_LEAD_STAGES } from "./activity.js";
-import { RULE_PIPELINE, RULE_SELECT, FIELDS, massTexts, chatSignals, buildRules, collectStageFlow } from "./stagerules.js";
+import { RULE_PIPELINE, RULE_SELECT, FIELDS, massTexts, chatSignals, buildRules, collectFunnelWeeks, contactNote, payReason } from "./stagerules.js";
 
 const HOUR = 3600e3;
 const DAY = 24 * HOUR;
@@ -162,8 +162,8 @@ export function createBitrix(webhook) {
   return { call, list, batch, portal: new URL(base).origin };
 }
 
-// prevFlow — the previous snapshot's «Правила этапов» flow, reused for up to FLOW_MS
-export async function collectSnapshot(bx, config, { withSlow = true, prevFlow = null } = {}) {
+// prevFunnel — the previous snapshot's «Работа с воронкой» weeks { current, weeks }; the current week is reused for up to FLOW_MS
+export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel = null } = {}) {
   const now = Date.now();
   const { departments } = config;
 
@@ -346,7 +346,13 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFlow = 
       const itemCalls = calls["call_" + it.ID] || [];
       const lastCall = itemCalls.length ? Date.parse(itemCalls[0].CREATED) : 0;
       touches.push(...itemCalls.map((x) => Date.parse(x.CREATED)));
-      if (spec.pipeline === RULE_PIPELINE && spec.primary) ruleInputs.push({ it, managerId, chats: chatsOf.get(it.ID), calls: itemCalls });
+      if (spec.pipeline === RULE_PIPELINE && spec.primary) {
+        // open tasks for the stage rules — the same set the «Задачи» tab checks (own, else the lead's bound to the deal)
+        const own = calls["task_" + it.ID] || [];
+        const open = own.length ? own : calls["ltask_" + it.ID] || [];
+        const tasks = open.map((a) => (a.DEADLINE ? Date.parse(a.DEADLINE) : null)).map((t) => (Number.isFinite(t) ? t : null));
+        ruleInputs.push({ it, managerId, chats: chatsOf.get(it.ID), calls: itemCalls, tasks });
+      }
 
       if (spec.primary) {
         const own = calls["task_" + it.ID] || [];
@@ -446,7 +452,7 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFlow = 
   for (const { spec, items } of loaded) {
     for (const it of items) {
       commentCmds[`cm_${spec.entity}_${it.ID}`] =
-        `crm.timeline.comment.list?filter[ENTITY_TYPE]=${spec.entity}&filter[ENTITY_ID]=${it.ID}&order[CREATED]=DESC&select[]=ID&select[]=CREATED&select[]=AUTHOR_ID`;
+        `crm.timeline.comment.list?filter[ENTITY_TYPE]=${spec.entity}&filter[ENTITY_ID]=${it.ID}&order[CREATED]=DESC&select[]=ID&select[]=CREATED&select[]=AUTHOR_ID&select[]=COMMENT`;
     }
   }
   const comments = await bx.batch(commentCmds);
@@ -462,26 +468,29 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFlow = 
     const filled = (v) => !(v == null || v === "" || v === false || (Array.isArray(v) && !v.length));
     // A call is connected when it lasted (END_TIME - START_TIME > 0; failed calls give 0)
     const connected = (x) => Date.parse(x.END_TIME) - Date.parse(x.START_TIME) > 0;
-    const deals = ruleInputs.map(({ it, managerId, chats, calls }) => {
+    const deals = ruleInputs.map(({ it, managerId, chats, calls, tasks }) => {
       const movedAt = ms(it.MOVED_TIME) || ms(it.DATE_CREATE);
       // The 50-message page may not reach back to the stage move: replies before its oldest message are unknown
       const cut = chats.some((c) => { const sg = signals.get(c); return sg.full && sg.oldest > movedAt; });
+      const notes = (comments.out["cm_deal_" + it.ID] || []).filter((c) => index.ids.has(Number(c.AUTHOR_ID)));
       return {
-      id: Number(it.ID), managerId, stageId: it.STAGE_ID, cut,
+      id: Number(it.ID), managerId, stageId: it.STAGE_ID, cut, tasks,
+      reasonNotes: notes.filter((c) => payReason(c.COMMENT)).map((c) => Date.parse(c.CREATED)),
       movedAt, amount: Number(it.OPPORTUNITY) || 0,
       request: filled(it[FIELDS.request]), test: filled(it[FIELDS.test]),
       nextContact: day(it[FIELDS.nextContact]), payDate: day(it[FIELDS.payDate]),
       attempts: [...chats.flatMap((c) => signals.get(c).human), ...calls.filter((x) => String(x.DIRECTION) === "2").map((x) => Date.parse(x.CREATED))],
       replies: [...chats.flatMap((c) => signals.get(c).client), ...calls.filter(connected).map((x) => Date.parse(x.CREATED))],
-      comments: (comments.out["cm_deal_" + it.ID] || []).filter((c) => index.ids.has(Number(c.AUTHOR_ID))).map((c) => Date.parse(c.CREATED)),
+      comments: notes.map((c) => Date.parse(c.CREATED)),
+      contactNotes: notes.filter((c) => contactNote(c.COMMENT)).map((c) => Date.parse(c.CREATED)),
       };
     });
-    let flow = prevFlow && now - Date.parse(prevFlow.at) < FLOW_MS ? prevFlow : null;
-    if (!flow) flow = await collectStageFlow(bx, now).catch(() => prevFlow || null);
+    // stage flow by calendar week: the current one (recounted hourly) and finished ones kept from the previous snapshot
+    const funnel = await collectFunnelWeeks(bx, now, prevFunnel, { maxAgeMs: FLOW_MS }).catch((e) => { console.log("funnel weeks error:", e.message); return prevFunnel; });
     // Everyone with any own action today: feed events plus calls (any direction) on rule deals
     const worked = new Set(activity.map((e) => Number(e.managerId)));
     for (const r of ruleInputs) if (r.calls.some((x) => Date.parse(x.CREATED) >= daySince)) worked.add(Number(r.managerId));
-    views.deals.rules = buildRules(deals, { now, flow, worked });
+    views.deals.rules = buildRules(deals, { now, flow: funnel ? funnel.current : null, weeks: funnel ? funnel.weeks : null, worked });
   } catch (e) {
     console.log("stage rules error:", e.message);
     delete views.deals.rules;

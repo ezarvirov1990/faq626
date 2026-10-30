@@ -33,6 +33,29 @@ const dayStart = (n) => n * DAY - MSK; // first instant of an MSK day number
 const ddmm = (ms) => new Date(ms + MSK).toISOString().slice(5, 10).split("-").reverse().join(".");
 const days = (n) => n + " " + (n % 10 === 1 && n % 100 !== 11 ? "день" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "дня" : "дней");
 
+// A manager comment that says the client is in touch («договорились», «с личного ответила», «на связи»);
+// «не отвечает», «недозвон», «молчит» win. Substrings, not \b: JS word boundaries don't work for Cyrillic
+const CONTACT_YES = ["договор", "на связи", "ответил", "ответила", "ответили", "созвон", "с личного", "в личн", "переписыва", "переписк",
+  "общаем", "общались", "пообщал", "оплатит", "оплачу", "обещал", "написал в", "написала в", "пишет в", "ватсап", "вотсап", "whatsapp", "телеграм", "telegram"];
+const CONTACT_NO = ["не отвеча", "не ответил", "не ответила", "не дозвон", "недозвон", "не на связи", "молчит", "не бер", "без ответа", "игнор", "сброс", "не выходит на связь", "не прочитал"];
+export function contactNote(text) {
+  const t = String(text || "").toLowerCase().replace(/ё/g, "е");
+  return CONTACT_YES.some((w) => t.includes(w)) && !CONTACT_NO.some((w) => t.includes(w));
+}
+
+// «Выбран продукт»: the manager's comment must say why the client won't pay now (the user's rule 30.10.2026) —
+// a reason word or a date; checked by words, so some honest comments will be missed (the user accepted that)
+const PAY_REASON = ["деньг", "денег", "зарплат", "зп ", "аванс", "бюджет", "дорого", "дороговат", "цена", "цену", "стоимост", "скидк", "акци",
+  "рассрочк", "кредит", "долями", "подума", "посовет", "обсуд", "муж", "жена", "супруг", "мама", "маме", "родител", "дочь", "сын",
+  "врач", "доктор", "анализ", "после", "позже", "потом", "не сейчас", "не готов", "не может", "отпуск", "командиров", "болеет", "болезн",
+  "заболел", "больниц", "переезд", "ремонт", "праздник", "новый год", " нг ", "ноябр", "декабр", "январ", "феврал", "месяц", "недел",
+  "сравнива", "выбира", "сомнева", "не уверен", "ждет", "ждут", "перезвон", "связаться", "оплатит", "оплата", "оплату", "оплачу"];
+const DATE_IN_TEXT = /\d{1,2}[./]\d{1,2}|\d{1,2}\s+(январ|феврал|март|апрел|ма[яй]|июн|июл|август|сентябр|октябр|ноябр|декабр)/;
+export function payReason(text) {
+  const t = " " + String(text || "").toLowerCase().replace(/ё/g, "е").replace(/\[[^\]]*\]/g, " ") + " ";
+  return DATE_IN_TEXT.test(t) || PAY_REASON.some((w) => t.includes(w));
+}
+
 // One deal on a checked stage → what's wrong. null for stages without rules.
 export function stageRules(d, now) {
   const st = STAGES.find((s) => s.id === d.stageId);
@@ -43,26 +66,46 @@ export function stageRules(d, now) {
   const attempts = mine(d.attempts), replies = mine(d.replies), comments = mine(d.comments);
   const attemptDays = new Set(attempts.map(mskDay));
   const lastReply = replies.length ? Math.max(...replies) : null;
+  // the latest attempt ever (also from before the stage) — shown next to the stage's attempt count
+  const before = d.attempts.filter((t) => t <= now);
+  const lastAttempt = before.length ? Math.max(...before) : null;
   const quiet = (n) => ![...attempts, ...replies].some((t) => now - t < n * DAY);
   const today = mskDay(now);
   const prevWorkDay = d.prevWorkDay ?? today - 1;
   const over = full > st.limitDays;
+  // A manager comment within the stage limit saying the client is in touch: they may talk on the manager's own phone,
+  // which Bitrix doesn't see (deal 907014, 30.10.2026). Not an attempt (the user's decision) — it only stops «закрыть»
+  const notes = mine(d.contactNotes || []);
+  const lastComment = notes.length ? Math.max(...notes) : null;
+  const noted = lastComment !== null && now - lastComment <= st.limitDays * DAY;
+  const NOTED = "по комментарию менеджера клиент на связи";
   // A cut chat (50 messages, the oldest after the stage move) may hide the client's replies: no «silent», a note instead
   const silentRule = (text) => {
     if (d.cut) add("cut", "w", "Длинная переписка — проверьте ответы клиента в чате");
+    else if (noted) add("noted", "w", "В чате клиент молчит, но " + NOTED + " — перевести дальше или назначить дату");
     else add("silent", "c", text);
   };
   const rules = [];
   const add = (code, level, text) => rules.push({ code, level, text });
+  // Open tasks (deadlines, null = no deadline): every «В2С Продажа» deal must have one (the user's rule 30.10.2026);
+  // the nearest deadline is the day the manager agreed to contact the client. Not checked when tasks weren't loaded
+  const tasks = d.tasks || null;
+  const dated = tasks ? tasks.filter((t) => Number.isFinite(t)) : [];
+  const taskDue = dated.length ? Math.min(...dated) : null;
+  if (tasks && !tasks.length) add("notask", "c", "Нет открытой задачи — поставить задачу с датой связи");
+  if (taskDue !== null && mskDay(taskDue) < today && !attempts.some((t) => t >= dayStart(mskDay(taskDue)))) {
+    add("taskdue", "w", `Срок задачи ${ddmm(taskDue)} прошёл — попытки связаться не было`);
+  }
 
   if (st.key === "need" || st.key === "product") {
-    if (over) add("over", "c", `На этапе ${days(full)} из ${st.limitDays} — передвинуть${st.key === "need" ? " на «Выбран продукт»" : ""} или закрыть`);
+    if (over) add("over", "c", `На этапе ${days(full)} из ${st.limitDays} — передвинуть${st.key === "need" ? " на «Выбран продукт»" : ""}` + (noted ? " (" + NOTED + ")" : " или закрыть"));
     // «Выявили потребность»: a contact time the client named (today or later) is not silence
     const named = st.key === "need" && d.nextContact && mskDay(d.nextContact) >= today;
     if (full >= st.limitDays && !lastReply && !named) silentRule("Клиент молчит весь срок этапа — закрыть");
     const gap = st.key === "need" ? 5 : 7;
-    // The planned contact day counts in MSK days: it pauses the rhythm until that day is over
-    const paused = st.key === "need" && d.nextContact && mskDay(d.nextContact) >= today;
+    // The planned contact day counts in MSK days: it pauses the rhythm until that day is over (the field on
+    // «Выявили потребность», an open task's deadline on both stages)
+    const paused = (st.key === "need" && d.nextContact && mskDay(d.nextContact) >= today) || (taskDue !== null && mskDay(taskDue) >= today);
     if (onStage >= gap && !paused && quiet(gap)) {
       add("rhythm", "w", st.key === "need" ? "5 дней без попытки связаться" : "7 дней без попытки — узнать дату и способ оплаты");
     }
@@ -71,6 +114,7 @@ export function stageRules(d, now) {
       add("next", "w", `Следующий контакт был назначен на ${ddmm(d.nextContact)} — попытки не было`);
     }
     if (onStage >= 1 && !comments.length) add("comment", "w", "Нет комментария менеджера на этом этапе");
+    else if (st.key === "product" && d.reasonNotes && !mine(d.reasonNotes).length) add("why", "w", "В комментарии не видно, почему клиент не готов оплатить сейчас");
     if (st.key === "need" && !d.request) add("request", "w", "Не заполнен «Запрос клиента»");
     // Required from «Выбран продукт» on (the user's rules); Bitrix returns an empty enumeration as false
     if (st.key === "product" && !d.test) add("test", "w", "Не заполнено «Какой тест планирует купить»");
@@ -84,14 +128,14 @@ export function stageRules(d, now) {
     if (d.payDate && mskDay(d.payDate) < today && !attemptDays.has(mskDay(d.payDate))) add("payday", "w", "В день оплаты не связались с клиентом");
   }
   if (st.key === "push") {
-    if (over) add("over", "c", `На этапе ${days(full)} из 5 — закрыть как «Нереализован» или перевести`);
+    if (over) add("over", "c", `На этапе ${days(full)} из 5 — ` + (noted ? "перевести в «Готов оплачивать» с датой оплаты (" + NOTED + ")" : "закрыть как «Нереализован» или перевести"));
     if (full >= st.limitDays && !lastReply) silentRule("Клиент не отвечает 5 дней — закрыть как «Нереализован»");
     if (d.worksToday && onStage >= 1 && !attemptDays.has(today) && !attemptDays.has(prevWorkDay)) add("rhythm", "w", "Нужна попытка связаться сегодня");
     if (lastReply && !comments.some((t) => t > lastReply)) add("reason", "w", "Клиент ответил — зафиксируйте причину неоплаты в комментарии");
     if (lastReply && now - lastReply > DAY) add("move", "w", "Клиент ответил — перевести в «Готов оплачивать» с новой датой или в «Выбран продукт»");
   }
   rules.sort((a, b) => (a.level === b.level ? 0 : a.level === "c" ? -1 : 1));
-  return { stage: st.key, daysOnStage: full, over, attempts: attemptDays.size, lastReply, rules };
+  return { stage: st.key, daysOnStage: full, over, attempts: attemptDays.size, lastAttempt, lastReply, lastComment, hasTask: tasks ? tasks.length > 0 : null, taskDue, rules };
 }
 
 const WAZZUP_SYSTEM = "=== SYSTEM WZ ===";
@@ -174,7 +218,7 @@ function prevWorkDay(id, now, schedules) {
 }
 
 // All open deals → the snapshot's views.deals.rules
-export function buildRules(deals, { now, flow = null, worked = new Set(), schedules = SCHEDULES }) {
+export function buildRules(deals, { now, flow = null, weeks = null, worked = new Set(), schedules = SCHEDULES }) {
   const stages = STAGES.map((s) => ({ key: s.key, name: s.name, limitDays: s.limitDays, byManager: {} }));
   const byKey = new Map(stages.map((s) => [s.key, s]));
   const items = [];
@@ -189,27 +233,35 @@ export function buildRules(deals, { now, flow = null, worked = new Set(), schedu
     if (r.over) m.over++;
     if (r.rules.length) items.push({
       id: d.id, managerId: d.managerId, stage: r.stage, amount: d.amount, daysOnStage: r.daysOnStage, over: r.over, attempts: r.attempts,
+      lastAttempt: r.lastAttempt ? new Date(r.lastAttempt).toISOString() : null,
+      lastComment: r.lastComment ? new Date(r.lastComment).toISOString() : null,
+      hasTask: r.hasTask, taskDue: r.taskDue ? new Date(r.taskDue).toISOString() : null,
       lastReply: r.lastReply ? new Date(r.lastReply).toISOString() : null, rules: r.rules,
     });
   }
-  return { updatedAt: new Date(now).toISOString(), flow, stages, items };
+  // flow — the current calendar week; weeks — finished weeks by their Monday (ISO), kept between collections
+  return { updatedAt: new Date(now).toISOString(), flow, weeks, stages, items };
 }
 
 // Stage history rows → per checked stage: deals that arrived since `since`, and where deals went when they left it
-export function stageFlow(rows, since) {
+// (moves at `until` or later are left out — a calendar week). The ids of deals paid from a checked stage come as a
+// non-enumerable `paidIds`, so the result stays a plain stage map in JSON
+export function stageFlow(rows, since, until = Infinity) {
   const idx = new Map(STAGES.map((s, i) => [s.id, i]));
   const out = Object.fromEntries(STAGES.map((s) => [s.key, { entered: 0, forward: 0, back: 0, closed: 0, paid: 0 }]));
+  const paidIds = [];
+  Object.defineProperty(out, "paidIds", { value: paidIds, enumerable: false });
   const byDeal = new Map();
   for (const r of rows) {
     const id = String(r.OWNER_ID);
     if (!byDeal.has(id)) byDeal.set(id, []);
     byDeal.get(id).push({ stage: r.STAGE_ID, at: Date.parse(r.CREATED_TIME) });
   }
-  for (const hs of byDeal.values()) {
+  for (const [id, hs] of byDeal) {
     hs.sort((a, b) => a.at - b.at);
     for (let i = 0; i < hs.length; i++) {
       const h = hs[i];
-      if (h.at < since) continue;
+      if (h.at < since || h.at >= until) continue;
       const to = idx.get(h.stage);
       if (to !== undefined) out[STAGES[to].key].entered++;
       const prev = i ? hs[i - 1].stage : null;
@@ -218,7 +270,7 @@ export function stageFlow(rows, since) {
       const f = out[STAGES[from].key];
       // A move to an unchecked stage that is neither closed nor paid counts as back: «Консультация оказана»,
       // «Брошенная корзина» and «Свободная база» come earlier in the pipeline than the checked stages
-      if (h.stage === WON) f.paid++;
+      if (h.stage === WON) { f.paid++; paidIds.push(id); }
       else if (CLOSED.has(h.stage)) f.closed++;
       else if (to !== undefined && to > from) f.forward++;
       else f.back++;
@@ -229,16 +281,17 @@ export function stageFlow(rows, since) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Bitrix: stage moves of the last `days` days in «В2С Продажа» plus, for those deals, the last move before the window
-// (where they came from). ~25 paged calls with a pause + ≤3 batches; the server runs it at most once an hour.
-export async function collectStageFlow(bx, now, { days = 7, pause = 600 } = {}) {
-  const since = now - days * DAY;
+// Bitrix: stage moves in «В2С Продажа» since `since` (default: the last `days` days) and before `until`, plus, for those
+// deals, the last move before the window (where they came from). ~25 paged calls with a pause + ≤3 batches.
+export async function collectStageFlow(bx, now, { days = 7, since = now - days * DAY, until = null, pause = 600 } = {}) {
   const sinceIso = new Date(since).toISOString();
+  const filter = { CATEGORY_ID: RULE_PIPELINE, ">=CREATED_TIME": sinceIso };
+  if (until) filter["<CREATED_TIME"] = new Date(until).toISOString();
   const rows = [];
   let start = 0;
   do {
     const r = await bx.call("crm.stagehistory.list", {
-      entityTypeId: 2, filter: { CATEGORY_ID: RULE_PIPELINE, ">=CREATED_TIME": sinceIso }, order: { ID: "ASC" },
+      entityTypeId: 2, filter, order: { ID: "ASC" },
       select: ["OWNER_ID", "STAGE_ID", "CREATED_TIME"], start,
     });
     rows.push(...((r.result && r.result.items) || []));
@@ -263,5 +316,49 @@ export async function collectStageFlow(bx, now, { days = 7, pause = 600 } = {}) 
       before.push(...items);
     }
   }
-  return { at: new Date(now).toISOString(), since: sinceIso, stages: stageFlow([...before, ...rows], since), partial };
+  const all = [...before, ...rows];
+  const stages = stageFlow(all, since, until || Infinity);
+  // Per manager: the deal's current owner (stage history doesn't keep who owned it at the move). Owners and amounts
+  // only for deals that touched a checked stage — site orders that go straight to «Оплачено» are left out
+  const checked = new Set(STAGES.map((s) => s.id));
+  const ruleDeals = [...new Set(all.filter((r) => checked.has(r.STAGE_ID)).map((r) => String(r.OWNER_ID)))];
+  const deal = new Map();
+  for (let i = 0; i < ruleDeals.length; i += 50) {
+    const r = await bx.call("crm.deal.list", { filter: { ID: ruleDeals.slice(i, i + 50) }, select: ["ID", "ASSIGNED_BY_ID", "OPPORTUNITY"] });
+    for (const d of Array.isArray(r.result) ? r.result : []) deal.set(String(d.ID), { owner: Number(d.ASSIGNED_BY_ID), amount: Number(d.OPPORTUNITY) || 0 });
+    if (i + 50 < ruleDeals.length) await sleep(pause);
+  }
+  const paidSum = (ids) => ids.reduce((a, id) => a + ((deal.get(id) || {}).amount || 0), 0);
+  const byOwner = new Map();
+  for (const r of all) {
+    const o = (deal.get(String(r.OWNER_ID)) || {}).owner;
+    if (!o) continue;
+    if (!byOwner.has(o)) byOwner.set(o, []);
+    byOwner.get(o).push(r);
+  }
+  const byManager = {};
+  for (const [o, rs] of byOwner) {
+    const st = stageFlow(rs, since, until || Infinity);
+    byManager[o] = { stages: st, paidSum: paidSum(st.paidIds) };
+  }
+  return { at: new Date(now).toISOString(), since: sinceIso, until: until ? new Date(until).toISOString() : null, stages, paidSum: paidSum(stages.paidIds), byManager, partial };
+}
+
+// Monday 00:00 MSK of the week `ms` falls in (MSK day 0 — 01.01.1970 — was a Thursday)
+export const weekStartMsk = (ms) => { const d = mskDay(ms); return dayStart(d - ((d + 3) % 7)); };
+const WEEKS_KEPT = 26;
+
+// «Работа с воронкой» by calendar week (the user's decision 30.10.2026: accumulate from now on, no backfill): the
+// current week is recounted at most every `maxAgeMs`; a finished week is counted once, whole, and kept in the snapshot.
+// Only the week before the current one is fetched on its own, so a comparison exists from day one.
+export async function collectFunnelWeeks(bx, now, prev, { maxAgeMs = 3600e3, pause = 600 } = {}) {
+  const mon = weekStartMsk(now), monIso = new Date(mon).toISOString();
+  const weeks = { ...((prev && prev.weeks) || {}) };
+  let current = prev && prev.current && prev.current.since === monIso && now - Date.parse(prev.current.at) < maxAgeMs ? prev.current : null;
+  if (!current) current = await collectStageFlow(bx, now, { since: mon, pause });
+  const last = mon - 7 * DAY, lastIso = new Date(last).toISOString();
+  // a kept week from before the per-manager split (no byManager) is counted again once
+  if (!weeks[lastIso] || weeks[lastIso].partial || !weeks[lastIso].byManager) weeks[lastIso] = await collectStageFlow(bx, now, { since: last, until: mon, pause });
+  for (const k of Object.keys(weeks).sort().slice(0, -WEEKS_KEPT)) delete weeks[k];
+  return { current, weeks };
 }

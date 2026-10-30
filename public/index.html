@@ -170,14 +170,93 @@ table.moves { min-width: 900px; }
 .rule { display: block; font-size: 13px; line-height: 1.4; }
 .rule.c { color: var(--crit); font-weight: 600; }
 .rule.w { color: var(--warn); }
-table.rules { min-width: 860px; }
+table.rules { min-width: 1000px; }
 table.rules th:nth-child(1) { width: 100px; }
 table.rules th:nth-child(2) { width: 110px; }
 table.rules th:nth-child(3) { width: 100px; }
 table.rules th:nth-child(4) { width: 80px; }
-table.rules th:nth-child(5) { width: 120px; }
-table.rules th:nth-child(6) { width: auto; }
+table.rules th:nth-child(5) { width: 140px; }
+table.rules th:nth-child(6) { width: 90px; }
+table.rules th:nth-child(7) { width: 120px; }
+table.rules th:nth-child(8) { width: auto; }
+table.rules td.no-task { color: var(--crit); font-weight: 600; }
 .rule + .rule { margin-top: 2px; }
+
+/* «Работа с воронкой»: the pipeline drawn as a funnel with stage conversion, four buckets (today / move / close / card fields) */
+.wrap > *, .toolbar > * { min-width: 0; }
+.pipes { display: flex; gap: 8px; overflow-x: auto; margin-top: -8px; }
+.pipes button { font: inherit; font-size: 15px; font-weight: 600; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 7px 16px; cursor: pointer; white-space: nowrap; }
+.pipes button:hover { color: var(--ink); border-color: var(--accent); }
+.pipes button[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.seg { max-width: 100%; overflow-x: auto; }
+.seg button { white-space: nowrap; }
+.stats.rules .stat:nth-child(2) b, .stats.rules .stat:nth-child(3) b { color: var(--ink); }
+.funnel { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr) 64px) 176px; align-items: stretch; }
+.funnel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 16px; }
+.funnel-head h2 { margin-bottom: 12px; }
+.weeknav { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+.weeknav button { font-size: 15px; line-height: 1; padding: 4px 10px; }
+.weeknav button:disabled { opacity: .35; cursor: default; }
+.delta { font: 600 11px var(--mono); color: var(--muted); white-space: nowrap; }
+.delta.up { color: var(--ok); } .delta.down { color: var(--crit); }
+.outcome .oc-head { font-size: 12px; font-weight: 600; color: var(--ink); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+.oc-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; font-size: 12px; }
+.oc-row span { flex: 1 1 100%; }
+.outcome .oc-row b { font: 600 16px var(--mono); color: var(--ink); }
+.oc-row small { font-size: 12px; color: var(--muted); }
+.outcome .oc-rate b { color: var(--ok); }
+.conv-toggle { margin-top: 12px; }
+.group.conv { margin-top: 10px; }
+table.conv-tbl { min-width: 1040px; width: calc(100% - 1px); }
+table.conv-tbl th:nth-child(1) { width: 165px; } table.conv-tbl th { white-space: normal; }
+table.conv-tbl th:nth-child(n+2) { width: auto; }
+table.conv-tbl td { padding: 8px 12px; }
+table.conv-tbl td small { color: var(--muted); font-size: 11px; }
+table.conv-tbl td .delta { display: block; }
+table.conv-tbl td.few { opacity: .5; }
+table.conv-tbl tr.total td { font-weight: 600; border-top: 2px solid var(--line); }
+table.conv-tbl tr.muted td { color: var(--muted); }
+.funnel .stg { gap: 8px; }
+.stg-rule { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.stg-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: color-mix(in srgb, var(--ok) 55%, var(--line)); }
+.stg-bar i { display: block; height: 100%; background: var(--crit); }
+.stg-overl { font-size: 13px; display: flex; justify-content: space-between; gap: 8px; }
+.stg-overl b { color: var(--crit); font-weight: 600; }
+.stg-overl span { color: var(--muted); }
+.arrow { display: grid; place-content: center; justify-items: center; gap: 2px; color: var(--muted); font-size: 12px; text-align: center; line-height: 1.2; }
+.arrow b { font: 600 15px var(--mono); color: var(--ink); }
+.arrow svg { width: 28px; height: 10px; }
+.outcome { margin-left: 10px; padding: 12px 14px; border-left: 1px solid var(--line); display: grid; align-content: center; gap: 4px; font-size: 13px; color: var(--muted); }
+.outcome b { font: 600 18px var(--mono); color: var(--ok); }
+.outcome .closed b { color: var(--ink); }
+@media (max-width: 900px) {
+  .funnel { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .arrow { grid-auto-flow: column; gap: 8px; padding: 6px 0; }
+  .arrow svg { transform: rotate(90deg); width: 18px; }
+  .outcome { margin: 10px 0 0; border-left: 0; border-top: 1px solid var(--line); grid-auto-flow: column; justify-content: start; gap: 16px; }
+}
+.bucket-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 16px; }
+.bucket-row .muted { font-size: 13px; }
+.bar .m, .legend .lg-m { background: var(--accent); }
+.bar .t, .legend .lg-t { background: var(--muted); opacity: .55; }
+.bar .f, .legend .lg-f { background: color-mix(in srgb, var(--muted) 30%, var(--surface)); }
+.legend .lg-c, .mgr-row .lg-c { background: var(--crit); }
+.mgr-row .lg-m { background: var(--accent); }
+.mgr-row .lg-t { background: var(--muted); opacity: .55; }
+.mgr-row .lg-f { background: color-mix(in srgb, var(--muted) 30%, var(--surface)); }
+.mgr-open { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.mgr-open b { font: 600 15px var(--mono); color: var(--ink); }
+.mgr-rows { display: grid; gap: 3px; }
+.mgr-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); padding: 1px 6px; margin-inline: -6px; border-radius: 5px; }
+.mgr-row i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+.mgr-row b { margin-left: auto; font: 600 13px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+.mgr-row.on { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.mgr-row.on b { font-size: 15px; }
+.mgr-row.none b { color: var(--muted); font-weight: 500; }
+table.rules.calm .rule.c { color: var(--ink); }
+table.rules.calm .rule.w { color: var(--muted); }
+.pill.n { background: var(--line); color: var(--ink); }
+.more-rows { display: flex; justify-content: center; padding: 10px; border-top: 1px solid var(--line); }
 
 /* Frosted-glass preview, only with ?glass=1 (user's request 28.10.2026) */
 /* Warm beige glass over a blurred sand / peach / olive backdrop; always light, even with a dark system theme —
@@ -235,6 +314,9 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
 
   <nav class="tabs" role="tablist" aria-label="Что показывать" id="tabs"></nav>
 
+  <!-- «Сделки»: the pipeline comes first, everything below (summary, modes, managers) is for that pipeline -->
+  <nav class="pipes" id="pipes" aria-label="Воронка" hidden></nav>
+
   <section class="stats" aria-label="Сводка">
     <div class="stat crit"><b id="s-total">—</b><span id="s-total-l">без касаний</span></div>
     <div class="stat crit"><b id="s-wait">—</b><span id="s-wait-l">клиент написал и ждёт ответа</span></div>
@@ -244,7 +326,6 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
 
   <div class="toolbar">
     <div class="seg" id="lmode" role="group" aria-label="Что показать" hidden></div>
-    <div class="seg" id="pipes" role="group" aria-label="Воронка" hidden></div>
     <div class="seg" id="grp" role="group" aria-label="Группа">
       <button type="button" data-grp="" aria-pressed="true">Все группы</button>
       <button type="button" data-grp="МСК" aria-pressed="false">МСК</button>
@@ -255,8 +336,10 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
   </div>
 
   <section id="stages-box" hidden>
-    <h2>Этапы «В2С Продажа»</h2>
-    <div class="stages" id="stages"></div>
+    <div class="funnel-head"><h2 id="stages-h">Воронка «В2С Продажа»</h2><div class="weeknav" id="weeknav"></div></div>
+    <div class="funnel" id="stages"></div>
+    <div id="conv-box"></div>
+    <div class="bucket-row"><div class="seg" id="bucket" role="group" aria-label="Какие нарушения показать"></div><span class="muted" id="bucket-l"></span></div>
   </section>
 
   <section>
@@ -279,19 +362,24 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  const state = { ruleStage: null, snap: null, hints: {}, undeliv: null, status: null, loadError: null, view: "leads", grp: "", pipe: 0, lmode: "silent", onlyWait: false, manager: null, activity: null, feedLimit: 200 };
+  const state = { ruleStage: null, week: "cur", convOpen: false, bucket: "today", showAll: false, snap: null, hints: {}, undeliv: null, status: null, loadError: null, view: "leads", grp: "", pipe: 27, lmode: "silent", dmode: "rules", onlyWait: false, manager: null, activity: null, feedLimit: 200 };
   try {
     const s = JSON.parse(localStorage.getItem("ldash") || "{}");
-    state.view = s.view || "leads"; state.grp = s.grp || ""; state.pipe = Number(s.pipe) || 0; state.lmode = ["wait", "undeliv", "rules"].includes(s.lmode) ? s.lmode : "silent"; state.onlyWait = !!s.onlyWait;
+    // «Сделки» open on «В2С Продажа» unless another pipeline was picked
+    state.view = s.view || "leads"; state.grp = s.grp || ""; state.pipe = Number(s.pipe) || 27; state.lmode = ["wait", "undeliv"].includes(s.lmode) ? s.lmode : "silent"; state.onlyWait = !!s.onlyWait;
+    // «Сделки» keep their own mode; «Работа с воронкой» unless another one was picked
+    if (["silent", "undeliv", "rules"].includes(s.dmode)) state.dmode = s.dmode;
+    if (["today", "close", "move", "fill"].includes(s.bucket)) state.bucket = s.bucket;
   } catch (e) {}
   // Вкладку можно открыть по ссылке: …/#feed, #tasks, #leads, #deals
   if (/^#(feed|tasks|leads|deals)$/.test(location.hash)) state.view = location.hash.slice(1);
-  // …/#wait — «Лиды» in the «Клиент ждёт ответа» mode; #undelivered — «Не доставлено» on «Лиды»
+  // …/#wait — «Лиды» in the «Клиент ждёт ответа» mode; #undelivered — «Ошибка отправки» on «Лиды»
   if (location.hash === "#wait") { state.view = "leads"; state.lmode = "wait"; }
   if (location.hash === "#undelivered") { state.view = "leads"; state.lmode = "undeliv"; }
-  // …/#rules — «Сделки» in the «Правила этапов» mode
-  if (location.hash === "#rules") { state.view = "deals"; state.lmode = "rules"; state.pipe = 0; }
-  function save() { try { localStorage.setItem("ldash", JSON.stringify({ view: state.view, grp: state.grp, pipe: state.pipe, lmode: state.lmode, onlyWait: state.onlyWait })); } catch (e) {} }
+  // …/#rules — «Сделки» in the «Работа с воронкой» mode; …/#rules/<managerId> — straight to that manager's «На сегодня» list
+  const rulesLink = /^#rules(?:\/(\d+))?$/.exec(location.hash);
+  if (rulesLink) { state.view = "deals"; state.dmode = "rules"; state.pipe = 27; state.grp = ""; if (rulesLink[1]) { state.manager = Number(rulesLink[1]); state.bucket = "today"; } }
+  function save() { try { localStorage.setItem("ldash", JSON.stringify({ view: state.view, grp: state.grp, pipe: state.pipe, lmode: state.lmode, dmode: state.dmode, onlyWait: state.onlyWait, bucket: state.bucket })); } catch (e) {} }
 
   const HOUR = 3600e3;
   const NOUNS = {
@@ -334,6 +422,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     return h < 24 ? h + " ч " + (m % 60) + " мин назад" : Math.floor(h / 24) + " д назад";
   }
   const fmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
+  const dayFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", timeZone: "Europe/Moscow" });
   function el(tag, attrs, ...kids) {
     const n = document.createElement(tag);
     for (const k in attrs || {}) {
@@ -361,8 +450,8 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
 
   const NOTE_TOUCH = $("note").textContent;
   const NOTE_WAIT = "Клиент ждёт ответа — в чате открытого лида последним написал клиент, и после этого не было ни нашего сообщения (менеджера или бота), ни состоявшегося звонка. Попытка дозвона без разговора ответом не считается — такой лид остаётся в списке с пометкой «звонили, не дозвонились». Возраст лида не важен: сюда попадают и новые обращения, и вернувшиеся клиенты. Время ожидания идёт подряд, включая ночь и выходные. Данные из Bitrix24 обновляются раз в 15 минут.";
-  const NOTE_UNDELIV = "Не доставлено — сегодня менеджер написал клиенту в чат, Wazzup сообщение не доставил, и после этого до клиента ничего не дошло: ни другое наше сообщение, ни ответ самого клиента. Сюда попадают и закрытые лиды и сделки — именно их легко потерять. Не учитываются шаблоны роботов, Савви и служебные уведомления (о заказе, курьере, готовом отчёте). Запись уходит из списка, когда наше следующее сообщение дошло или клиент написал сам. Проверка — раз в 15 минут.";
-  const NOTE_RULES = "Правила этапов «В2С Продажа»: Выявили потребность — до 15 дней, попытка связаться не реже раза в 5 дней (если клиент не назвал срок в «Дате следующего контакта»), комментарий с потребностью, тестом и датой; Выбран продукт — до 30 дней, попытка раз в неделю, тест и сумма заполнены; Готов оплачивать — 1–2 дня, «Дата Готов оплачивать» не просрочена, в день оплаты связаться; Дожимаем — до 5 дней, попытка каждый рабочий день, причина неоплаты в комментарии. Попытка — день, когда менеджер написал (в том числе с телефона или шаблоном из Wazzup) или позвонил; дожимы роботов и Савви не считаются. Клиент молчит весь срок этапа — сделку пора закрыть. Красным — нужно действие сейчас, жёлтым — менеджер отстаёт от ритма. Движение за 7 дней — по всей воронке. Данные из Bitrix24 обновляются раз в 15 минут.";
+  const NOTE_UNDELIV = "Ошибка отправки — сегодня менеджер написал клиенту в чат, Wazzup сообщение не доставил, и после этого до клиента ничего не дошло: ни другое наше сообщение, ни ответ самого клиента. Сюда попадают и закрытые лиды и сделки — именно их легко потерять. Не учитываются шаблоны роботов, Савви и служебные уведомления (о заказе, курьере, готовом отчёте). Запись уходит из списка, когда наше следующее сообщение дошло или клиент написал сам. Проверка — раз в 15 минут.";
+  const NOTE_RULES = "Правила этапов «В2С Продажа»: Выявили потребность — до 15 дней, попытка связаться не реже раза в 5 дней (если клиент не назвал срок в «Дате следующего контакта»), комментарий с потребностью, тестом и датой; Выбран продукт — до 30 дней, попытка раз в неделю, тест и сумма заполнены, в комментарии видно, почему клиент не готов оплатить сейчас (проверяется по словам — причина или дата); Готов оплачивать — 1–2 дня, «Дата Готов оплачивать» не просрочена, в день оплаты связаться; Дожимаем — до 5 дней, попытка каждый рабочий день, причина неоплаты в комментарии. На каждой сделке должна быть открытая задача; её срок — договорённая дата связи: до неё ритм попыток не требуется (кроме «Дожимаем»), после — нужна попытка. Попытка — день, когда менеджер написал (в том числе с телефона или шаблоном из Wazzup) или позвонил; дожимы роботов и Савви не считаются. Клиент молчит весь срок этапа — сделку пора закрыть. Сделки разложены на четыре части: «На сегодня» — связаться по графику, день оплаты, клиент ответил, срок этапа только что вышел; «Двигай дальше» — на этапе дольше двух сроков, но клиент на связи (писал в пределах срока этапа или менеджер в комментарии отметил, что клиент на связи — например, с личного телефона); «К закрытию» — на этапе дольше двух сроков, а клиент молчит весь срок, не писал вовсе или не пишет дольше срока этапа; «Заполнить карточку» — со связью всё в порядке, не хватает комментария, теста или суммы. Движение считается по календарной неделе (понедельник–воскресенье, МСК) по всей воронке; стрелками ‹ › можно посмотреть прошлые недели, рядом — изменение к предыдущей неделе в процентных пунктах. Конверсия на стрелке — из сделок, которые за неделю ушли с этапа, доля перешедших дальше по воронке или оплативших; после «Дожимаем» — доля оплативших. Итог недели: пришло на первый этап, оплачено (штук и сумма), закрыто без оплаты; конверсия в оплату — оплачено / (оплачено + закрыто); конверсия в некачественный (в таблице по менеджерам) — закрыто / (оплачено + закрыто), закрыто — «Нереализован», «Послали. не звонить», «Спам». Личные цифры — по текущему ответственному сделки. Данные из Bitrix24 обновляются раз в 15 минут.";
   const NOTE_TASKS = "Перенос без касания — срок задачи по лиду или сделке перенесли, а в тот же день до переноса не было ни нашего звонка, ни нашего сообщения клиенту. Перенос записан на того, кто его сделал; правка срока в первые 10 минут после постановки задачи не считается. Просрочка — у открытой задачи срок прошёл больше 48 часов назад. Данные из Bitrix24 обновляются раз в 15 минут.";
   const DAY_MS = 24 * HOUR;
   // start of the current day in Moscow (UTC+3, no DST)
@@ -580,69 +669,236 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
   }
 
   const money = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1).replace(".", ",") + " млн ₽" : Math.round(n).toLocaleString("ru-RU") + " ₽");
-  // «Правила этапов»: «В2С Продажа» deals that break the stage rules (stagerules.js on the server)
+  // «Работа с воронкой»: «В2С Продажа» deals that break the stage rules (stagerules.js on the server), in four buckets:
+  // «today» — what to do now; the backlog (silent the whole stage, or on it longer than twice the limit) split into
+  // «close» — the client is gone (never wrote, or last wrote longer ago than the stage limit) and «move» — the client
+  // is talking but the deal is stuck; no backlog on «Готов оплачивать» / «Дожимаем», everything there is urgent;
+  // «fill» — only card fields are missing
+  const TODAY_CODES = new Set(["rhythm", "next", "payday", "paydate", "move", "reason", "over", "notask", "taskdue"]);
+  function ruleBucket(x, R) {
+    const codes = x.rules.map((r) => r.code);
+    const hot = x.stage === "ready" || x.stage === "push";
+    const st = R.stages.find((s) => s.key === x.stage);
+    if (!hot && st && (codes.includes("silent") || (x.over && x.daysOnStage > 2 * st.limitDays))) {
+      // in touch = a client message within the stage limit or a manager note «на связи» (lastComment, contact outside Bitrix)
+      const fresh = (t) => t && Date.parse(R.updatedAt) - Date.parse(t) <= st.limitDays * DAY_MS;
+      const gone = codes.includes("silent") || !(fresh(x.lastReply) || fresh(x.lastComment));
+      return gone ? "close" : "move";
+    }
+    return hot || codes.some((c) => TODAY_CODES.has(c)) ? "today" : "fill";
+  }
+  const BUCKET_KEYS = ["today", "move", "close", "fill"];
+  const BUCKETS = {
+    today: { name: "На сегодня", short: "на сегодня", about: "попытка связаться по графику, день оплаты, клиент ответил, срок этапа только что вышел" },
+    move: { name: "Двигай дальше", short: "двигать", about: "давно дольше срока этапа, но клиент на связи — перевести на следующий этап или назначить дату" },
+    close: { name: "К закрытию", short: "закрыть", about: "давно дольше срока этапа, клиент молчит весь срок или не пишет дольше срока — закрыть" },
+    fill: { name: "Заполнить карточку", short: "карточки", about: "связь в порядке, не хватает комментария, теста или суммы" },
+  };
+  const BUCKET_BAR = { today: "c", move: "m", close: "t", fill: "f" };
+  // stage-to-stage conversion over 7 days: of the deals that left the stage, the share that went further or paid
+  function conv(f) {
+    const left = f.forward + f.paid + f.closed + f.back;
+    return left ? { pct: Math.round(((f.forward + f.paid) / left) * 100), on: f.forward + f.paid, left } : null;
+  }
+  const RULE_LINE = {
+    need: "до 15 дней · попытка раз в 5 дней · комментарий",
+    product: "до 30 дней · попытка раз в неделю · тест и сумма",
+    ready: "1–2 дня · связаться в день оплаты",
+    push: "до 5 дней · попытка каждый рабочий день",
+  };
+  const ARROW = '<svg viewBox="0 0 28 10" aria-hidden="true"><path d="M0 5h25M21 1l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const days = (n) => n + " " + plural(n, ["день", "дня", "дней"]);
+  // the pill already says «196 из 15», so the over-limit rule keeps only what to do
+  // and in «Двигай дальше» / «К закрытию» it names the one action that bucket is for
+  function ruleText(r, bucket) {
+    if (r.code !== "over") return r.text;
+    if (bucket === "close") return "Закрыть — клиент давно не на связи";
+    const t = r.text.replace(/^На этапе \d+ \S+ из \d+ — /, "");
+    return (bucket === "move" ? t.replace(/ или закрыть$/, "") : t).replace(/^./, (c) => c.toUpperCase());
+  }
+
   function renderRules(R, snap, mgrById, inGrp) {
     const keys = R.stages.map((s) => s.key);
     if (state.ruleStage && !keys.includes(state.ruleStage)) state.ruleStage = null;
-    const all = R.items.filter((x) => inGrp(mgrById.get(x.managerId)));
-    const items = state.ruleStage ? all.filter((x) => x.stage === state.ruleStage) : all;
-    const red = (x) => x.rules.some((r) => r.level === "c");
+    const all = R.items.filter((x) => inGrp(mgrById.get(x.managerId))).map((x) => ({ ...x, bucket: ruleBucket(x, R) }));
+    const staged = state.ruleStage ? all.filter((x) => x.stage === state.ruleStage) : all;
+    const count = (b, ls) => ls.filter((x) => x.bucket === b).length;
+    const items = staged.filter((x) => x.bucket === state.bucket);
     const stagesSel = state.ruleStage ? R.stages.filter((s) => s.key === state.ruleStage) : R.stages;
     const openOf = (id) => stagesSel.reduce((a, s) => a + ((s.byManager[id] || {}).open || 0), 0);
-    $("title").textContent = "Сделки: правила этапов";
-    $("sub").textContent = "«В2С Продажа», группы продаж B2C МСК и НСК · сделки, где нарушены правила этапа: срок, попытки связаться, дата оплаты, комментарий";
+    $("title").textContent = "Работа с воронкой";
+    $("sub").textContent = "«В2С Продажа» · группы продаж B2C МСК и НСК · этапы, конверсия и что сделать по сделкам сегодня";
     $("note").textContent = NOTE_RULES + " Последний расчёт — " + fmt.format(new Date(R.updatedAt)) + " МСК.";
-    $("pipes").hidden = true;
     $("only-wait-box").hidden = true;
-    $("legend").hidden = false;
-    $("legend").replaceChildren(el("span", {}, el("i", { style: "background:var(--crit)" }), "нужно действие сейчас"), el("span", {}, el("i", { style: "background:var(--warn)" }), "отстаёт от ритма"));
+    $("legend").hidden = true; // the manager cards label every bucket themselves
 
     const shownManagers = [...snap.managers].filter((m) => inGrp(m) && openOf(m.id) > 0);
     const openTotal = shownManagers.reduce((a, m) => a + openOf(m.id), 0);
-    $("s-total").textContent = items.length;
-    $("s-total-l").textContent = plural(items.length, DEALS) + " с нарушениями из " + openTotal + " на этапах";
-    $("s-wait").textContent = items.filter((x) => x.rules.some((r) => r.code === "silent" || (x.stage === "push" && r.code === "over"))).length;
-    $("s-wait-l").textContent = "пора закрыть: клиент молчит весь срок или «Дожимаем» дольше 5 дней";
-    $("s-week").textContent = items.filter((x) => x.rules.some((r) => r.code === "paydate")).length;
-    $("s-crit-l").textContent = "дата оплаты прошла или не указана";
-    $("s-mgr").textContent = money(items.filter(red).reduce((a, x) => a + x.amount, 0));
-    $("s-mgr-l").textContent = "сумма сделок, где нужно действие сейчас";
+    const todayLs = staged.filter((x) => x.bucket === "today");
+    document.querySelector(".stats").classList.add("rules");
+    $("s-total").textContent = todayLs.length;
+    $("s-total-l").textContent = plural(todayLs.length, DEALS) + " — действие сегодня, " + money(todayLs.reduce((a, x) => a + x.amount, 0)) + " · из " + openTotal + " на этапах";
+    $("s-wait").textContent = count("move", staged);
+    $("s-wait-l").textContent = "двигай дальше: застряли на этапе, клиент на связи";
+    $("s-week").textContent = count("close", staged);
+    $("s-crit-l").textContent = "к закрытию: давно дольше срока, клиент молчит";
+    $("s-mgr").textContent = count("fill", staged);
+    $("s-mgr-l").textContent = "заполнить карточку: комментарий, тест, сумма";
 
-    // stage strip: open / sum / over the limit for the selected group, 7-day flow for the whole pipeline
+    // funnel: stage → arrow (conversion of the week) → stage …, the week's outcome on the right; a stage click filters below.
+    // Movement is by calendar week (Mon–Sun MSK): the current one and finished ones kept on the server, compared to the week before
     const box = $("stages-box"); box.hidden = false;
+    $("stages-h").textContent = "Воронка «В2С Продажа»" + (state.ruleStage ? " · выбран этап, нажмите ещё раз, чтобы снять" : "");
+    const weekKeys = [...Object.keys(R.weeks || {}).sort(), ...(R.flow ? ["cur"] : [])];
+    if (!weekKeys.includes(state.week)) state.week = "cur";
+    const W = state.week === "cur" ? R.flow : (R.weeks || {})[state.week];
+    const wStart = W ? Date.parse(W.since) : null;
+    const prevW = wStart !== null ? (R.weeks || {})[new Date(wStart - 7 * DAY_MS).toISOString()] : null;
+    const pf = prevW && prevW.stages;
+    const nav = $("weeknav"); nav.replaceChildren();
+    if (W) {
+      const wi = weekKeys.indexOf(state.week);
+      const step = (d) => { state.week = weekKeys[wi + d]; render(); };
+      const prevBtn = el("button", { type: "button", class: "close", "aria-label": "Предыдущая неделя", text: "‹" });
+      const nextBtn = el("button", { type: "button", class: "close", "aria-label": "Следующая неделя", text: "›" });
+      prevBtn.disabled = wi <= 0; nextBtn.disabled = wi >= weekKeys.length - 1;
+      prevBtn.addEventListener("click", () => step(-1)); nextBtn.addEventListener("click", () => step(1));
+      const range = dayFmt.format(new Date(wStart)) + "–" + dayFmt.format(new Date(wStart + 6 * DAY_MS));
+      nav.append(prevBtn, el("span", { text: (state.week === "cur" ? "Эта неделя · " : "Неделя ") + range }), nextBtn);
+    }
+    // change against the week before, in percentage points (green — better, red — worse)
+    // `worse` — for shares where growth is bad (conversion to «некачественный»): the colours swap
+    const delta = (now, before, worse = false) => {
+      if (now == null || before == null) return null;
+      const d = now - before, good = worse ? d < 0 : d > 0, bad = worse ? d > 0 : d < 0;
+      return el("small", { class: "delta " + (good ? "up" : bad ? "down" : ""), title: "К прошлой неделе: было " + before + " %", text: (d > 0 ? "+" : d < 0 ? "−" : "±") + Math.abs(d) + " п." });
+    };
     const strip = $("stages"); strip.replaceChildren();
-    for (const s of R.stages) {
+    const flow = W && W.stages ? W.stages : null;
+    const approx = W && W.partial ? "≈ " : "";
+    const wName = state.week === "cur" ? "За эту неделю" : "За неделю";
+    R.stages.forEach((s, i) => {
       const ms = Object.entries(s.byManager).filter(([id]) => inGrp(mgrById.get(Number(id))));
       const open = ms.reduce((a, [, v]) => a + v.open, 0), sum = ms.reduce((a, [, v]) => a + v.sum, 0), over = ms.reduce((a, [, v]) => a + v.over, 0);
-      const f = R.flow && R.flow.stages ? R.flow.stages[s.key] : null;
+      const f = flow ? flow[s.key] : null;
+      const bar = el("div", { class: "stg-bar", "aria-hidden": "true" }, el("i"));
+      bar.firstChild.style.width = (open ? (over / open) * 100 : 0) + "%";
       const b = el("button", { type: "button", class: "stg", "aria-pressed": String(state.ruleStage === s.key), title: "Показать только этот этап" },
         el("div", { class: "stg-name", text: s.name }),
         el("div", { class: "stg-num" }, String(open), el("small", { text: " · " + money(sum) })),
-        el("div", { class: "stg-over" + (over ? " bad" : ""), text: over ? over + " дольше срока · " + s.limitDays + " " + plural(s.limitDays, ["день", "дня", "дней"]) : "все в сроке · " + s.limitDays + " " + plural(s.limitDays, ["день", "дня", "дней"]) }),
-        f ? el("div", { class: "stg-flow", title: "За 7 дней по всей воронке: пришло на этап / ушло дальше / вернулось назад / закрыто / оплачено" + (R.flow.partial ? " (неполные данные)" : ""),
-          text: (R.flow.partial ? "≈ " : "") + "7 дн: +" + f.entered + " · дальше " + f.forward + " · назад " + f.back + " · закрыто " + f.closed + (f.paid ? " · оплачено " + f.paid : "") }) : null);
-      b.addEventListener("click", () => { state.ruleStage = state.ruleStage === s.key ? null : s.key; state.manager = null; render(); });
+        bar,
+        el("div", { class: "stg-overl" }, over ? el("b", { text: over + " дольше срока" }) : el("span", { text: "все в сроке" })),
+        el("div", { class: "stg-rule", text: RULE_LINE[s.key] || "до " + days(s.limitDays) }),
+        f ? el("div", { class: "stg-flow", title: wName + " по всей воронке" + (W.partial ? " (неполные данные)" : ""),
+          text: approx + "за неделю: пришло " + f.entered + " · закрыли " + f.closed + (f.back ? " · вернули назад " + f.back : "") }) : null);
+      b.addEventListener("click", () => { state.ruleStage = state.ruleStage === s.key ? null : s.key; state.manager = null; state.showAll = false; render(); });
       strip.append(b);
+      // arrow to the next stage (after the last one — to payment): conversion of the deals that left the stage in the week
+      const last = i === R.stages.length - 1, c = f ? conv(f) : null, pc = pf && pf[s.key] ? conv(pf[s.key]) : null;
+      const a = el("div", { class: "arrow", title: c
+        ? wName + " этап покинули " + c.left + " " + plural(c.left, DEALS) + ": " + f.forward + " перешли дальше по воронке, " + f.paid + " оплатили, " + f.closed + " закрыли, " + f.back + " вернули назад" + (last ? ". Последний этап — дальше только оплата" : "")
+        : wName + " сделки этот этап не покидали" });
+      a.innerHTML = ARROW;
+      a.append(...[el("b", { text: c ? approx + c.pct + " %" : "—" }), el("span", { text: c ? c.on + " из " + c.left : "нет движения" }), c && pc ? delta(c.pct, pc.pct) : null].filter(Boolean));
+      strip.append(a);
+    });
+    if (flow) {
+      // the week's outcome: came into the funnel, paid (and the sum), closed unpaid; conversion = paid / (paid + closed)
+      const tot = (st, k) => Object.values(st).reduce((a, v) => a + (v[k] || 0), 0);
+      const rate = (st) => { const p = tot(st, "paid"), c = tot(st, "closed"); return p + c ? Math.round((p / (p + c)) * 100) : null; };
+      const r = rate(flow);
+      const row = (label, value, extra) => el("div", { class: "oc-row" }, el("span", { text: label }), el("b", { text: approx + value }), extra || null);
+      strip.append(el("div", { class: "outcome", title: wName + " по всей воронке «В2С Продажа», со всех проверяемых этапов" },
+        el("div", { class: "oc-head", text: state.week === "cur" ? "Итог недели (идёт)" : "Итог недели" }),
+        row("пришло на воронку", flow.need ? flow.need.entered : 0),
+        row("оплачено", tot(flow, "paid"), W.paidSum ? el("small", { text: money(W.paidSum) }) : null),
+        row("закрыто", tot(flow, "closed")),
+        el("div", { class: "oc-row oc-rate", title: "Из сделок, которые за неделю ушли с этапов в оплату или в закрытие, — доля оплативших" },
+          el("span", { text: "конверсия в оплату" }), el("b", { text: r === null ? "—" : approx + r + " %" }), pf ? delta(r, rate(pf)) : null)));
     }
 
-    // manager cards
+    // personal conversion for the selected week: the same numbers per manager (by the deal's current owner), folded by default
+    const cbox = $("conv-box"); cbox.replaceChildren();
+    if (flow && W.byManager) {
+      const toggle = el("button", { type: "button", class: "close conv-toggle", "aria-expanded": String(state.convOpen), text: state.convOpen ? "Свернуть конверсию по менеджерам" : "Конверсия по менеджерам" });
+      toggle.addEventListener("click", () => { state.convOpen = !state.convOpen; render(); });
+      cbox.append(toggle);
+      if (state.convOpen) {
+        const FEW = 5; // fewer deals left the stage — the share may be chance
+        const pbm = prevW && prevW.byManager ? prevW.byManager : {};
+        const cell = (f, pfx) => {
+          const c = f ? conv(f) : null, pc = pfx ? conv(pfx) : null;
+          if (!c) return el("td", { class: "num muted", text: "—" });
+          return el("td", { class: "num" + (c.left < FEW ? " few" : ""), title: c.left < FEW ? "Мало сделок — может быть случайностью" : "" },
+            el("b", { text: c.pct + " %" }), el("small", { text: " " + c.on + " из " + c.left }), pc && c.left >= FEW ? delta(c.pct, pc.pct) : null);
+        };
+        // conversion to payment = paid / (paid + closed); to «некачественный» — its complement (closed: «Нереализован»,
+        // «Послали. не звонить», «Спам»), growth is bad
+        const share = (st, k) => { const n = st ? tot(st, "paid") + tot(st, "closed") : 0; return n ? Math.round((tot(st, k) / n) * 100) : null; };
+        const shareCell = (st, pst, k) => {
+          const n = tot(st, "paid") + tot(st, "closed"), r = share(st, k), pr = share(pst, k);
+          if (r === null) return el("td", { class: "num muted", text: "—" });
+          return el("td", { class: "num" + (n < FEW ? " few" : "") + (k === "closed" ? " bad-share" : "") }, el("b", { text: r + " %" }), pr !== null && n >= FEW ? delta(r, pr, k === "closed") : null);
+        };
+        const tot = (st, k) => Object.values(st).reduce((a, v) => a + (v[k] || 0), 0);
+        const line = (name, d, pd, cls) => el("tr", cls ? { class: cls } : {},
+          el("td", { text: name }),
+          ...R.stages.map((s) => cell(d.stages[s.key], pd && pd.stages[s.key])),
+          el("td", { class: "num" }, String(tot(d.stages, "paid")), d.paidSum ? el("small", { text: " · " + money(d.paidSum) }) : null),
+          el("td", { class: "num", text: String(tot(d.stages, "closed")) }),
+          shareCell(d.stages, pd && pd.stages, "paid"),
+          shareCell(d.stages, pd && pd.stages, "closed"));
+        const ours = [...snap.managers].filter((m) => inGrp(m) && W.byManager[m.id]);
+        ours.sort((a, b) => tot(W.byManager[b.id].stages, "paid") - tot(W.byManager[a.id].stages, "paid") || a.name.localeCompare(b.name, "ru"));
+        const rows = ours.map((m) => line(m.name, W.byManager[m.id], pbm[m.id]));
+        // deals now owned by someone outside the groups (handed to the upsell group after payment, other staff)
+        const known = new Set(snap.managers.map((m) => String(m.id)));
+        const rest = Object.entries(W.byManager).filter(([id]) => !known.has(id));
+        if (rest.length && !state.grp) {
+          const sumSt = Object.fromEntries(R.stages.map((s) => [s.key, rest.reduce((a, [, d]) => { const v = d.stages[s.key] || {}; for (const k of ["entered", "forward", "back", "closed", "paid"]) a[k] = (a[k] || 0) + (v[k] || 0); return a; }, {})]));
+          if (tot(sumSt, "paid") + tot(sumSt, "closed") + tot(sumSt, "forward")) rows.push(line("Другие ответственные", { stages: sumSt, paidSum: rest.reduce((a, [, d]) => a + (d.paidSum || 0), 0) }, null, "muted"));
+        }
+        if (!state.grp) rows.push(line("Вся воронка", W, prevW, "total"));
+        cbox.append(el("div", { class: "group conv" },
+          el("div", { class: "group-head" }, el("div", {}, el("b", { text: "Конверсия по менеджерам" }),
+            el("span", { text: "  " + (state.week === "cur" ? "эта неделя" : "неделя") + " · по текущему ответственному сделки · бледным — меньше " + FEW + " сделок, может быть случайностью" }))),
+          el("div", { class: "tbl-wrap" }, el("table", { class: "conv-tbl" },
+            el("thead", {}, el("tr", {}, el("th", { text: "Менеджер" }),
+              ...R.stages.map((s, i) => el("th", { text: s.name.replace(/ \(.*\)$/, "") + (i === R.stages.length - 1 ? " → оплата" : " → дальше") })),
+              el("th", { text: "Оплачено" }), el("th", { text: "Закрыто" }), el("th", { text: "Конверсия в оплату" }), el("th", { text: "Конверсия в некачественный" }))),
+            el("tbody", {}, ...rows)))));
+      }
+    }
+
+    // buckets
+    const bseg = $("bucket"); bseg.replaceChildren();
+    for (const k of BUCKET_KEYS) {
+      const b = el("button", { type: "button", "aria-pressed": String(state.bucket === k) }, BUCKETS[k].name + " · " + count(k, staged));
+      b.addEventListener("click", () => { state.bucket = k; state.showAll = false; save(); render(); });
+      bseg.append(b);
+    }
+    $("bucket-l").textContent = BUCKETS[state.bucket].about;
+
+    // manager cards: deals on the stages, then one labelled row per bucket (the selected one stands out) instead of an unlabelled bar
     const byMgr = new Map();
-    for (const x of items) { if (!byMgr.has(x.managerId)) byMgr.set(x.managerId, []); byMgr.get(x.managerId).push(x); }
-    if (state.manager && !(byMgr.get(state.manager) || []).length) state.manager = null;
+    for (const x of staged) { if (!byMgr.has(x.managerId)) byMgr.set(x.managerId, []); byMgr.get(x.managerId).push(x); }
+    const mine = (id) => (byMgr.get(id) || []).filter((x) => x.bucket === state.bucket);
+    if (state.manager && !mine(state.manager).length) state.manager = null;
     const mgrs = $("mgrs"); mgrs.replaceChildren();
-    for (const m of shownManagers.sort((a, b) => (byMgr.get(b.id)?.length || 0) - (byMgr.get(a.id)?.length || 0) || a.name.localeCompare(b.name, "ru"))) {
-      const ls = byMgr.get(m.id) || [];
-      const c = ls.filter(red).length, w = ls.length - c;
-      const bar = el("div", { class: "bar", "aria-hidden": "true" });
-      for (const [k, n] of [["c", c], ["w", w]]) if (n) { const i = el("i", { class: k }); i.style.width = (n / ls.length) * 100 + "%"; bar.append(i); }
-      const cardBtn = el("button", { type: "button", class: "mgr" + (ls.length ? "" : " zero"), "aria-pressed": String(state.manager === m.id), title: ls.length ? "Показать список" : "Нарушений нет" },
+    for (const m of shownManagers.sort((a, b) => mine(b.id).length - mine(a.id).length || a.name.localeCompare(b.name, "ru"))) {
+      const ls = byMgr.get(m.id) || [], n = mine(m.id).length;
+      const rows = el("div", { class: "mgr-rows" }, ...BUCKET_KEYS.map((k) => {
+        const c = count(k, ls);
+        return el("div", { class: "mgr-row" + (k === state.bucket ? " on" : "") + (c ? "" : " none") },
+          el("i", { class: "lg-" + BUCKET_BAR[k], "aria-hidden": "true" }), el("span", { text: BUCKETS[k].name }), el("b", { text: String(c) }));
+      }));
+      const cardBtn = el("button", { type: "button", class: "mgr" + (n ? "" : " zero"), "aria-pressed": String(state.manager === m.id), title: n ? "Показать сделки: «" + BUCKETS[state.bucket].name + "»" : "В этой корзине пусто" },
         el("div", { class: "mgr-top" },
-          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: grpName(m.group) })),
-          el("div", { class: "mgr-count" }, String(ls.length), el("small", { text: " / " + openOf(m.id) }))),
-        bar,
-        el("div", { class: "mgr-meta" }, el("span", { text: ls.length ? (c ? c + " — действие сейчас" : "только ритм") : "всё в порядке" }), w ? el("span", { text: w + " ритм" }) : null));
-      if (ls.length) cardBtn.addEventListener("click", () => {
+          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: grpName(m.group) + " · " + openOf(m.id) + " " + plural(openOf(m.id), DEALS) + " на этапах" }))),
+        rows);
+      if (n) cardBtn.addEventListener("click", () => {
         state.manager = state.manager === m.id ? null : m.id;
+        state.showAll = false;
         render();
         if (state.manager) $("list").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
       });
@@ -651,32 +907,47 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
 
     const list = $("list"); list.replaceChildren();
     if (!state.manager) {
-      list.append(el("div", { class: "empty", text: items.length ? "Нажмите на менеджера, чтобы увидеть его сделки с нарушениями." : "Все сделки на этапах в порядке." }));
+      list.append(el("div", { class: "empty", text: items.length ? "Нажмите на менеджера, чтобы увидеть его сделки: «" + BUCKETS[state.bucket].name + "»." : "В корзине «" + BUCKETS[state.bucket].name + "» пусто." }));
       return;
     }
     const m = mgrById.get(state.manager);
-    const ls = byMgr.get(m.id);
+    const today = state.bucket === "today";
+    // «На сегодня»: closest to money first — stages from the end of the funnel, then urgent, then by amount
+    const order = today ? [...R.stages].reverse() : R.stages;
+    const red = (x) => x.rules.some((r) => r.level === "c");
+    const rows = order.flatMap((s) => mine(m.id).filter((x) => x.stage === s.key)
+      .sort((a, b) => (today ? Number(red(b)) - Number(red(a)) || b.amount - a.amount : 0) || b.daysOnStage - a.daysOnStage));
+    const LIMIT = 15;
+    const shown = state.showAll ? rows : rows.slice(0, LIMIT);
     const close = el("button", { type: "button", class: "close", text: "Свернуть" });
     close.addEventListener("click", () => { state.manager = null; render(); });
     const groups = [];
-    for (const s of R.stages) {
-      const rows = ls.filter((x) => x.stage === s.key).sort((a, b) => Number(red(b)) - Number(red(a)) || b.daysOnStage - a.daysOnStage);
-      if (!rows.length) continue;
+    for (const s of order) {
+      const rs = shown.filter((x) => x.stage === s.key);
+      if (!rs.length) continue;
       groups.push(el("div", { class: "group" },
-        el("div", { class: "group-head" }, el("div", {}, el("b", { text: s.name }), el("span", { text: "  " + rows.length + " " + plural(rows.length, DEALS) + " · срок " + s.limitDays + " " + plural(s.limitDays, ["день", "дня", "дней"]) }))),
-        el("div", { class: "tbl-wrap" }, el("table", { class: "rules" },
-          el("thead", {}, el("tr", {}, ...["Сделка", "Сумма", "На этапе", "Попыток", "Клиент писал", "Что сделать"].map((h) => el("th", { text: h })))),
-          el("tbody", {}, ...rows.map((x) => el("tr", {},
+        el("div", { class: "group-head" }, el("div", {}, el("b", { text: s.name }), el("span", { text: "  " + rs.length + " " + plural(rs.length, DEALS) + " · " + (RULE_LINE[s.key] || "срок " + days(s.limitDays)) }))),
+        el("div", { class: "tbl-wrap" }, el("table", { class: "rules" + (today ? "" : " calm") },
+          el("thead", {}, el("tr", {}, ...["Сделка", "Сумма", "На этапе", "Попыток", "Последняя попытка", "Задача", "Клиент писал", "Что сделать"].map((h) => el("th", { text: h })))),
+          el("tbody", {}, ...rs.map((x) => el("tr", {},
             el("td", {}, el("a", { href: snap.portal + "/crm/deal/details/" + x.id + "/", target: "_blank", rel: "noopener", text: "#" + x.id })),
             el("td", { class: "num", text: x.amount ? Math.round(x.amount).toLocaleString("ru-RU") + " ₽" : "—" }),
-            el("td", { class: "num" }, el("span", { class: "pill " + (x.over ? "c" : "w"), text: x.daysOnStage + " из " + s.limitDays })),
+            el("td", { class: "num" }, el("span", { class: "pill " + (today ? (x.over ? "c" : "w") : "n"), text: x.daysOnStage + " из " + s.limitDays })),
             el("td", { class: "num", text: String(x.attempts) }),
+            // the latest attempt may be from before the stage, so it can exist while «Попыток» on the stage is 0
+            el("td", { text: x.lastAttempt ? fmt.format(new Date(x.lastAttempt)) : x.lastAttempt === null ? "не было" : "—" }),
+            // nearest open task deadline = the agreed contact day; «нет» — no open task (every deal must have one)
+            el("td", { class: x.hasTask === false ? "no-task" : "", text: x.taskDue ? dayFmt.format(new Date(x.taskDue)) : x.hasTask === false ? "нет" : x.hasTask ? "без срока" : "—" }),
             el("td", { text: x.lastReply ? fmt.format(new Date(x.lastReply)) : "не писал" }),
-            el("td", {}, ...x.rules.map((r) => el("span", { class: "rule " + r.level, text: r.text }))))))))));
+            el("td", {}, // «К закрытию»: one close reason; «no attempt» reminders would contradict it
+            ...x.rules.filter((r) => !(x.bucket === "close" && (["rhythm", "next"].includes(r.code) || (r.code === "over" && x.rules.some((q) => q.code === "silent")))))
+              .map((r) => el("span", { class: "rule " + r.level, text: ruleText(r, x.bucket) }))))))))));
     }
-    list.append(el("h2", { text: "Правила этапов · " + m.name }),
-      el("div", { class: "group-head" }, el("div", {}, el("b", { text: m.name }), el("span", { text: "  " + ls.length + " из " + openOf(m.id) + " на этапах · " + grpName(m.group) })), close),
-      el("div", { class: "stack" }, ...groups));
+    const more = rows.length > shown.length ? el("div", { class: "more-rows" }, el("button", { type: "button", class: "close", text: "Показать ещё " + (rows.length - shown.length) })) : null;
+    if (more) more.firstChild.addEventListener("click", () => { state.showAll = true; render(); });
+    list.append(el("h2", { text: BUCKETS[state.bucket].name + " · " + m.name }),
+      el("div", { class: "group-head" }, el("div", {}, el("b", { text: m.name }), el("span", { text: "  " + rows.length + " " + plural(rows.length, DEALS) + " · " + grpName(m.group) })), close),
+      el("div", { class: "stack" }, ...groups), more);
   }
 
   function render() {
@@ -688,8 +959,10 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     if (!isFeed && (state.view === "tasks" ? !snap.tasks : !snap.views[state.view])) state.view = Object.keys(snap.views)[0];
     // The upsell group is on «Сделки» and «Лента событий»; the pipeline switcher — on «Сделки» only
     const isDeals = !isFeed && state.view === "deals";
-    if (!isDeals && !isFeed && state.grp === "доппродаж") state.grp = "";
-    $("grp-upsell").hidden = !isDeals && !isFeed;
+    // «Доппродажи» own no «В2С Продажа» deals — the button is offered only where it shows something
+    const upsellShown = isFeed || (isDeals && state.pipe !== 27);
+    if (!upsellShown && state.grp === "доппродаж") state.grp = "";
+    $("grp-upsell").hidden = !upsellShown;
     for (const b of document.querySelectorAll("#grp button")) b.setAttribute("aria-pressed", String(b.dataset.grp === state.grp));
 
     const now = Date.now();
@@ -699,7 +972,8 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     const inGrp = (m) => !state.grp || (m && m.group.includes(state.grp));
     const managers = snap.managers.filter(inGrp);
     const pipes = dv.pipelines || [];
-    if (state.pipe && !pipes.some((p) => p.id === state.pipe)) state.pipe = 0;
+    // always one pipeline at a time (no «Все воронки»); «В2С Продажа» first
+    if (pipes.length && !pipes.some((p) => p.id === state.pipe)) state.pipe = pipes[0].id;
     const pipeById = new Map(pipes.map((p) => [p.id, p]));
     const pick = (v) => v.items
       .filter((x) => !x.pipeline || !state.pipe || x.pipeline === state.pipe)
@@ -708,17 +982,20 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
 
     const pb = $("pipes");
     pb.hidden = !isDeals || pipes.length < 2;
-    pb.replaceChildren(...[{ id: 0, title: "Все воронки" }, ...pipes].map((p) => {
+    pb.replaceChildren(...pipes.map((p) => {
       const b = el("button", { type: "button", "aria-pressed": String(state.pipe === p.id) }, p.title);
-      b.addEventListener("click", () => { state.pipe = p.id; state.manager = null; save(); render(); });
+      b.addEventListener("click", () => { state.pipe = p.id; state.manager = null; state.ruleStage = null; save(); render(); });
       return b;
     }));
 
-    // вкладки со счётчиками по текущим фильтрам
+    // вкладки со счётчиками по текущим фильтрам; «Сделки» on «В2С Продажа» count «Работа с воронкой · Сегодня»
+    const tabCount = (key, v) => key === "deals" && state.pipe === 27 && v.rules
+      ? v.rules.items.filter((x) => inGrp(mgrById.get(x.managerId)) && ruleBucket(x, v.rules) === "today").length
+      : pick(v).length;
     const tabs = $("tabs"); tabs.replaceChildren();
     for (const [key, v] of Object.entries(snap.views)) {
       const b = el("button", { type: "button", role: "tab", "aria-selected": String(key === state.view) },
-        el("span", { text: key === "deals" ? "Сделки" : v.title }), el("span", { class: "cnt", text: String(pick(v).length) }));
+        el("span", { text: key === "deals" ? "Сделки" : v.title }), el("span", { class: "cnt", text: String(tabCount(key, v)) }));
       b.addEventListener("click", () => { state.view = key; save(); render(); });
       tabs.append(b);
     }
@@ -743,6 +1020,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     $("stages-box").hidden = true;
     $("legend").hidden = isTasks || isFeed;
     document.querySelector(".stats").classList.toggle("neutral", isFeed);
+    document.querySelector(".stats").classList.remove("rules");
     $("note").textContent = isFeed ? NOTE_FEED : isTasks ? NOTE_TASKS : NOTE_TOUCH;
     if (isFeed) return renderFeed([...snap.managers, ...extra.filter((m) => !snap.managers.some((x) => x.id === m.id))].filter(inGrp), mgrById, inGrp, now);
     if (isTasks) return renderTasks(snap, managers, mgrById, inGrp, now);
@@ -760,20 +1038,24 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
       ? state.undeliv.items.filter((x) => x.entity === view.entity && Date.parse(x.at) >= today && inGrp(mgrById.get(x.managerId)) && (!x.pipeline || !state.pipe || x.pipeline === state.pipe))
         .map((x) => ({ ...x, silentSince: x.at, lastActivity: x.at, hours: (now - Date.parse(x.at)) / HOUR }))
       : null;
-    // «Правила этапов»: «В2С Продажа» only, so it is offered on «Все воронки» and on that pipeline
-    const rules = view.entity === "deal" && view.rules && (!state.pipe || state.pipe === 27) ? view.rules : null;
-    const rulesCount = rules ? rules.items.filter((x) => inGrp(mgrById.get(x.managerId))).length : 0;
-    const mode = state.lmode === "wait" && waitList ? "wait" : state.lmode === "undeliv" && undelivList ? "undeliv" : state.lmode === "rules" && rules ? "rules" : "silent";
+    // «Работа с воронкой» (stage rules): «В2С Продажа» only, the first mode there; the count is the «На сегодня» bucket
+    const isDealView = view.entity === "deal";
+    const rules = isDealView && view.rules && state.pipe === 27 ? view.rules : null;
+    const rulesCount = rules ? rules.items.filter((x) => inGrp(mgrById.get(x.managerId)) && ruleBucket(x, rules) === "today").length : 0;
+    const want = isDealView ? state.dmode : state.lmode;
+    // «В2С Продажа» has no «Без касаний»: its stage rules replace the 30-day touch check (user's decision 30.10.2026)
+    const mode = want === "wait" && waitList ? "wait" : want === "undeliv" && undelivList ? "undeliv" : rules ? "rules" : "silent";
     const waitMode = mode === "wait", undelivMode = mode === "undeliv";
-    const modes = [["silent", view.entity === "deal" ? "Без касаний" : "Без касаний 48 часов", items.length]];
+    const modes = [];
+    if (rules) modes.push(["rules", "Работа с воронкой", rulesCount + " сегодня"]);
+    else modes.push(["silent", isDealView ? "Без касаний" : "Без касаний 48 часов", items.length]);
     if (waitList) modes.push(["wait", "Клиент ждёт ответа", waitList.length]);
-    if (undelivList) modes.push(["undeliv", "Не доставлено", undelivList.length]);
-    if (rules) modes.push(["rules", "Правила этапов", rulesCount]);
+    if (undelivList) modes.push(["undeliv", "Ошибка отправки", undelivList.length]);
     const lm = $("lmode");
     lm.hidden = modes.length < 2;
     lm.replaceChildren(...modes.map(([key, text, n]) => {
       const b = el("button", { type: "button", "aria-pressed": String(mode === key) }, text + " · " + n);
-      b.addEventListener("click", () => { state.lmode = key; state.manager = null; state.ruleStage = null; save(); render(); });
+      b.addEventListener("click", () => { if (isDealView) state.dmode = key; else state.lmode = key; state.manager = null; state.ruleStage = null; save(); render(); });
       return b;
     }));
     if (mode === "rules") return renderRules(rules, snap, mgrById, inGrp);
@@ -793,7 +1075,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
       ? [...snap.managers, ...extra.filter((m) => !snap.managers.some((x) => x.id === m.id))].filter((m) => inGrp(m) && (authors.has(m.id) || (!sel && snap.managers.includes(m))))
       : sel ? [...snap.managers, ...extra].filter((m) => inGrp(m) && open(m.id) > 0) : managers;
 
-    $("title").textContent = waitMode ? "Клиент ждёт ответа" : undelivMode ? (view.entity === "deal" ? "Сделки: сообщение не доставлено" : "Лиды: сообщение не доставлено") : noun.heading;
+    $("title").textContent = waitMode ? "Клиент ждёт ответа" : undelivMode ? (view.entity === "deal" ? "Сделки: ошибка отправки" : "Лиды: ошибка отправки") : noun.heading;
     if (undelivMode) {
       $("sub").textContent = "Сегодня менеджер написал клиенту, Wazzup не доставил, и до клиента после этого ничего не дошло · открытые и закрытые " + noun.acc;
       const u = state.undeliv;
@@ -884,7 +1166,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
           x.viaWazzup ? el("div", { class: "muted", title: "Отправлено из Wazzup, не из Битрикса: автор определён по подписи в тексте или это ответственный", text: "из Wazzup" }) : null),
         el("td", {}, el("div", { class: "hint" }, el("div", {}, el("b", { text: "Что делать: " }), x.hint), el("div", { class: "muted", text: "Wazzup: " + x.reason }))),
         el("td", {}, el("div", { class: "clip2 muted", title: x.text, text: x.text }))));
-      list.append(el("h2", { text: "Не доставлено · " + m.name }), el("div", { class: "group" },
+      list.append(el("h2", { text: "Ошибка отправки · " + m.name }), el("div", { class: "group" },
         el("div", { class: "group-head" },
           el("div", {}, el("b", { text: m.name }), el("span", { text: "  " + ls.length + " " + plural(ls.length, noun.forms) + " · " + grpName(m.group) })),
           close),
