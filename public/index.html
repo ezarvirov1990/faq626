@@ -198,7 +198,7 @@ table.rules.upsell th:last-child { width: 40% !important; }
 .seg button { white-space: nowrap; }
 .stats.rules .stat:nth-child(2) b, .stats.rules .stat:nth-child(3) b { color: var(--ink); }
 .funnel { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr) 64px) 176px; align-items: stretch; }
-.funnel.plain { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }
+.funnel.plain { grid-template-columns: repeat(var(--stages, 7), minmax(0, 1fr)); gap: 8px; }
 .funnel.plain .stg { padding: 10px 12px; }
 .funnel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 16px; }
 .funnel-head h2 { margin-bottom: 12px; }
@@ -460,6 +460,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
   const NOTE_TOUCH = $("note").textContent;
   const NOTE_WAIT = "Клиент ждёт ответа — в чате открытого лида последним написал клиент, и после этого не было ни нашего сообщения (менеджера или бота), ни состоявшегося звонка. Попытка дозвона без разговора ответом не считается — такой лид остаётся в списке с пометкой «звонили, не дозвонились». Возраст лида не важен: сюда попадают и новые обращения, и вернувшиеся клиенты. Время ожидания идёт подряд, включая ночь и выходные. Данные из Bitrix24 обновляются раз в 15 минут.";
   const NOTE_UNDELIV = "Ошибка отправки — сегодня менеджер написал клиенту в чат, Wazzup сообщение не доставил, и после этого до клиента ничего не дошло: ни другое наше сообщение, ни ответ самого клиента. Сюда попадают и закрытые лиды и сделки — именно их легко потерять. Не учитываются шаблоны роботов, Савви и служебные уведомления (о заказе, курьере, готовом отчёте). Запись уходит из списка, когда наше следующее сообщение дошло или клиент написал сам. Проверка — раз в 15 минут.";
+  const NOTE_GENCONF = "Правила этапов «ГенКонф2026» (клиенты, которые не оплатили билет): Новая заявка — сразу перевести в «Взят в работу» и связаться; Взят в работу — до 30 дней: проконсультировать по конференции и тарифам, выяснить категорию билета и когда клиент планирует оплатить, попытка связаться 2 раза в неделю (не реже чем раз в 4 дня), в сделке должен быть комментарий менеджера, клиент не отвечает больше 10 дней — сделку можно закрыть; Выбрал категорию билета — заполнено «Список товаров_нью» (категория билета) и в комментарии написано, почему клиент сейчас не оплачивает; Готов оплачивать — заполнена «Ожидаемая дата оплаты (Готов оплачивать)», дата не просрочена. Этапы после покупки билета и «Не дозвон о переносе» не проверяются. Попытка — день, когда менеджер написал (в том числе с телефона или шаблоном из Wazzup) или позвонил. Сделки разложены на четыре части: «На сегодня» — попытка по графику, новая заявка, дата оплаты; «Двигай дальше» — больше 30 дней на «Взят в работу»; «К закрытию» — клиент не отвечает больше 10 дней; «Заполнить карточку» — нет комментария, причины неоплаты или категории билета. Показаны сделки группы доппродаж B2C. Данные из Bitrix24 обновляются раз в 15 минут.";
   const NOTE_UPSELL = "Правила этапов «B2C Допродажа»: Консультация проведена — до 5 дней, перевести в «Взят в работу» и заполнить «NPS» и «NPS комментарий»; Взят в работу — до 5 дней, затем «Первая попытка допродать»; Первая и Вторая попытка допродать — до 10 дней (дальше сделку двигает робот), 3 попытки связаться за 10 дней (первая — в первый день, вторая — к 4-му, третья — к 7-му), после каждой попытки — комментарий (в тот же или на следующий день), если клиент ответил — комментарий, что решил (докупает или нет); Готов покупать — заполнена «Дата Готов оплачивать (B2C Допродажа)» и не просрочена, стоит задача на эту дату; Отработаны и Первый недозвон (отзывы на площадках) — до 10 дней, 3 попытки попросить отзыв с комментарием после каждой. Клиент не отвечает 10 дней на «Готов покупать», «Отработаны», «Первый недозвон» — сделку закрыть. «NPS» и «NPS комментарий» проверяются с «Взят в работу» до «Готов покупать». Попытка — день, когда менеджер написал (в том числе с телефона или шаблоном из Wazzup) или позвонил. Сделки разложены на четыре части: «На сегодня» — попытка по графику, клиент ответил и нужно записать итог, дата оплаты и задача на неё; «Двигай дальше» — срок этапа вышел, сделку пора перевести на следующий этап; «К закрытию» — клиент не отвечает 10 дней или срок этапа отзывов вышел; «Заполнить карточку» — не хватает NPS, NPS комментария или комментария после попытки. Показаны сделки группы доппродаж B2C. Данные из Bitrix24 обновляются раз в 15 минут.";
   const NOTE_RULES = "Правила этапов «В2С Продажа»: Выявили потребность — до 15 дней, попытка связаться не реже раза в 5 дней (если клиент не назвал срок в «Дате следующего контакта»), комментарий с потребностью, тестом и датой; Выбран продукт — до 30 дней, попытка раз в неделю, тест и сумма заполнены, в комментарии видно, почему клиент не готов оплатить сейчас (проверяется по словам — причина или дата); Готов оплачивать — 1–2 дня, «Дата Готов оплачивать» не просрочена, в день оплаты связаться; Дожимаем — до 5 дней, попытка каждый рабочий день, причина неоплаты в комментарии. На каждой сделке должна быть открытая задача; её срок — договорённая дата связи: до неё ритм попыток не требуется (кроме «Дожимаем»), после — нужна попытка. Попытка — день, когда менеджер написал (в том числе с телефона или шаблоном из Wazzup) или позвонил; дожимы роботов и Савви не считаются. Клиент молчит весь срок этапа — сделку пора закрыть. Сделки разложены на четыре части: «На сегодня» — связаться по графику, день оплаты, клиент ответил, срок этапа только что вышел; «Двигай дальше» — на этапе дольше двух сроков, но клиент на связи (писал в пределах срока этапа или менеджер в комментарии отметил, что клиент на связи — например, с личного телефона); «К закрытию» — на этапе дольше двух сроков, а клиент молчит весь срок, не писал вовсе или не пишет дольше срока этапа; «Заполнить карточку» — со связью всё в порядке, не хватает комментария, теста или суммы. Движение считается по календарной неделе (понедельник–воскресенье, МСК) по всей воронке; стрелками ‹ › можно посмотреть прошлые недели, рядом — изменение к предыдущей неделе в процентных пунктах. Конверсия на стрелке — из сделок, которые за неделю ушли с этапа, доля перешедших дальше по воронке или оплативших; после «Дожимаем» — доля оплативших. Итог недели: пришло на первый этап, оплачено (штук и сумма), закрыто без оплаты; конверсия в оплату — оплачено / (оплачено + закрыто); конверсия в некачественный (в таблице по менеджерам) — закрыто / (оплачено + закрыто), закрыто — «Нереализован», «Послали. не звонить», «Спам». Личные цифры — по текущему ответственному сделки. Данные из Bitrix24 обновляются раз в 15 минут.";
   const NOTE_TASKS = "Перенос без касания — срок задачи по лиду или сделке перенесли, а в тот же день до переноса не было ни нашего звонка, ни нашего сообщения клиенту. Перенос записан на того, кто его сделал; правка срока в первые 10 минут после постановки задачи не считается. Просрочка — у открытой задачи срок прошёл больше 48 часов назад. Данные из Bitrix24 обновляются раз в 15 минут.";
@@ -685,11 +686,17 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
   // is talking but the deal is stuck; no backlog on «Готов оплачивать» / «Дожимаем», everything there is urgent;
   // «fill» — only card fields are missing
   const TODAY_CODES = new Set(["rhythm", "next", "payday", "paydate", "move", "reason", "over", "notask", "taskdue", "paytask"]);
-  const UPSELL = 65;
+  const UPSELL = 65, GENCONF = 53;
   function ruleBucket(x, R) {
     const codes = x.rules.map((r) => r.code);
     // «B2C Допродажа»: past the limit the stage's job is done — move on («Отработаны» / «Первый недозвон» — close);
     // the client silent 10 days — close
+    // «ГенКонф2026»: the client silent 10 days — close; over 30 days on «Взят в работу» — move on
+    if (R.pipeline === GENCONF) {
+      if (codes.includes("silent")) return "close";
+      if (x.over && x.stage === "gwork") return "move";
+      return codes.some((c) => TODAY_CODES.has(c)) ? "today" : "fill";
+    }
     if (R.pipeline === UPSELL) {
       if (codes.includes("silent") || (x.over && ["reviews", "noanswer"].includes(x.stage))) return "close";
       if (x.over && x.stage !== "buy") return "move";
@@ -718,7 +725,13 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     close: "клиент не отвечает 10 дней или срок этапа отзывов вышел — закрыть",
     fill: "не хватает NPS, NPS комментария или комментария после попытки",
   };
-  const bucketAbout = (k, R) => (R.pipeline === UPSELL ? UPSELL_ABOUT[k] : BUCKETS[k].about);
+  const GENCONF_ABOUT = {
+    today: "попытка по графику (2 раза в неделю), новая заявка, дата оплаты",
+    move: "больше 30 дней на «Взят в работу» — перевести в «Выбрал категорию билета» или закрыть",
+    close: "клиент не отвечает больше 10 дней — можно закрыть",
+    fill: "нет комментария, причины неоплаты или категории билета",
+  };
+  const bucketAbout = (k, R) => (R.pipeline === UPSELL ? UPSELL_ABOUT[k] : R.pipeline === GENCONF ? GENCONF_ABOUT[k] : BUCKETS[k].about);
   const BUCKET_BAR = { today: "c", move: "m", close: "t", fill: "f" };
   // stage-to-stage conversion over 7 days: of the deals that left the stage, the share that went further or paid
   function conv(f) {
@@ -737,6 +750,10 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     buy: "дата оплаты не прошла · задача на эту дату",
     reviews: "до 10 дней · 3 попытки попросить отзыв",
     noanswer: "до 10 дней · 3 попытки · комментарий",
+    gnew: "сразу перевести в «Взят в работу»",
+    gwork: "до 30 дней · попытка 2 раза в неделю · комментарий",
+    gchoice: "категория билета · причина неоплаты",
+    gready: "дата оплаты не прошла",
   };
   const ARROW = '<svg viewBox="0 0 28 10" aria-hidden="true"><path d="M0 5h25M21 1l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const days = (n) => n + " " + plural(n, ["день", "дня", "дней"]);
@@ -744,14 +761,15 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
   // and in «Двигай дальше» / «К закрытию» it names the one action that bucket is for
   function ruleText(r, bucket, R) {
     if (r.code !== "over") return r.text;
-    if (R.pipeline === UPSELL) return r.text.replace(/^На этапе \d+ \S+ из \d+ — /, "").replace(/^./, (c) => c.toUpperCase());
+    if (R.pipeline !== 27) return r.text.replace(/^На этапе \d+ \S+( из \d+)? — /, "").replace(/^./, (c) => c.toUpperCase());
     if (bucket === "close") return "Закрыть — клиент давно не на связи";
     const t = r.text.replace(/^На этапе \d+ \S+ из \d+ — /, "");
     return (bucket === "move" ? t.replace(/ или закрыть$/, "") : t).replace(/^./, (c) => c.toUpperCase());
   }
 
   function renderRules(R, snap, mgrById, inGrp, people) {
-    const upsell = R.pipeline === UPSELL;
+    // «B2C Допродажа» and «ГенКонф2026»: no amounts, no stage flow; gc — «ГенКонф2026» texts
+    const upsell = R.pipeline !== 27, gc = R.pipeline === GENCONF;
     const keys = R.stages.map((s) => s.key);
     if (state.ruleStage && !keys.includes(state.ruleStage)) state.ruleStage = null;
     const all = R.items.filter((x) => inGrp(mgrById.get(x.managerId))).map((x) => ({ ...x, bucket: ruleBucket(x, R) }));
@@ -761,9 +779,9 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     const stagesSel = state.ruleStage ? R.stages.filter((s) => s.key === state.ruleStage) : R.stages;
     const openOf = (id) => stagesSel.reduce((a, s) => a + ((s.byManager[id] || {}).open || 0), 0);
     $("title").textContent = "Работа с воронкой";
-    $("sub").textContent = upsell ? "«B2C Допродажа» · группа доппродаж B2C · NPS, допродажа, отзывы — что сделать по сделкам сегодня"
+    $("sub").textContent = gc ? "«ГенКонф2026» · группа доппродаж B2C · клиенты, которые не оплатили билет — что сделать по сделкам сегодня" : upsell ? "«B2C Допродажа» · группа доппродаж B2C · NPS, допродажа, отзывы — что сделать по сделкам сегодня"
       : "«В2С Продажа» · группы продаж B2C МСК и НСК · этапы, конверсия и что сделать по сделкам сегодня";
-    $("note").textContent = (upsell ? NOTE_UPSELL : NOTE_RULES) + " Последний расчёт — " + fmt.format(new Date(R.updatedAt)) + " МСК.";
+    $("note").textContent = (gc ? NOTE_GENCONF : upsell ? NOTE_UPSELL : NOTE_RULES) + " Последний расчёт — " + fmt.format(new Date(R.updatedAt)) + " МСК.";
     $("only-wait-box").hidden = true;
     $("legend").hidden = true; // the manager cards label every bucket themselves
 
@@ -774,16 +792,16 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     $("s-total").textContent = todayLs.length;
     $("s-total-l").textContent = plural(todayLs.length, DEALS) + " — действие сегодня" + (upsell ? "" : ", " + money(todayLs.reduce((a, x) => a + x.amount, 0))) + " · из " + openTotal + " на этапах";
     $("s-wait").textContent = count("move", staged);
-    $("s-wait-l").textContent = upsell ? "двигай дальше: срок этапа вышел" : "двигай дальше: застряли на этапе, клиент на связи";
+    $("s-wait-l").textContent = gc ? "двигай дальше: больше 30 дней в работе" : upsell ? "двигай дальше: срок этапа вышел" : "двигай дальше: застряли на этапе, клиент на связи";
     $("s-week").textContent = count("close", staged);
-    $("s-crit-l").textContent = upsell ? "к закрытию: клиент не отвечает 10 дней" : "к закрытию: давно дольше срока, клиент молчит";
+    $("s-crit-l").textContent = gc ? "к закрытию: клиент не отвечает больше 10 дней" : upsell ? "к закрытию: клиент не отвечает 10 дней" : "к закрытию: давно дольше срока, клиент молчит";
     $("s-mgr").textContent = count("fill", staged);
-    $("s-mgr-l").textContent = upsell ? "заполнить карточку: NPS, комментарии после попыток" : "заполнить карточку: комментарий, тест, сумма";
+    $("s-mgr-l").textContent = gc ? "заполнить карточку: комментарий, причина, категория билета" : upsell ? "заполнить карточку: NPS, комментарии после попыток" : "заполнить карточку: комментарий, тест, сумма";
 
     // funnel: stage → arrow (conversion of the week) → stage …, the week's outcome on the right; a stage click filters below.
     // Movement is by calendar week (Mon–Sun MSK): the current one and finished ones kept on the server, compared to the week before
     const box = $("stages-box"); box.hidden = false;
-    $("stages-h").textContent = (upsell ? "Воронка «B2C Допродажа»" : "Воронка «В2С Продажа»") + (state.ruleStage ? " · выбран этап, нажмите ещё раз, чтобы снять" : "");
+    $("stages-h").textContent = (gc ? "Воронка «ГенКонф2026»" : upsell ? "Воронка «B2C Допродажа»" : "Воронка «В2С Продажа»") + (state.ruleStage ? " · выбран этап, нажмите ещё раз, чтобы снять" : "");
     const weekKeys = [...Object.keys(R.weeks || {}).sort(), ...(R.flow ? ["cur"] : [])];
     if (!weekKeys.includes(state.week)) state.week = "cur";
     const W = state.week === "cur" ? R.flow : (R.weeks || {})[state.week];
@@ -812,6 +830,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     // no stage flow (only «В2С Продажа» has it): stage cards side by side, no arrows
     const plain = !R.flow && !Object.keys(R.weeks || {}).length;
     strip.classList.toggle("plain", plain);
+    strip.style.setProperty("--stages", R.stages.length);
     const flow = W && W.stages ? W.stages : null;
     const approx = W && W.partial ? "≈ " : "";
     const wName = state.week === "cur" ? "За эту неделю" : "За неделю";
@@ -825,7 +844,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
         el("div", { class: "stg-name", text: s.name }),
         el("div", { class: "stg-num" }, String(open), upsell ? null : el("small", { text: " · " + money(sum) })),
         bar,
-        el("div", { class: "stg-overl" }, over ? el("b", { text: over + " дольше срока" }) : el("span", { text: "все в сроке" })),
+        el("div", { class: "stg-overl" }, over ? el("b", { text: over + " дольше срока" }) : el("span", { text: s.limitDays === null ? "срок не задан" : "все в сроке" })),
         el("div", { class: "stg-rule", text: RULE_LINE[s.key] || "до " + days(s.limitDays) }),
         f ? el("div", { class: "stg-flow", title: wName + " по всей воронке" + (W.partial ? " (неполные данные)" : ""),
           text: approx + "за неделю: пришло " + f.entered + " · закрыли " + f.closed + (f.back ? " · вернули назад " + f.back : "") }) : null);
@@ -971,7 +990,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
           el("tbody", {}, ...rs.map((x) => el("tr", {},
             el("td", {}, el("a", { href: snap.portal + "/crm/deal/details/" + x.id + "/", target: "_blank", rel: "noopener", text: "#" + x.id })),
             upsell ? null : el("td", { class: "num", text: x.amount ? Math.round(x.amount).toLocaleString("ru-RU") + " ₽" : "—" }),
-            el("td", { class: "num" }, el("span", { class: "pill " + (today ? (x.over ? "c" : "w") : "n"), text: x.daysOnStage + " из " + s.limitDays })),
+            el("td", { class: "num" }, el("span", { class: "pill " + (today ? (x.over ? "c" : "w") : "n"), text: s.limitDays === null ? days(x.daysOnStage) : x.daysOnStage + " из " + s.limitDays })),
             el("td", { class: "num", text: String(x.attempts) }),
             // the latest attempt may be from before the stage, so it can exist while «Попыток» on the stage is 0
             el("td", { text: x.lastAttempt ? fmt.format(new Date(x.lastAttempt)) : x.lastAttempt === null ? "не было" : "—" }),

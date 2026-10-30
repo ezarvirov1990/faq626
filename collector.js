@@ -4,7 +4,7 @@
 
 import { mskDayStart, untouchedMoves, taskState, OVERDUE_MS } from "./tasks.js";
 import { managerIndex, messageEvents, commentEvents, AUTO_LEAD_STAGES } from "./activity.js";
-import { RULE_PIPELINE, RULE_SELECT, FIELDS, UPSELL_PIPELINE, UPSELL_SELECT, UPSELL_FIELDS, UPSELL_TASK_STAGES, massTexts, chatSignals, buildRules, collectFunnelWeeks, contactNote, payReason } from "./stagerules.js";
+import { RULE_PIPELINE, RULE_SELECT, FIELDS, UPSELL_PIPELINE, UPSELL_SELECT, UPSELL_FIELDS, UPSELL_TASK_STAGES, GENCONF_PIPELINE, GENCONF_SELECT, GENCONF_FIELDS, massTexts, chatSignals, buildRules, collectFunnelWeeks, contactNote, payReason } from "./stagerules.js";
 
 const HOUR = 3600e3;
 const DAY = 24 * HOUR;
@@ -213,7 +213,7 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel 
       key: "deals", entity: "deal", pipeline: p.id, primary: !p.departments,
       title: category.name.replace(/^[^\p{L}\p{N}]+/u, "").trim(), crmType: "DEAL", ownerTypeId: 2,
       listMethod: "crm.deal.list", stageField: "STAGE_ID", stageEntity: `DEAL_STAGE_${p.id}`,
-      filter: { CATEGORY_ID: p.id, STAGE_SEMANTIC_ID: "P" }, extraSelect: p.id === UPSELL_PIPELINE ? UPSELL_SELECT : p.departments ? [] : ["LEAD_ID", ...(p.id === RULE_PIPELINE ? RULE_SELECT : [])],
+      filter: { CATEGORY_ID: p.id, STAGE_SEMANTIC_ID: "P" }, extraSelect: p.id === UPSELL_PIPELINE ? UPSELL_SELECT : p.id === GENCONF_PIPELINE ? GENCONF_SELECT : p.departments ? [] : ["LEAD_ID", ...(p.id === RULE_PIPELINE ? RULE_SELECT : [])],
       thresholdHours: p.days * 24, ownerIds, skipStages: p.skipStages, slow: Boolean(p.slow),
     });
   }
@@ -361,6 +361,7 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel 
         const tasks = own ? own.map((a) => (a.DEADLINE ? Date.parse(a.DEADLINE) : null)).map((t) => (Number.isFinite(t) ? t : null)) : null;
         ruleInputs.push({ pipeline: UPSELL_PIPELINE, it, managerId, chats: chatsOf.get(it.ID), calls: itemCalls, tasks });
       }
+      if (spec.pipeline === GENCONF_PIPELINE) ruleInputs.push({ pipeline: GENCONF_PIPELINE, it, managerId, chats: chatsOf.get(it.ID), calls: itemCalls, tasks: null });
 
       if (spec.primary) {
         const own = calls["task_" + it.ID] || [];
@@ -468,7 +469,7 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel 
     activity.push(...commentEvents(key.split("_")[1], rows || [], index.ids, daySince));
   }
 
-  // 6) «Работа с воронкой» on «В2С Продажа» and «B2C Допродажа»: chats, calls and comments above + the stage flow (hourly, «В2С Продажа» only)
+  // 6) «Работа с воронкой» on «В2С Продажа», «B2C Допродажа» and «ГенКонф2026»: chats, calls and comments above + the stage flow (hourly, «В2С Продажа» only)
   if (views.deals && ruleInputs.length) try {
     const ms = (v) => (v ? Date.parse(v) : null);
     // Date-only fields arrive like "2026-10-27T03:00:00+03:00": keep the calendar day, anchored to MSK midnight
@@ -485,6 +486,8 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel 
       id: Number(it.ID), pipeline, managerId, stageId: it.STAGE_ID, cut, tasks,
       ...(pipeline === UPSELL_PIPELINE ? {
         nps: filled(it[UPSELL_FIELDS.nps]), npsComment: filled(String(it[UPSELL_FIELDS.npsComment] || "").trim()), payDate: day(it[UPSELL_FIELDS.payDate]),
+      } : pipeline === GENCONF_PIPELINE ? {
+        ticket: filled(it[GENCONF_FIELDS.ticket]), payDate: day(it[GENCONF_FIELDS.payDate]),
       } : {
         request: filled(it[FIELDS.request]), test: filled(it[FIELDS.test]),
         nextContact: day(it[FIELDS.nextContact]), payDate: day(it[FIELDS.payDate]),
@@ -505,7 +508,9 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel 
     const of = (p) => deals.filter((d) => d.pipeline === p);
     views.deals.rules = buildRules(of(RULE_PIPELINE), { now, flow: funnel ? funnel.current : null, weeks: funnel ? funnel.weeks : null, worked });
     // other pipelines' rules by pipeline id; slow pipelines skipped in this run keep theirs (mergeDealPipelines)
-    if (of(UPSELL_PIPELINE).length) views.deals.rulesByPipe = { [UPSELL_PIPELINE]: buildRules(of(UPSELL_PIPELINE), { now, pipeline: UPSELL_PIPELINE }) };
+    const byPipe = {};
+    for (const p of [UPSELL_PIPELINE, GENCONF_PIPELINE]) if (of(p).length) byPipe[p] = buildRules(of(p), { now, pipeline: p });
+    if (Object.keys(byPipe).length) views.deals.rulesByPipe = byPipe;
   } catch (e) {
     console.log("stage rules error:", e.message);
     delete views.deals.rules;

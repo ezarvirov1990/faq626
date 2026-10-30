@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stageRules, contactNote, payReason, STAGES, UPSELL_STAGES, UPSELL_PIPELINE, chatSignals, massTexts, buildRules, stageFlow, collectStageFlow, collectFunnelWeeks, weekStartMsk } from "./stagerules.js";
+import { stageRules, contactNote, payReason, STAGES, UPSELL_STAGES, UPSELL_PIPELINE, GENCONF_STAGES, GENCONF_PIPELINE, chatSignals, massTexts, buildRules, stageFlow, collectStageFlow, collectFunnelWeeks, weekStartMsk } from "./stagerules.js";
 import { managerIndex } from "./activity.js";
 
 const DAY = 864e5;
@@ -450,4 +450,38 @@ test("buildRules for «B2C Допродажа»: its own stages, other pipelines
   assert.deepEqual(R.stages.map((s) => s.key), ["consult", "work", "up1", "up2", "buy", "reviews", "noanswer"]);
   assert.deepEqual(R.items.map((x) => x.id), [1]);
   assert.equal(R.stages[1].byManager[307452].over, 1);
+});
+
+// «ГенКонф2026» (the user's rules 30.10.2026)
+const gc = Object.fromEntries(GENCONF_STAGES.map((s) => [s.key, s.id]));
+const gdeal = (o) => ({ ticket: true, payDate: null, attempts: [], replies: [], comments: [], reasonNotes: [], ...o });
+
+test("ГенКонф: «Новая заявка» — move at once; «Взят в работу» — 30 days, attempt twice a week, a comment, silent 10 days", () => {
+  const at = (n) => now - n * DAY;
+  assert.deepEqual(codes(stageRules(gdeal({ stageId: gc.gnew, movedAt: at(0.3) }), now)), []);
+  assert.deepEqual(codes(stageRules(gdeal({ stageId: gc.gnew, movedAt: at(1.2) }), now)), ["over:c"]);
+  // taken 2 days ago, nobody wrote or called, no comment
+  const fresh = stageRules(gdeal({ stageId: gc.gwork, movedAt: at(2), replies: [at(1)] }), now);
+  assert.deepEqual(codes(fresh), ["comment:w", "rhythm:w"]);
+  assert.match(fresh.rules[0].text, /Не было попытки/);
+  // attempts 3 days ago — fine; 5 days ago — due
+  assert.deepEqual(codes(stageRules(gdeal({ stageId: gc.gwork, movedAt: at(8), attempts: [at(3)], replies: [at(3)], comments: [at(20)] }), now)), []);
+  assert.deepEqual(codes(stageRules(gdeal({ stageId: gc.gwork, movedAt: at(8), attempts: [at(5)], replies: [at(5)], comments: [at(5)] }), now)), ["rhythm:w"]);
+  // the client silent more than 10 days — close; over 30 days — move on
+  const s = stageRules(gdeal({ stageId: gc.gwork, movedAt: at(31), attempts: [at(2)], replies: [at(15)], comments: [at(2)] }), now);
+  assert.deepEqual(codes(s), ["over:c", "silent:c"]);
+  assert.match(s.rules[0].text, /«Выбрал категорию билета»/);
+});
+
+test("ГенКонф: «Выбрал категорию билета» — ticket category and a reason comment; «Готов оплачивать» — payment date not past", () => {
+  const at = (n) => now - n * DAY;
+  assert.deepEqual(codes(stageRules(gdeal({ stageId: gc.gchoice, movedAt: at(3), comments: [at(40)], reasonNotes: [at(40)] }), now)), []);
+  assert.deepEqual(codes(stageRules(gdeal({ stageId: gc.gchoice, movedAt: at(3), ticket: false }), now)), ["comment:w", "test:w"]);
+  assert.deepEqual(codes(stageRules(gdeal({ stageId: gc.gchoice, movedAt: at(3), comments: [at(2)] }), now)), ["why:w"]);
+  assert.deepEqual(codes(stageRules(gdeal({ stageId: gc.gready, movedAt: at(3) }), now)), ["paydate:c"]);
+  assert.deepEqual(codes(stageRules(gdeal({ stageId: gc.gready, movedAt: at(3), payDate: now + DAY }), now)), []);
+  assert.match(stageRules(gdeal({ stageId: gc.gready, movedAt: at(9), payDate: at(2) }), now).rules[0].text, /прошла/);
+  const R = buildRules([{ id: 1, managerId: 105725, ...gdeal({ stageId: gc.gready, movedAt: at(3) }) }], { now, pipeline: GENCONF_PIPELINE });
+  assert.deepEqual(R.stages.map((s) => s.key), ["gnew", "gwork", "gchoice", "gready"]);
+  assert.deepEqual(R.items.map((x) => x.id), [1]);
 });

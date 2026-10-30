@@ -47,6 +47,25 @@ export const UPSELL_SELECT = ["MOVED_TIME", ...Object.values(UPSELL_FIELDS)];
 // Open tasks are loaded only where a rule needs them: a task on the payment day
 export const UPSELL_TASK_STAGES = new Set(["C65:UC_PGRP1J"]);
 const ATTEMPTS_NEEDED = 3; // per 10-day stage
+
+// «ГенКонф2026» (the user's rules 30.10.2026): clients who didn't pay for a conference ticket. «Новая заявка» —
+// move to «Взят в работу» at once; «Взят в работу» — up to 30 days, consult on the conference and tariffs, an attempt
+// twice a week, a manager comment, the client silent 10 days — close; «Выбрал категорию билета» — the ticket category
+// in «Список товаров_нью» and a comment why the client doesn't pay now; «Готов оплачивать» — the expected payment date
+// filled and not past. Ticket bought and later stages, «Не дозвон о переносе» aren't checked
+export const GENCONF_PIPELINE = 53;
+export const GENCONF_STAGES = [
+  { id: "C53:NEW", key: "gnew", name: "Новая заявка", limitDays: 1 },
+  { id: "C53:UC_9F7WG3", key: "gwork", name: "Взят в работу", limitDays: 30 },
+  { id: "C53:UC_R6SYYK", key: "gchoice", name: "Выбрал категорию билета", limitDays: null },
+  { id: "C53:PREPAYMENT_INVOIC", key: "gready", name: "Готов оплачивать", limitDays: null },
+];
+export const GENCONF_FIELDS = {
+  ticket: "UF_CRM_1631596713140", // «Список товаров_нью» — the ticket category
+  payDate: "UF_CRM_1599366850036", // «Ожидаемая дата оплаты (Готов оплачивать)»
+};
+export const GENCONF_SELECT = ["MOVED_TIME", ...Object.values(GENCONF_FIELDS)];
+const GENCONF_GAP = 4; // «twice a week»: no more than 4 days between attempts
 // Above this the amount is likely a typo (29.10.2026: 498 000 and 249 000 ₽ on «Выбран продукт»)
 export const BIG_AMOUNT = 150000;
 
@@ -83,7 +102,9 @@ export function stageRules(d, now) {
   const st = STAGES.find((s) => s.id === d.stageId);
   if (!st) {
     const up = UPSELL_STAGES.find((s) => s.id === d.stageId);
-    return up ? upsellRules(d, now, up) : null;
+    if (up) return upsellRules(d, now, up);
+    const gc = GENCONF_STAGES.find((s) => s.id === d.stageId);
+    return gc ? genconfRules(d, now, gc) : null;
   }
   const onStage = (now - d.movedAt) / DAY;
   const full = Math.floor(onStage);
@@ -228,6 +249,53 @@ function upsellRules(d, now, st) {
   return { stage: st.key, daysOnStage: full, over, attempts: attemptDays.length, lastAttempt, lastReply, lastComment, hasTask: tasks ? tasks.length > 0 : null, taskDue, rules };
 }
 
+function genconfRules(d, now, st) {
+  const onStage = (now - d.movedAt) / DAY;
+  const full = Math.floor(onStage);
+  const mine = (ts) => (ts || []).filter((t) => t >= d.movedAt && t <= now);
+  const attempts = mine(d.attempts), replies = mine(d.replies);
+  const attemptDays = new Set(attempts.map(mskDay));
+  const lastReply = replies.length ? Math.max(...replies) : null;
+  const before = d.attempts.filter((t) => t <= now);
+  const lastAttempt = before.length ? Math.max(...before) : null;
+  const today = mskDay(now);
+  const over = st.limitDays !== null && (st.key === "gnew" ? full >= st.limitDays : full > st.limitDays);
+  const notes = mine(d.contactNotes);
+  const lastComment = notes.length ? Math.max(...notes) : null;
+  // a comment anywhere on the deal counts («в сделке должен быть комментарий»), not only on this stage
+  const ever = (ts) => (ts || []).some((t) => t <= now);
+  const rules = [];
+  const add = (code, level, text) => rules.push({ code, level, text });
+
+  if (st.key === "gnew" && over) add("over", "c", `На этапе ${days(full)} — перевести в «Взят в работу» и связаться с клиентом`);
+  if (st.key === "gwork") {
+    if (over) add("over", "c", `На этапе ${days(full)} из 30 — перевести в «Выбрал категорию билета» или закрыть`);
+    const silent10 = full >= 10 && !replies.some((t) => now - t < 10 * DAY);
+    if (silent10) {
+      if (d.cut) add("cut", "w", "Длинная переписка — проверьте ответы клиента в чате");
+      else if (lastComment !== null && now - lastComment <= 10 * DAY) add("noted", "w", "В чате клиент молчит, но по комментарию менеджера клиент на связи — записать итог или перевести");
+      else add("silent", "c", "Клиент не отвечает больше 10 дней — можно закрыть");
+    }
+    // twice a week: the first attempt the day after taking the deal, then no gap over 4 days
+    const last = attempts.length ? Math.max(...attempts) : null;
+    if (last === null ? onStage >= 1 : now - last >= GENCONF_GAP * DAY) {
+      add("rhythm", "w", last === null ? "Не было попытки связаться — проконсультировать по конференции и тарифам" : `${days(Math.floor((now - last) / DAY))} без попытки — связаться (2 раза в неделю)`);
+    }
+    if (onStage >= 1 && !ever(d.comments)) add("comment", "w", "Нет комментария менеджера в сделке");
+  }
+  if (st.key === "gchoice") {
+    if (!d.ticket) add("test", "w", "Не заполнено «Список товаров_нью» — категория билета");
+    if (!ever(d.comments)) add("comment", "w", "Нет комментария — почему клиент не оплачивает сейчас");
+    else if (!ever(d.reasonNotes)) add("why", "w", "В комментарии не видно, почему клиент не оплачивает сейчас");
+  }
+  if (st.key === "gready") {
+    if (!d.payDate) add("paydate", "c", "Не заполнена «Ожидаемая дата оплаты (Готов оплачивать)»");
+    else if (mskDay(d.payDate) < today) add("paydate", "c", `Дата оплаты ${ddmm(d.payDate)} прошла — проверить оплату, перенести дату или вернуть в «Выбрал категорию билета»`);
+  }
+  rules.sort((a, b) => (a.level === b.level ? 0 : a.level === "c" ? -1 : 1));
+  return { stage: st.key, daysOnStage: full, over, attempts: attemptDays.size, lastAttempt, lastReply, lastComment, hasTask: null, taskDue: null, rules };
+}
+
 const WAZZUP_SYSTEM = "=== SYSTEM WZ ===";
 const OUTGOING = /^\s*=+\s*Исходящее сообщение/;
 const MASS_CHATS = 3;
@@ -309,7 +377,7 @@ function prevWorkDay(id, now, schedules) {
 
 // All open deals → the snapshot's views.deals.rules
 export function buildRules(deals, { now, flow = null, weeks = null, worked = new Set(), schedules = SCHEDULES, pipeline = RULE_PIPELINE }) {
-  const stages = (pipeline === UPSELL_PIPELINE ? UPSELL_STAGES : STAGES).map((s) => ({ key: s.key, name: s.name, limitDays: s.limitDays, byManager: {} }));
+  const stages = (pipeline === UPSELL_PIPELINE ? UPSELL_STAGES : pipeline === GENCONF_PIPELINE ? GENCONF_STAGES : STAGES).map((s) => ({ key: s.key, name: s.name, limitDays: s.limitDays, byManager: {} }));
   const byKey = new Map(stages.map((s) => [s.key, s]));
   const items = [];
   for (const d of deals) {
