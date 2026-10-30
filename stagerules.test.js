@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stageRules, contactNote, payReason, STAGES, chatSignals, massTexts, buildRules, stageFlow, collectStageFlow, collectFunnelWeeks, weekStartMsk } from "./stagerules.js";
+import { stageRules, contactNote, payReason, STAGES, UPSELL_STAGES, UPSELL_PIPELINE, chatSignals, massTexts, buildRules, stageFlow, collectStageFlow, collectFunnelWeeks, weekStartMsk } from "./stagerules.js";
 import { managerIndex } from "./activity.js";
 
 const DAY = 864e5;
@@ -380,4 +380,74 @@ test("Дожимаем rhythm, 2/2 owner: yesterday counts, a Sunday attempt is 
   const deals = [deal({ id: 3, managerId: 242224, stageId: st.push, movedAt: Date.parse("2026-10-27T12:00:00+03:00"), comments: [Date.parse("2026-10-27T12:00:00+03:00")], attempts: [Date.parse("2026-11-01T12:00:00+03:00")] })];
   const R = buildRules(deals, { now: monday, worked: new Set([242224]), schedules });
   assert.equal(R.items.flatMap((x) => x.rules).filter((x) => x.code === "rhythm").length, 0);
+});
+
+// «B2C Допродажа» (the user's rules 30.10.2026)
+const up = Object.fromEntries(UPSELL_STAGES.map((s) => [s.key, s.id]));
+const udeal = (o) => ({ nps: true, npsComment: true, payDate: null, attempts: [], replies: [], comments: [], ...o });
+
+test("Допродажа: «Консультация проведена» and «Взят в работу» — 5 days, NPS fields from «Взят в работу» on", () => {
+  assert.deepEqual(codes(stageRules(udeal({ stageId: up.consult, movedAt: now - 3 * DAY, nps: false, npsComment: false }), now)), []);
+  const c = stageRules(udeal({ stageId: up.consult, movedAt: now - 6 * DAY, nps: false }), now);
+  assert.deepEqual(codes(c), ["over:c"]);
+  assert.match(c.rules[0].text, /«Взят в работу»/);
+  const w = stageRules(udeal({ stageId: up.work, movedAt: now - 7 * DAY, nps: false, npsComment: false }), now);
+  assert.deepEqual(codes(w), ["nps:w", "npscomment:w", "over:c"]);
+  assert.match(w.rules.find((r) => r.code === "over").text, /«Первая попытка допродать»/);
+});
+
+test("Допродажа: 3 attempts in 10 days (by days 1, 4, 7), a comment after each, the client's answer written down", () => {
+  const at = (n) => now - n * DAY;
+  // day 5 on the stage, one attempt (with a comment the same day) — the 2nd was due by day 4
+  const r = stageRules(udeal({ stageId: up.up1, movedAt: at(5), attempts: [at(4)], comments: [at(4) + 3600e3] }), now);
+  assert.deepEqual(codes(r), ["rhythm:w"]);
+  assert.match(r.rules[0].text, /Попыток 1 из 3 — нужна попытка допродать/);
+  // two attempts, the older one without a comment on that day or the next
+  const bare = stageRules(udeal({ stageId: up.up2, movedAt: at(6), attempts: [at(5), at(2)], comments: [at(2)] }), now);
+  assert.deepEqual(codes(bare), ["attcomment:w"]);
+  // a comment the next day is fine; yesterday's attempt still has time today
+  assert.deepEqual(codes(stageRules(udeal({ stageId: up.up1, movedAt: at(3), attempts: [at(2)], comments: [at(1)] }), now)), []);
+  assert.deepEqual(codes(stageRules(udeal({ stageId: up.up1, movedAt: at(3), attempts: [at(1)] }), now)), []);
+  // the client answered: no more chase, but the decision must be in a comment
+  const ans = stageRules(udeal({ stageId: up.up1, movedAt: at(8), attempts: [at(7)], comments: [at(7)], replies: [at(3)] }), now);
+  assert.deepEqual(codes(ans), ["reason:w"]);
+  // the robot should have moved it after 10 days
+  assert.match(stageRules(udeal({ stageId: up.up2, movedAt: at(12), attempts: [at(11), at(8), at(5)], comments: [at(11), at(8), at(5)] }), now).rules[0].text, /робот не передвинул/);
+  // NPS is required on the upsell stages, not on reviews
+  assert.ok(stageRules(udeal({ stageId: up.up1, movedAt: at(0.5), nps: false }), now).rules.some((x) => x.code === "nps"));
+  assert.ok(!stageRules(udeal({ stageId: up.reviews, movedAt: at(0.5), nps: false }), now).rules.some((x) => x.code === "nps"));
+});
+
+test("Допродажа: «Отработаны» / «Первый недозвон» — silent 10 days is red «закрыть», a fresh note softens it", () => {
+  const at = (n) => now - n * DAY;
+  const s = stageRules(udeal({ stageId: up.reviews, movedAt: at(12), attempts: [at(11), at(8), at(5)], comments: [at(11), at(8), at(5)] }), now);
+  assert.deepEqual(codes(s), ["over:c", "silent:c"]);
+  const n = stageRules(udeal({ stageId: up.noanswer, movedAt: at(10), attempts: [at(9), at(6), at(3)], comments: [at(9), at(6), at(3), at(2)], contactNotes: [at(2)] }), now);
+  assert.deepEqual(codes(n), ["noted:w"]);
+  // the client wrote 4 days ago: not silent, over the limit — close by the outcome
+  const r = stageRules(udeal({ stageId: up.reviews, movedAt: at(11), attempts: [at(10)], comments: [at(10), at(3)], replies: [at(4)] }), now);
+  assert.deepEqual(codes(r), ["over:c"]);
+  assert.match(r.rules[0].text, /закрыть сделку/);
+});
+
+test("Допродажа: «Готов покупать» — payment date set and not past, a task on that day, silent 10 days → close", () => {
+  const at = (n) => now - n * DAY;
+  const d = Date.parse("2026-11-04T00:00:00+03:00");
+  assert.deepEqual(codes(stageRules(udeal({ stageId: up.buy, movedAt: at(2), payDate: d, tasks: [d + 10 * 3600e3] }), now)), []);
+  assert.deepEqual(codes(stageRules(udeal({ stageId: up.buy, movedAt: at(2), payDate: d, tasks: [now + DAY] }), now)), ["paytask:w"]);
+  assert.deepEqual(codes(stageRules(udeal({ stageId: up.buy, movedAt: at(2), payDate: d, tasks: [] }), now)), ["notask:c"]);
+  assert.deepEqual(codes(stageRules(udeal({ stageId: up.buy, movedAt: at(2), tasks: [now] }), now)), ["paydate:c"]);
+  const past = stageRules(udeal({ stageId: up.buy, movedAt: at(12), payDate: at(3), tasks: [at(3)], replies: [at(11)] }), now);
+  assert.deepEqual(codes(past), ["paydate:c", "silent:c"]);
+});
+
+test("buildRules for «B2C Допродажа»: its own stages, other pipelines' deals left out", () => {
+  const R = buildRules([
+    { id: 1, managerId: 307452, ...udeal({ stageId: up.work, movedAt: now - 7 * DAY }) },
+    { id: 2, managerId: 307452, amount: 1000, ...deal({ stageId: st.need, movedAt: now - 20 * DAY }) },
+  ], { now, pipeline: UPSELL_PIPELINE });
+  assert.equal(R.pipeline, UPSELL_PIPELINE);
+  assert.deepEqual(R.stages.map((s) => s.key), ["consult", "work", "up1", "up2", "buy", "reviews", "noanswer"]);
+  assert.deepEqual(R.items.map((x) => x.id), [1]);
+  assert.equal(R.stages[1].byManager[307452].over, 1);
 });

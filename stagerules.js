@@ -25,6 +25,28 @@ export const FIELDS = {
   payDate: "UF_CRM_1648734958777", // «Дата Готов оплачивать»
 };
 export const RULE_SELECT = ["MOVED_TIME", "OPPORTUNITY", ...Object.values(FIELDS)];
+
+// «B2C Допродажа» (the user's rules 30.10.2026): clients after the result consultation — NPS feedback, an upsell try,
+// then reviews on «Отработаны» / «Первый недозвон» (Кремлева). «Возникла проблема» isn't checked
+export const UPSELL_PIPELINE = 65;
+export const UPSELL_STAGES = [
+  { id: "C65:NEW", key: "consult", name: "Консультация проведена", limitDays: 5 },
+  { id: "C65:UC_Y187CS", key: "work", name: "Взят в работу", limitDays: 5 },
+  { id: "C65:UC_S96BR7", key: "up1", name: "Первая попытка допродать", limitDays: 10 },
+  { id: "C65:UC_6KK0W0", key: "up2", name: "Вторая попытка допродать", limitDays: 10 },
+  { id: "C65:UC_PGRP1J", key: "buy", name: "Готов покупать", limitDays: 10 },
+  { id: "C65:UC_SUSWZZ", key: "reviews", name: "Отработаны", limitDays: 10 },
+  { id: "C65:PREPAYMENT_INVOIC", key: "noanswer", name: "Первый недозвон", limitDays: 10 },
+];
+export const UPSELL_FIELDS = {
+  nps: "UF_CRM_1655798278", // «NPS» (enumeration)
+  npsComment: "UF_CRM_1624448196178", // «NPS комментарий»
+  payDate: "UF_CRM_1781079680850", // «Дата Готов оплачивать (B2C Допродажа)»
+};
+export const UPSELL_SELECT = ["MOVED_TIME", ...Object.values(UPSELL_FIELDS)];
+// Open tasks are loaded only where a rule needs them: a task on the payment day
+export const UPSELL_TASK_STAGES = new Set(["C65:UC_PGRP1J"]);
+const ATTEMPTS_NEEDED = 3; // per 10-day stage
 // Above this the amount is likely a typo (29.10.2026: 498 000 and 249 000 ₽ on «Выбран продукт»)
 export const BIG_AMOUNT = 150000;
 
@@ -59,7 +81,10 @@ export function payReason(text) {
 // One deal on a checked stage → what's wrong. null for stages without rules.
 export function stageRules(d, now) {
   const st = STAGES.find((s) => s.id === d.stageId);
-  if (!st) return null;
+  if (!st) {
+    const up = UPSELL_STAGES.find((s) => s.id === d.stageId);
+    return up ? upsellRules(d, now, up) : null;
+  }
   const onStage = (now - d.movedAt) / DAY;
   const full = Math.floor(onStage);
   const mine = (ts) => ts.filter((t) => t >= d.movedAt && t <= now);
@@ -136,6 +161,71 @@ export function stageRules(d, now) {
   }
   rules.sort((a, b) => (a.level === b.level ? 0 : a.level === "c" ? -1 : 1));
   return { stage: st.key, daysOnStage: full, over, attempts: attemptDays.size, lastAttempt, lastReply, lastComment, hasTask: tasks ? tasks.length > 0 : null, taskDue, rules };
+}
+
+// «B2C Допродажа»: «Консультация проведена» and «Взят в работу» — up to 5 days each, NPS and its comment filled from
+// «Взят в работу» on; both upsell tries, «Отработаны» and «Первый недозвон» — up to 10 days, 3 attempts with a comment
+// after each, the client's answer written down; «Готов покупать» — payment date not past, a task on that day.
+// The client silent 10 days on «Готов покупать», «Отработаны», «Первый недозвон» — close the deal
+function upsellRules(d, now, st) {
+  const full = Math.floor((now - d.movedAt) / DAY);
+  const mine = (ts) => (ts || []).filter((t) => t >= d.movedAt && t <= now);
+  const attempts = mine(d.attempts), replies = mine(d.replies), comments = mine(d.comments);
+  const attemptDays = [...new Set(attempts.map(mskDay))].sort((a, b) => a - b);
+  const lastReply = replies.length ? Math.max(...replies) : null;
+  const before = d.attempts.filter((t) => t <= now);
+  const lastAttempt = before.length ? Math.max(...before) : null;
+  const today = mskDay(now);
+  const over = full > st.limitDays;
+  const notes = mine(d.contactNotes);
+  const lastComment = notes.length ? Math.max(...notes) : null;
+  const noted = lastComment !== null && now - lastComment <= st.limitDays * DAY;
+  const tasks = d.tasks || null;
+  const dated = tasks ? tasks.filter((t) => Number.isFinite(t)) : [];
+  const taskDue = dated.length ? Math.min(...dated) : null;
+  const rules = [];
+  const add = (code, level, text) => rules.push({ code, level, text });
+  const silentRule = (text) => {
+    if (d.cut) add("cut", "w", "Длинная переписка — проверьте ответы клиента в чате");
+    else if (noted) add("noted", "w", "В чате клиент молчит, но по комментарию менеджера клиент на связи — записать итог или перевести");
+    else add("silent", "c", text);
+  };
+  const silent10 = full >= st.limitDays && !replies.some((t) => now - t < st.limitDays * DAY);
+
+  if (st.key === "consult" && over) add("over", "c", `На этапе ${days(full)} из 5 — перевести в «Взят в работу» и заполнить NPS`);
+  if (st.key === "work" && over) add("over", "c", `На этапе ${days(full)} из 5 — перевести в «Первая попытка допродать»`);
+  if (["work", "up1", "up2", "buy"].includes(st.key)) {
+    if (!d.nps) add("nps", "w", "Не заполнено «NPS»");
+    if (!d.npsComment) add("npscomment", "w", "Не заполнен «NPS комментарий»");
+  }
+  if (["up1", "up2", "reviews", "noanswer"].includes(st.key)) {
+    const upsell = st.key === "up1" || st.key === "up2";
+    if (over) add("over", "c", `На этапе ${days(full)} из 10 — ` + (st.key === "up1" ? "робот не передвинул: перевести во «Вторая попытка допродать»"
+      : st.key === "up2" ? "робот не передвинул: перевести в «Отработаны»" : "закрыть сделку"));
+    if (!upsell && silent10) silentRule("Клиент не отвечает 10 дней — закрыть");
+    // 3 attempts over 10 days: the 1st by day 1, the 2nd by day 4, the 3rd by day 7; a client's answer ends the chase
+    const need = full < 1 ? 0 : Math.min(ATTEMPTS_NEEDED, 1 + Math.floor((full - 1) / 3));
+    if (!replies.length && !silent10 && attemptDays.length < need) {
+      add("rhythm", "w", `Попыток ${attemptDays.length} из ${ATTEMPTS_NEEDED} — нужна попытка ${upsell ? "допродать" : "попросить отзыв"}`);
+    }
+    // a comment after every attempt: the same MSK day or the next one
+    const bare = attemptDays.filter((a) => a + 1 < today && !comments.some((t) => t >= dayStart(a) && t < dayStart(a + 2)));
+    if (bare.length) add("attcomment", "w", "Нет комментария после попытки " + bare.map((a) => ddmm(dayStart(a))).join(", "));
+    if (lastReply && mskDay(lastReply) < today && !comments.some((t) => t > lastReply)) {
+      add("reason", "w", upsell ? "Клиент ответил — запишите в комментарий, что решил: докупает или нет" : "Клиент ответил — запишите в комментарий итог: оставит отзыв или нет");
+    }
+  }
+  if (st.key === "buy") {
+    if (!d.payDate) add("paydate", "c", "Не указана «Дата Готов оплачивать (B2C Допродажа)»");
+    else if (mskDay(d.payDate) < today) add("paydate", "c", `Дата оплаты ${ddmm(d.payDate)} прошла — проверить оплату, перенести дату или закрыть`);
+    if (tasks && !tasks.length) add("notask", "c", "Нет открытой задачи — поставить задачу на дату оплаты");
+    else if (tasks && d.payDate && mskDay(d.payDate) >= today && !dated.some((t) => mskDay(t) === mskDay(d.payDate))) {
+      add("paytask", "w", `Нет задачи на день оплаты ${ddmm(d.payDate)}`);
+    }
+    if (silent10) silentRule("Клиент не отвечает 10 дней — закрыть");
+  }
+  rules.sort((a, b) => (a.level === b.level ? 0 : a.level === "c" ? -1 : 1));
+  return { stage: st.key, daysOnStage: full, over, attempts: attemptDays.length, lastAttempt, lastReply, lastComment, hasTask: tasks ? tasks.length > 0 : null, taskDue, rules };
 }
 
 const WAZZUP_SYSTEM = "=== SYSTEM WZ ===";
@@ -218,15 +308,15 @@ function prevWorkDay(id, now, schedules) {
 }
 
 // All open deals → the snapshot's views.deals.rules
-export function buildRules(deals, { now, flow = null, weeks = null, worked = new Set(), schedules = SCHEDULES }) {
-  const stages = STAGES.map((s) => ({ key: s.key, name: s.name, limitDays: s.limitDays, byManager: {} }));
+export function buildRules(deals, { now, flow = null, weeks = null, worked = new Set(), schedules = SCHEDULES, pipeline = RULE_PIPELINE }) {
+  const stages = (pipeline === UPSELL_PIPELINE ? UPSELL_STAGES : STAGES).map((s) => ({ key: s.key, name: s.name, limitDays: s.limitDays, byManager: {} }));
   const byKey = new Map(stages.map((s) => [s.key, s]));
   const items = [];
   for (const d of deals) {
     const r = stageRules({
       ...d, worksToday: worksToday(d.managerId, now, worked, schedules), prevWorkDay: prevWorkDay(d.managerId, now, schedules),
     }, now);
-    if (!r) continue;
+    if (!r || !byKey.has(r.stage)) continue;
     const m = (byKey.get(r.stage).byManager[d.managerId] ||= { open: 0, sum: 0, over: 0 });
     m.open++;
     m.sum += Number(d.amount) || 0;
@@ -240,7 +330,7 @@ export function buildRules(deals, { now, flow = null, weeks = null, worked = new
     });
   }
   // flow — the current calendar week; weeks — finished weeks by their Monday (ISO), kept between collections
-  return { updatedAt: new Date(now).toISOString(), flow, weeks, stages, items };
+  return { pipeline, updatedAt: new Date(now).toISOString(), flow, weeks, stages, items };
 }
 
 // Stage history rows → per checked stage: deals that arrived since `since`, and where deals went when they left it

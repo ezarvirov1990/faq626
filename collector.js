@@ -4,7 +4,7 @@
 
 import { mskDayStart, untouchedMoves, taskState, OVERDUE_MS } from "./tasks.js";
 import { managerIndex, messageEvents, commentEvents, AUTO_LEAD_STAGES } from "./activity.js";
-import { RULE_PIPELINE, RULE_SELECT, FIELDS, massTexts, chatSignals, buildRules, collectFunnelWeeks, contactNote, payReason } from "./stagerules.js";
+import { RULE_PIPELINE, RULE_SELECT, FIELDS, UPSELL_PIPELINE, UPSELL_SELECT, UPSELL_FIELDS, UPSELL_TASK_STAGES, massTexts, chatSignals, buildRules, collectFunnelWeeks, contactNote, payReason } from "./stagerules.js";
 
 const HOUR = 3600e3;
 const DAY = 24 * HOUR;
@@ -71,6 +71,8 @@ export function mergeDealPipelines(fresh, prev) {
     items: [...f.items, ...p.items.filter((x) => carried.has(x.pipeline))].sort((a, b) => a.silentSince.localeCompare(b.silentSince)),
     extraManagers: [...extra.values()].sort((a, b) => a.name.localeCompare(b.name, "ru")),
   };
+  const rulesByPipe = { ...Object.fromEntries(Object.entries(p.rulesByPipe || {}).filter(([id]) => carried.has(Number(id)))), ...(f.rulesByPipe || {}) };
+  if (Object.keys(rulesByPipe).length) deals.rulesByPipe = rulesByPipe;
   // Feed: today's messages and notes of other pipelines' people come from the slow run — keep them
   let activity = fresh.activity;
   if (activity && prev.activity) {
@@ -211,7 +213,7 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel 
       key: "deals", entity: "deal", pipeline: p.id, primary: !p.departments,
       title: category.name.replace(/^[^\p{L}\p{N}]+/u, "").trim(), crmType: "DEAL", ownerTypeId: 2,
       listMethod: "crm.deal.list", stageField: "STAGE_ID", stageEntity: `DEAL_STAGE_${p.id}`,
-      filter: { CATEGORY_ID: p.id, STAGE_SEMANTIC_ID: "P" }, extraSelect: p.departments ? [] : ["LEAD_ID", ...(p.id === RULE_PIPELINE ? RULE_SELECT : [])],
+      filter: { CATEGORY_ID: p.id, STAGE_SEMANTIC_ID: "P" }, extraSelect: p.id === UPSELL_PIPELINE ? UPSELL_SELECT : p.departments ? [] : ["LEAD_ID", ...(p.id === RULE_PIPELINE ? RULE_SELECT : [])],
       thresholdHours: p.days * 24, ownerIds, skipStages: p.skipStages, slow: Boolean(p.slow),
     });
   }
@@ -237,7 +239,8 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel 
         `crm.activity.list?filter[OWNER_TYPE_ID]=${spec.ownerTypeId}&filter[OWNER_ID]=${it.ID}&filter[TYPE_ID]=2` +
         `&order[CREATED]=DESC&select[]=ID&select[]=CREATED&select[]=DIRECTION&select[]=START_TIME&select[]=END_TIME`;
       // Open tasks feed only the «Задачи» tab, which covers the main groups
-      if (spec.primary) cmds["task_" + it.ID] =
+      // «B2C Допродажа» stage rules need tasks only on «Готов покупать» (a task on the payment day)
+      if (spec.primary || (spec.pipeline === UPSELL_PIPELINE && UPSELL_TASK_STAGES.has(it.STAGE_ID))) cmds["task_" + it.ID] =
         `crm.activity.list?filter[OWNER_TYPE_ID]=${spec.ownerTypeId}&filter[OWNER_ID]=${it.ID}&filter[PROVIDER_ID]=CRM_TASKS_TASK` +
         `&filter[COMPLETED]=N&select[]=ID&select[]=DEADLINE`;
       // A task robots created on the lead stays bound to the lead after it becomes a deal (it shows in the
@@ -351,7 +354,12 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel 
         const own = calls["task_" + it.ID] || [];
         const open = own.length ? own : calls["ltask_" + it.ID] || [];
         const tasks = open.map((a) => (a.DEADLINE ? Date.parse(a.DEADLINE) : null)).map((t) => (Number.isFinite(t) ? t : null));
-        ruleInputs.push({ it, managerId, chats: chatsOf.get(it.ID), calls: itemCalls, tasks });
+        ruleInputs.push({ pipeline: RULE_PIPELINE, it, managerId, chats: chatsOf.get(it.ID), calls: itemCalls, tasks });
+      }
+      if (spec.pipeline === UPSELL_PIPELINE) {
+        const own = calls["task_" + it.ID];
+        const tasks = own ? own.map((a) => (a.DEADLINE ? Date.parse(a.DEADLINE) : null)).map((t) => (Number.isFinite(t) ? t : null)) : null;
+        ruleInputs.push({ pipeline: UPSELL_PIPELINE, it, managerId, chats: chatsOf.get(it.ID), calls: itemCalls, tasks });
       }
 
       if (spec.primary) {
@@ -460,7 +468,7 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel 
     activity.push(...commentEvents(key.split("_")[1], rows || [], index.ids, daySince));
   }
 
-  // 6) «Правила этапов» on «В2С Продажа»: chats, calls and comments above + the stage flow (hourly)
+  // 6) «Работа с воронкой» on «В2С Продажа» and «B2C Допродажа»: chats, calls and comments above + the stage flow (hourly, «В2С Продажа» only)
   if (views.deals && ruleInputs.length) try {
     const ms = (v) => (v ? Date.parse(v) : null);
     // Date-only fields arrive like "2026-10-27T03:00:00+03:00": keep the calendar day, anchored to MSK midnight
@@ -468,17 +476,21 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel 
     const filled = (v) => !(v == null || v === "" || v === false || (Array.isArray(v) && !v.length));
     // A call is connected when it lasted (END_TIME - START_TIME > 0; failed calls give 0)
     const connected = (x) => Date.parse(x.END_TIME) - Date.parse(x.START_TIME) > 0;
-    const deals = ruleInputs.map(({ it, managerId, chats, calls, tasks }) => {
+    const deals = ruleInputs.map(({ pipeline, it, managerId, chats, calls, tasks }) => {
       const movedAt = ms(it.MOVED_TIME) || ms(it.DATE_CREATE);
       // The 50-message page may not reach back to the stage move: replies before its oldest message are unknown
       const cut = chats.some((c) => { const sg = signals.get(c); return sg.full && sg.oldest > movedAt; });
       const notes = (comments.out["cm_deal_" + it.ID] || []).filter((c) => index.ids.has(Number(c.AUTHOR_ID)));
       return {
-      id: Number(it.ID), managerId, stageId: it.STAGE_ID, cut, tasks,
+      id: Number(it.ID), pipeline, managerId, stageId: it.STAGE_ID, cut, tasks,
+      ...(pipeline === UPSELL_PIPELINE ? {
+        nps: filled(it[UPSELL_FIELDS.nps]), npsComment: filled(String(it[UPSELL_FIELDS.npsComment] || "").trim()), payDate: day(it[UPSELL_FIELDS.payDate]),
+      } : {
+        request: filled(it[FIELDS.request]), test: filled(it[FIELDS.test]),
+        nextContact: day(it[FIELDS.nextContact]), payDate: day(it[FIELDS.payDate]),
+      }),
       reasonNotes: notes.filter((c) => payReason(c.COMMENT)).map((c) => Date.parse(c.CREATED)),
       movedAt, amount: Number(it.OPPORTUNITY) || 0,
-      request: filled(it[FIELDS.request]), test: filled(it[FIELDS.test]),
-      nextContact: day(it[FIELDS.nextContact]), payDate: day(it[FIELDS.payDate]),
       attempts: [...chats.flatMap((c) => signals.get(c).human), ...calls.filter((x) => String(x.DIRECTION) === "2").map((x) => Date.parse(x.CREATED))],
       replies: [...chats.flatMap((c) => signals.get(c).client), ...calls.filter(connected).map((x) => Date.parse(x.CREATED))],
       comments: notes.map((c) => Date.parse(c.CREATED)),
@@ -486,11 +498,14 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel 
       };
     });
     // stage flow by calendar week: the current one (recounted hourly) and finished ones kept from the previous snapshot
-    const funnel = await collectFunnelWeeks(bx, now, prevFunnel, { maxAgeMs: FLOW_MS }).catch((e) => { console.log("funnel weeks error:", e.message); return prevFunnel; });
+    const funnel = !ruleInputs.some((r) => r.pipeline === RULE_PIPELINE) ? null : await collectFunnelWeeks(bx, now, prevFunnel, { maxAgeMs: FLOW_MS }).catch((e) => { console.log("funnel weeks error:", e.message); return prevFunnel; });
     // Everyone with any own action today: feed events plus calls (any direction) on rule deals
     const worked = new Set(activity.map((e) => Number(e.managerId)));
     for (const r of ruleInputs) if (r.calls.some((x) => Date.parse(x.CREATED) >= daySince)) worked.add(Number(r.managerId));
-    views.deals.rules = buildRules(deals, { now, flow: funnel ? funnel.current : null, weeks: funnel ? funnel.weeks : null, worked });
+    const of = (p) => deals.filter((d) => d.pipeline === p);
+    views.deals.rules = buildRules(of(RULE_PIPELINE), { now, flow: funnel ? funnel.current : null, weeks: funnel ? funnel.weeks : null, worked });
+    // other pipelines' rules by pipeline id; slow pipelines skipped in this run keep theirs (mergeDealPipelines)
+    if (of(UPSELL_PIPELINE).length) views.deals.rulesByPipe = { [UPSELL_PIPELINE]: buildRules(of(UPSELL_PIPELINE), { now, pipeline: UPSELL_PIPELINE }) };
   } catch (e) {
     console.log("stage rules error:", e.message);
     delete views.deals.rules;
