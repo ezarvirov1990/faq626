@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shiftNow, decideAlerts, alertText, SILENCE_MS, recipientOnDuty, alertRecipient } from "./alerts.js";
+import { shiftNow, decideAlerts, alertText, SILENCE_MS, recipientOnDuty, alertRecipient, idleDay } from "./alerts.js";
 
 test("after the head's day alerts go to Кондратьева during her shift (Mon–Fri 10–19 MSK)", () => {
   const msk = (s) => Date.parse(s + "+03:00");
@@ -89,4 +89,32 @@ test("текст уведомления", () => {
   const a = run("2026-09-30T12:21:00+03:00", [ev(2, "2026-09-30T12:00:00+03:00")]).send.find((x) => x.manager.id === 2);
   assert.match(alertText(a, { online: true }), /Алсу Муртазина.*20 минут.*12:00 МСК, 📞 звонок.*в сети/s);
   assert.ok(SILENCE_MS === 20 * 60e3);
+});
+
+test("idleDay: pauses of 20+ min inside the shift, the last one up to now or the shift end", () => {
+  const msk = (s) => Date.parse(s + "+03:00");
+  const day = msk("2026-11-02T00:00:00"); // Monday
+  const s52 = { tz: 3, from: 10, to: 19, weekdays: true };
+  const ev = (t, kind = "msg") => ({ at: msk("2026-11-02T" + t), kind });
+  const evs = [ev("09:40:00"), ev("10:30:00"), ev("10:45:00", "call"), ev("11:30:00"), ev("11:40:00")];
+  // 09:40→10:30 clipped to 10:00 = 30 min; 10:45→11:30 = 45 min; 11:40→now 12:00 = 20 min, still going
+  const r = idleDay(evs, s52, day, msk("2026-11-02T12:00:00"));
+  assert.deepEqual(r.pauses.map((p) => [p.ms / 60e3, p.before, p.after, p.open]), [[30, "msg", "msg", false], [45, "call", "msg", false], [20, "msg", null, true]]);
+  assert.equal(r.totalMs, 95 * 60e3);
+  assert.equal(r.actions, 4);
+  // a past day: the last pause runs to the shift end; the start before the first action isn't counted
+  const past = idleDay([ev("11:00:00"), ev("18:30:00")], s52, day, day + 864e5);
+  assert.deepEqual(past.pauses.map((p) => p.ms / 60e3), [450, 30]);
+  // weekend for 5/2, a day without actions for 2/2, absent — no inactivity
+  assert.equal(idleDay([], s52, msk("2026-11-01T00:00:00"), day), null);
+  const s22 = { tz: 3, from: 9, to: 21, weekdays: false };
+  assert.equal(idleDay([], s22, day, msk("2026-11-02T15:00:00")), null);
+  // 2/2: one stage move on a day off isn't a working day; five actions are
+  assert.equal(idleDay([ev("10:57:00", "move")], s22, day, day + 864e5), null);
+  assert.equal(idleDay(evs, s22, day, day + 864e5).pauses.length, 3);
+  assert.equal(idleDay(evs, s52, day, msk("2026-11-02T12:00:00"), { absent: true }), null);
+  // НСК shift 10–19 local = 06–15 MSK
+  const nsk = idleDay([ev("06:10:00"), ev("07:00:00")], { tz: 7, from: 10, to: 19, weekdays: true }, day, msk("2026-11-02T07:10:00"));
+  assert.equal(nsk.start, msk("2026-11-02T06:00:00"));
+  assert.deepEqual(nsk.pauses.map((p) => p.ms / 60e3), [50]);
 });

@@ -95,6 +95,17 @@ h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em
 .mgr-count small { font: 500 12px var(--mono); color: var(--muted); }
 .mgr-meta { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
 .mgr-meta .wait { color: var(--crit); font-weight: 600; }
+.idle { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.idle b { color: var(--ink); font-weight: 600; }
+.idle-bar { position: relative; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.idle-bar i { position: absolute; top: 0; bottom: 0; background: var(--warn); }
+.idle-bar i.open { background: var(--crit); }
+.idle-bar u { position: absolute; top: 0; bottom: 0; right: 0; background: var(--bg); opacity: .55; }
+.idle-ends { display: flex; justify-content: space-between; font: 500 11px var(--mono); }
+.pause-row .ev-what { color: var(--muted); }
+.group.pauses { margin-bottom: 28px; }
+.pipes button[disabled] { opacity: .45; cursor: default; }
+.pipes button[disabled]:hover { color: var(--muted); border-color: var(--line); }
 .bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--line); }
 .bar i { display: block; height: 100%; }
 .bar .w { background: var(--warn); } .bar .h { background: var(--high); } .bar .c { background: var(--crit); }
@@ -371,7 +382,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
-  const state = { ruleStage: null, week: "cur", convOpen: false, bucket: "today", showAll: false, snap: null, hints: {}, undeliv: null, status: null, loadError: null, view: "leads", grp: "", pipe: 27, lmode: "silent", dmode: "rules", onlyWait: false, manager: null, activity: null, feedLimit: 200 };
+  const state = { ruleStage: null, week: "cur", convOpen: false, bucket: "today", showAll: false, snap: null, hints: {}, undeliv: null, status: null, loadError: null, view: "leads", grp: "", pipe: 27, lmode: "silent", dmode: "rules", onlyWait: false, manager: null, activity: null, feedLimit: 200, feedDay: null, pastFeed: {} };
   try {
     const s = JSON.parse(localStorage.getItem("ldash") || "{}");
     // «Сделки» open on «В2С Продажа» unless another pipeline was picked
@@ -581,6 +592,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
   }
 
   // «Лента событий»: что сегодня делали менеджеры и кто сейчас в сети
+  const NOTE_IDLE = " Неактивность — сумма пауз от 20 минут внутри смены менеджера по его графику: между двумя действиями или от последнего действия до конца смены (сегодня — до текущего момента, такая пауза отмечена красным). Время до первого действия в смене не считается. Считается для менеджеров с графиком (группы продаж B2C МСК и НСК, кроме руководителя); в выходные по графику и в дни отсутствия по графику отсутствий не считается, у графика 2/2 рабочий день — тот, где было хоть одно действие. Звонки и переписка с личного телефона в Bitrix24 не видны и считаются паузой. Прошлые дни хранятся с 02.11.2026.";
   const NOTE_FEED = "Лента — действия менеджеров групп продаж и доппродаж B2C за сегодня (по Москве): сообщения клиентам в чатах Открытых линий, звонки, смена стадии лидов и сделок, заметки в карточках, задачи (новые, закрытые, перенос срока). Не учитывается автоматика, даже если Bitrix24 записал её на менеджера: ответы бота Suvvy, автосообщения и перемещения на стадиях «Недозвон третьи сутки» и «Робот…», шаблонные дожимы, назначение ответственного (и переход лида на «Взят в работу» вместе с ним), создание и закрытие задач роботов («Первые сутки…», «Контроль…», «Оказать консультацию…»). «В сети» — статус из Bitrix24. Звонки, стадии, задачи и сообщения обновляются раз в 30 секунд. Заметки — в течение минуты в карточках, где за последние полчаса был звонок, сообщение или смена стадии; в остальных — раз в 15 минут. Просмотр карточек Bitrix24 не записывает, поэтому его в ленте нет.";
   const hm = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
   const talk = (s) => (s >= 60 ? Math.round(s / 60) + " мин" : s + " с");
@@ -600,8 +612,38 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     }
   }
 
+  // inactivity: total, pause count, the shift strip with pauses (idleDay on the server)
+  const KIND_SHORT = { msg: "сообщение", comment: "заметка", call: "звонок", move: "смена стадии", task_new: "новая задача", task_done: "закрыта задача", task_deadline: "перенос срока" };
+  const pauseDur = (ms) => { const m = Math.round(ms / 60e3); return m < 60 ? m + " мин" : Math.floor(m / 60) + " ч" + (m % 60 ? " " + (m % 60) + " мин" : ""); };
+  function idleBlock(r, now) {
+    if (!r.actions && !r.pauses.length) return el("div", { class: "idle" }, el("span", { text: "Действий в смену не было" }));
+    const span = r.end - r.start;
+    const bar = el("div", { class: "idle-bar", "aria-hidden": "true" });
+    for (const p of r.pauses) {
+      const i = el("i", { class: p.open ? "open" : "", title: hm.format(new Date(p.from)) + "–" + hm.format(new Date(p.to)) + " · " + pauseDur(p.ms) });
+      i.style.left = ((p.from - r.start) / span) * 100 + "%";
+      i.style.width = ((p.to - p.from) / span) * 100 + "%";
+      bar.append(i);
+    }
+    // the rest of today's shift hasn't happened yet
+    if (now < r.end) { const u = el("u"); u.style.width = ((r.end - Math.max(now, r.start)) / span) * 100 + "%"; bar.append(u); }
+    return el("div", { class: "idle", title: "Паузы от 20 минут внутри смены, время МСК" },
+      el("span", {}, "Неактивность ", el("b", { text: r.totalMs ? pauseDur(r.totalMs) : "нет" }),
+        r.pauses.length ? " · " + r.pauses.length + " " + plural(r.pauses.length, ["пауза", "паузы", "пауз"]) : ""),
+      bar, el("div", { class: "idle-ends" }, el("span", { text: hm.format(new Date(r.start)) }), el("span", { text: hm.format(new Date(r.end)) })));
+  }
+
   function renderFeed(managers, mgrById, inGrp, now) {
-    const A = state.activity;
+    const past = Boolean(state.feedDay);
+    const A = past ? state.pastFeed[state.feedDay] : state.activity;
+    if (past && (!A || A.loading || A.failed)) {
+      $("mgrs").replaceChildren(el("div", { class: "muted", text: A && A.failed ? "Нет данных за этот день" : "Загружаю день…" }));
+      $("list").replaceChildren();
+      return;
+    }
+    if (past) managers = A.managers.filter(inGrp);
+    const idle = A.idle || {};
+    const dayName = past ? dayFmt.format(new Date(state.feedDay + "T12:00:00+03:00")) : "сегодня";
     const evs = A.events.filter((e) => inGrp(mgrById.get(e.managerId)));
     const on = (id) => A.online[id] || {};
     const count = (ls, k) => ls.filter((e) => e.kind === k).length;
@@ -609,19 +651,23 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     const talkMin = Math.round(calls.reduce((a, e) => a + (e.ok ? e.seconds : 0), 0) / 60);
 
     $("title").textContent = "Лента событий";
-    $("sub").textContent = "Группы продаж B2C МСК, НСК и доппродаж · что менеджеры делали сегодня и кто сейчас в Bitrix24";
+    $("sub").textContent = past ? "Группы продаж B2C МСК, НСК и доппродаж · что менеджеры делали " + dayName
+      : "Группы продаж B2C МСК, НСК и доппродаж · что менеджеры делали сегодня и кто сейчас в Bitrix24";
+    $("note").textContent = NOTE_FEED + NOTE_IDLE;
     const onlineNow = managers.filter((m) => on(m.id).online).length;
-    $("s-total").textContent = onlineNow;
-    $("s-total-l").textContent = "в сети сейчас из " + managers.length;
+    const worked = managers.filter((m) => evs.some((e) => e.managerId === m.id)).length;
+    $("s-total").textContent = past ? worked : onlineNow;
+    $("s-total-l").textContent = (past ? "работали из " : "в сети сейчас из ") + managers.length;
     $("s-wait").textContent = evs.length;
-    $("s-wait-l").textContent = plural(evs.length, ["событие", "события", "событий"]) + " сегодня";
+    $("s-wait-l").textContent = plural(evs.length, ["событие", "события", "событий"]) + " " + (past ? "за " + dayName : "сегодня");
     $("s-week").textContent = count(evs, "msg");
     $("s-crit-l").textContent = "сообщений клиентам";
     $("s-mgr").textContent = calls.length;
     $("s-mgr-l").textContent = plural(calls.length, ["звонок", "звонка", "звонков"]) + " · " + talkMin + " мин разговоров";
 
     const fresh = $("fresh");
-    if (A.updatedAt) {
+    if (past) { fresh.className = "fresh"; fresh.textContent = "Лента за " + dayName; fresh.title = ""; }
+    else if (A.updatedAt) {
       const age = now - Date.parse(A.updatedAt);
       fresh.className = "fresh" + (age > 10 * 60e3 || A.error ? " stale" : "");
       fresh.textContent = "Лента обновлена " + ago(age) + (A.error ? " · последний сбор не удался" : "");
@@ -631,7 +677,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
 
     const lastOf = new Map();
     for (const e of evs) if (!lastOf.has(e.managerId)) lastOf.set(e.managerId, e);
-    const sorted = [...managers].sort((a, b) => (on(b.id).online ? 1 : 0) - (on(a.id).online ? 1 : 0) ||
+    const sorted = [...managers].sort((a, b) => (past ? 0 : (on(b.id).online ? 1 : 0) - (on(a.id).online ? 1 : 0)) ||
       ((lastOf.get(b.id) || {}).at || 0) - ((lastOf.get(a.id) || {}).at || 0) || a.name.localeCompare(b.name, "ru"));
     const box = $("mgrs"); box.replaceChildren();
     for (const m of sorted) {
@@ -649,11 +695,12 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
       const b = el("button", { type: "button", class: "mgr", "aria-pressed": String(state.manager === m.id), title: "Показать события менеджера" },
         el("div", { class: "mgr-top" },
           el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: grpName(m.group) })),
-          el("span", { class: "dot " + (st.online && !st.absentUntil ? "on" : "off"),
+          past ? null : el("span", { class: "dot " + (st.online && !st.absentUntil ? "on" : "off"),
             text: st.absentUntil ? "отсутствует до " + fmt.format(new Date(st.absentUntil)).slice(0, 5)
               : st.online ? "в сети" : st.lastSeenAt ? "был(а) в " + hm.format(new Date(st.lastSeenAt)) : "не в сети" })),
-        el("div", { class: "mgr-meta", text: "Последняя активность: " + (last ? hm.format(new Date(last.at)) + " · " + ago(now - last.at) : "сегодня не было") }),
+        el("div", { class: "mgr-meta", text: "Последняя активность: " + (last ? hm.format(new Date(last.at)) + (past ? "" : " · " + ago(now - last.at)) : past ? "не было" : "сегодня не было") }),
         last ? el("div", { class: "mgr-last", text: evText(last) }) : null,
+        idle[m.id] ? idleBlock(idle[m.id], past ? Infinity : now) : null,
         parts.length ? el("div", { class: "counts" }, ...parts.map(([i, n, t]) => el("span", { title: t, text: i + " " + n }))) : null);
       b.addEventListener("click", () => { state.manager = state.manager === m.id ? null : m.id; state.feedLimit = 200; render(); });
       box.append(b);
@@ -663,20 +710,29 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     const shown = state.manager ? evs.filter((e) => e.managerId === state.manager) : evs;
     const who = state.manager ? mgrById.get(state.manager) : null;
     const head = el("div", { class: "group-head" },
-      el("div", {}, el("b", { text: who ? who.name : "Все менеджеры" }), el("span", { text: "  " + shown.length + " " + plural(shown.length, ["событие", "события", "событий"]) + " за сегодня" })));
+      el("div", {}, el("b", { text: who ? who.name : "Все менеджеры" }), el("span", { text: "  " + shown.length + " " + plural(shown.length, ["событие", "события", "событий"]) + " за " + dayName })));
     if (who) { const c = el("button", { type: "button", class: "close", text: "Показать всех" }); c.addEventListener("click", () => { state.manager = null; render(); }); head.append(c); }
     const rows = shown.slice(0, state.feedLimit).map((e) => el("div", { class: "ev" },
       el("span", { class: "ev-time", text: hm.format(new Date(e.at)) }),
       el("span", { class: "ev-who", text: (mgrById.get(e.managerId) || {}).name || "—" }),
       el("span", { class: "ev-what", text: evText(e) })));
     const group = el("div", { class: "group" }, head, ...rows);
-    if (!shown.length) group.append(el("div", { class: "ev" }, el("span"), el("span", { class: "muted", text: "Сегодня событий пока нет" })));
+    if (!shown.length) group.append(el("div", { class: "ev" }, el("span"), el("span", { class: "muted", text: past ? "Событий не было" : "Сегодня событий пока нет" })));
+    // the selected manager's pauses, oldest first
+    const ir = who ? idle[who.id] : null;
+    const pauses = ir && ir.pauses.length ? el("div", { class: "group pauses" },
+      el("div", { class: "group-head" }, el("div", {}, el("b", { text: "Паузы" }), el("span", { text: "  " + ir.pauses.length + " · всего " + pauseDur(ir.totalMs) + " · смена " + hm.format(new Date(ir.start)) + "–" + hm.format(new Date(ir.end)) + " МСК" }))),
+      ...ir.pauses.map((p) => el("div", { class: "ev pause-row" },
+        el("span", { class: "ev-time", text: hm.format(new Date(p.from)) }),
+        el("span", { class: "ev-who", text: pauseDur(p.ms) }),
+        el("span", { class: "ev-what", text: "до " + (p.open ? "сейчас" : hm.format(new Date(p.to))) + " · перед паузой: " + (KIND_SHORT[p.before] || p.before) + (p.after ? " · после: " + (KIND_SHORT[p.after] || p.after) : p.open ? " · пауза идёт" : " · до конца смены") })))) : null;
     if (shown.length > state.feedLimit) {
       const more = el("button", { type: "button", class: "close", text: "Показать ещё" });
       more.addEventListener("click", () => { state.feedLimit += 200; render(); });
       group.append(el("div", { class: "more" }, more));
     }
-    list.append(el("h2", { text: "Лента за сегодня" }), group);
+    if (pauses) list.append(el("h2", { text: "Неактивность за " + dayName }), pauses);
+    list.append(el("h2", { text: "Лента за " + dayName }), group);
   }
 
   const money = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1).replace(".", ",") + " млн ₽" : Math.round(n).toLocaleString("ru-RU") + " ₽");
@@ -1050,6 +1106,33 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
       b.addEventListener("click", () => { state.pipe = p.id; state.manager = null; state.ruleStage = null; save(); render(); });
       return b;
     }));
+    // «Лента событий»: today and the saved days (the last week)
+    if (isFeed) {
+      const yesterday = new Date(Date.now() + 3 * HOUR - 24 * HOUR).toISOString().slice(0, 10);
+      const days = (state.activity.days || []).slice(0, 7);
+      const label = (d) => (d === yesterday ? "Вчера" : new Intl.DateTimeFormat("ru-RU", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "Europe/Moscow" }).format(new Date(d + "T12:00:00+03:00")));
+      const pick = (d) => {
+        state.feedDay = d; state.manager = null; state.feedLimit = 200;
+        if (d && !state.pastFeed[d]) {
+          state.pastFeed[d] = { loading: true };
+          fetch("api/activity?day=" + d, { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject())).then((j) => { state.pastFeed[d] = j; })
+            .catch(() => { state.pastFeed[d] = { failed: true }; }).then(render);
+        }
+        render();
+      };
+      const btn = (d, text, title) => {
+        const b = el("button", { type: "button", "aria-pressed": String(state.feedDay === d), title: title || "" }, text);
+        b.addEventListener("click", () => pick(d));
+        return b;
+      };
+      const items = [btn(null, "Сегодня"), ...days.map((d) => btn(d, label(d)))];
+      if (!days.includes(yesterday)) {
+        const b = el("button", { type: "button", disabled: "", title: "Дни сохраняются с 02.11.2026 — вчерашний день появится завтра" }, "Вчера");
+        items.splice(1, 0, b);
+      }
+      pb.hidden = false;
+      pb.replaceChildren(...items);
+    } else state.feedDay = null;
 
     // вкладки со счётчиками по текущим фильтрам; «Сделки» on «В2С Продажа» count «Работа с воронкой · Сегодня»
     // «Работа с воронкой» of the selected pipeline: «В2С Продажа» in views.deals.rules, others in rulesByPipe

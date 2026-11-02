@@ -77,6 +77,36 @@ export function decideAlerts({ now, managers, events, absent = {}, open = {}, me
   return { send, open: next };
 }
 
+// «Лента событий» → inactivity of a day (the user's choice 02.11.2026, variant A): pauses of SILENCE_MS+ inside the
+// shift — between two actions, or from the last action to the shift end (today — to now, the pause still going),
+// the same rule as the alerts. The start of the shift before the first action isn't counted.
+// dayStart — MSK midnight of the day; events — that day's feed events of the manager (any order).
+// null: no schedule, a 5/2 weekend, a 2/2 day without actions (a day off), absent per the chart
+export const MIN_WORKDAY_ACTIONS = 5;
+export function idleDay(events, s, dayStart, now, { absent = false, minMs = SILENCE_MS } = {}) {
+  if (!s || absent) return null;
+  const local = dayStart + 12 * HOUR + s.tz * HOUR; // the manager's calendar day that matches this MSK day
+  const weekday = new Date(local).getUTCDay();
+  if (s.weekdays && (weekday === 0 || weekday === 6)) return null;
+  const midnight = Math.floor(local / DAY) * DAY - s.tz * HOUR;
+  const start = midnight + s.from * HOUR, end = midnight + s.to * HOUR;
+  const acts = events.filter((e) => e.at < Math.min(end, now)).sort((a, b) => a.at - b.at);
+  // no actions yet: 5/2 — a working day with nothing done (not a pause by this rule); 2/2 — likely a day off
+  if (!acts.length) return s.weekdays && now > start ? { start, end, totalMs: 0, pauses: [], actions: 0 } : null;
+  // 2/2: a handful of actions is a day off with a quick look at the CRM (Радченко 30.10.2026: one stage move at 10:57
+  // would read as an 11-hour pause); today the rule waits until there are enough actions
+  if (!s.weekdays && events.length < MIN_WORKDAY_ACTIONS) return null;
+  const pauses = [];
+  const add = (from, to, before, after) => {
+    const a = Math.max(from, start), b = Math.min(to, end);
+    if (b - a >= minMs) pauses.push({ from: a, to: b, ms: b - a, before: before.kind, after: after ? after.kind : null, open: !after && to === now });
+  };
+  for (let i = 1; i < acts.length; i++) add(acts[i - 1].at, acts[i].at, acts[i - 1], acts[i]);
+  const last = acts[acts.length - 1];
+  add(last.at, Math.min(now, end), last, null);
+  return { start, end, totalMs: pauses.reduce((a, p) => a + p.ms, 0), pauses, actions: acts.filter((e) => e.at >= start).length };
+}
+
 const LABEL = {
   msg: "💬 сообщение клиенту", comment: "📝 заметка в карточке", call: "📞 звонок", move: "➡️ смена стадии",
   task_new: "🆕 новая задача", task_done: "✅ закрыта задача", task_deadline: "📅 перенос срока задачи",

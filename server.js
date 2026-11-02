@@ -1,13 +1,13 @@
 // Дашборд «Лиды без касаний»: раз в N минут собирает снимок из Bitrix24 и отдаёт его под паролем.
 import http from "node:http";
-import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
+import { readFile, writeFile, rename, mkdir, readdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import { createBitrix, collectSnapshot, loadConfig, mergeDealPipelines } from "./collector.js";
 import { mergeHints } from "./hints.js";
 import { collectLive } from "./activity.js";
 import { mskDayStart } from "./tasks.js";
-import { decideAlerts, alertText, createMattermost, alertRecipient, BACKUP_ID, SCHEDULES } from "./alerts.js";
+import { decideAlerts, alertText, createMattermost, alertRecipient, BACKUP_ID, SCHEDULES, idleDay } from "./alerts.js";
 import { collectWeek, weekStart, SUVVY_ID } from "./weekstats.js";
 import { collectUndelivered } from "./undelivered.js";
 import { collectReplies } from "./replies.js";
@@ -117,7 +117,7 @@ if (alertsFile) {
 
 async function runAlerts(now) {
   if (!mattermost || !state.snapshot) return;
-  const p = activityPayload();
+  const p = await activityPayload();
   const { send, open } = decideAlerts({
     now, managers: state.snapshot.managers, events: p.events, absent: live.absent, open: alertsOpen,
     // messages are read live now; fall back to the snapshot if the live part hasn't run yet
@@ -159,7 +159,11 @@ async function refreshLive() {
   const started = Date.now();
   try {
     const day = mskDayStart(started);
-    if (day !== live.day) Object.assign(live, { day, events: new Map(), tasksCheckedAt: 0, watch: new Map() });
+    if (day !== live.day) {
+      // the finished day goes to the archive before its events are dropped
+      if (live.day) await saveFeedDay(live.day).catch((e) => log("feed save error:", e.message));
+      Object.assign(live, { day, events: new Map(), tasksCheckedAt: 0, watch: new Map() });
+    }
     // Историю задач перечитываем только по тем, что менялись с прошлого раза (с запасом 2 минуты).
     // Dialogs: those changed since the last check (1 min overlap; the first run looks 2 minutes back —
     // earlier messages of the day come from the snapshot). Notes of hot cards — once a minute.
@@ -207,18 +211,80 @@ async function refreshUndelivered() {
   }
 }
 
-function activityPayload() {
+// One MSK day's feed events: the live ones plus the snapshot sweep (messages and notes)
+function dayEvents(day) {
   const snap = state.snapshot;
-  const day = mskDayStart(Date.now());
   const events = new Map(live.day === day ? live.events : []);
-  for (const e of (snap && snap.activity && snap.activity.events) || []) if (e.at >= day) events.set(e.key, e);
+  for (const e of (snap && snap.activity && snap.activity.events) || []) if (e.at >= day && e.at < day + DAY_MS) events.set(e.key, e);
+  return [...events.values()].sort((a, b) => b.at - a.at);
+}
+
+// Inactivity per manager with a schedule (idleDay in alerts.js): pauses of 20+ minutes inside the shift
+function idleOf(managers, events, day, now, absent) {
+  const out = {};
+  for (const m of managers) {
+    const r = idleDay(events.filter((e) => e.managerId === m.id), SCHEDULES[m.id], day, now, { absent: Boolean(absent[m.id]) });
+    if (r) out[m.id] = r;
+  }
+  return out;
+}
+
+// «Лента событий» history (02.11.2026): each MSK day goes to DATA_DIR/feed/<YYYY-MM-DD>.json — saved every 5 minutes
+// and when the day turns, read back after a restart; FEED_KEEP_DAYS days are kept
+const DAY_MS = 864e5;
+const feedDir = env.DATA_DIR ? path.join(env.DATA_DIR, "feed") : null;
+const FEED_KEEP_DAYS = 62;
+const FEED_FILE = /^\d{4}-\d{2}-\d{2}\.json$/;
+const isoDay = (day) => new Date(day + 3 * 3600e3).toISOString().slice(0, 10);
+async function saveFeedDay(day) {
+  if (!feedDir) return;
+  const events = dayEvents(day);
+  if (!events.length) return;
+  await mkdir(feedDir, { recursive: true });
+  const file = path.join(feedDir, isoDay(day) + ".json");
+  const data = { day: isoDay(day), savedAt: new Date().toISOString(), managers: feedManagers() || [], absent: live.day === day ? live.absent : {}, events };
+  await writeFile(file + ".tmp", JSON.stringify(data), "utf8");
+  await rename(file + ".tmp", file);
+  const oldest = isoDay(day - FEED_KEEP_DAYS * DAY_MS);
+  for (const f of await readdir(feedDir)) if (FEED_FILE.test(f) && f.slice(0, 10) < oldest) await unlink(path.join(feedDir, f)).catch(() => {});
+}
+async function feedDays() {
+  if (!feedDir) return [];
+  const today = isoDay(mskDayStart(Date.now()));
+  return (await readdir(feedDir).catch(() => [])).filter((f) => FEED_FILE.test(f)).map((f) => f.slice(0, 10)).filter((d) => d < today).sort().reverse();
+}
+// today's events saved before a restart come back into the live map
+if (feedDir) {
+  const day = mskDayStart(Date.now());
+  try {
+    const saved = JSON.parse(await readFile(path.join(feedDir, isoDay(day) + ".json"), "utf8"));
+    Object.assign(live, { day, events: new Map(saved.events.map((e) => [e.key, e])) });
+    log(`feed restored: ${saved.events.length} events of ${saved.day}`);
+  } catch (e) { if (e.code !== "ENOENT") log("feed read error:", e.message); }
+}
+
+async function pastActivity(dayIso) {
+  const day = Date.parse(dayIso + "T00:00:00+03:00");
+  const saved = JSON.parse(await readFile(path.join(feedDir, dayIso + ".json"), "utf8"));
   return {
+    day: dayIso, past: true, updatedAt: saved.savedAt, messagesUpdatedAt: null, error: null, managers: saved.managers, online: {},
+    events: saved.events, idle: idleOf(saved.managers, saved.events, day, day + DAY_MS, saved.absent || {}), days: await feedDays(),
+  };
+}
+
+async function activityPayload() {
+  const now = Date.now();
+  const day = mskDayStart(now);
+  const events = dayEvents(day);
+  const managers = feedManagers() || [];
+  return {
+    day: isoDay(day), idle: idleOf(managers, events, day, now, live.absent), days: await feedDays(),
     updatedAt: live.updatedAt,
     messagesUpdatedAt: snap ? snap.updatedAt : null,
     error: live.error,
-    managers: feedManagers() || [],
+    managers,
     online: Object.fromEntries(Object.entries(live.online).map(([id, on]) => [id, { online: on, lastSeenAt: live.lastSeen[id] ? new Date(live.lastSeen[id]).toISOString() : null, absentUntil: live.absent[id] || null }])),
-    events: [...events.values()].sort((a, b) => b.at - a.at),
+    events,
   };
 }
 
@@ -280,7 +346,7 @@ const baseHeaders = {
   "Referrer-Policy": "no-referrer",
 };
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   const { pathname } = new URL(req.url, "http://localhost");
 
   // Проверка живости для Railway — без пароля и без данных
@@ -350,8 +416,21 @@ const server = http.createServer((req, res) => {
     return res.end(JSON.stringify({ from, data: c.data || null, running: Boolean(c.running), error: c.error || null }));
   }
   if (pathname === "/api/activity") {
+    const dayIso = new URL(req.url, "http://localhost").searchParams.get("day");
+    if (dayIso && dayIso !== isoDay(mskDayStart(Date.now()))) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dayIso) || !feedDir) { res.writeHead(404, { ...baseHeaders, "Content-Type": "text/plain; charset=utf-8" }); return res.end("Нет данных за этот день"); }
+      try {
+        const body = JSON.stringify(await pastActivity(dayIso));
+        res.writeHead(200, { ...baseHeaders, "Content-Type": "application/json; charset=utf-8" });
+        return res.end(body);
+      } catch (e) {
+        res.writeHead(404, { ...baseHeaders, "Content-Type": "text/plain; charset=utf-8" });
+        return res.end("Нет данных за этот день");
+      }
+    }
+    const body = JSON.stringify(await activityPayload());
     res.writeHead(200, { ...baseHeaders, "Content-Type": "application/json; charset=utf-8" });
-    return res.end(JSON.stringify(activityPayload()));
+    return res.end(body);
   }
   res.writeHead(404, { ...baseHeaders, "Content-Type": "text/plain; charset=utf-8" });
   res.end("Не найдено");
@@ -361,5 +440,6 @@ server.listen(config.port, () => log(`listening on ${config.port}, refresh every
 refresh().then(refreshLive).then(refreshUndelivered).then(() => repliesFor(weekStart(Date.now())));
 setInterval(refresh, config.refreshMinutes * 60e3);
 setInterval(refreshLive, LIVE_MS);
+setInterval(() => saveFeedDay(mskDayStart(Date.now())).catch((e) => log("feed save error:", e.message)), 5 * 60e3);
 setInterval(refreshUndelivered, UNDELIVERED_MS);
 setInterval(() => repliesFor(weekStart(Date.now()), { force: true }), REPLIES_MS);
