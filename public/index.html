@@ -1008,7 +1008,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
       }));
       const cardBtn = el("button", { type: "button", class: "mgr" + (n ? "" : " zero"), "aria-pressed": String(state.manager === m.id), title: n ? "Показать сделки: «" + BUCKETS[state.bucket].name + "»" : "В этой корзине пусто" },
         el("div", { class: "mgr-top" },
-          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: grpName(m.group) + " · " + openOf(m.id) + " " + plural(openOf(m.id), DEALS) + " на этапах" }))),
+          el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-grp", text: (upsell ? "" : grpName(m.group) + " · ") + openOf(m.id) + " " + plural(openOf(m.id), DEALS) + " на этапах" }))),
         rows);
       if (n) cardBtn.addEventListener("click", () => {
         state.manager = state.manager === m.id ? null : m.id;
@@ -1060,7 +1060,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     const more = rows.length > shown.length ? el("div", { class: "more-rows" }, el("button", { type: "button", class: "close", text: "Показать ещё " + (rows.length - shown.length) })) : null;
     if (more) more.firstChild.addEventListener("click", () => { state.showAll = true; render(); });
     list.append(el("h2", { text: BUCKETS[state.bucket].name + " · " + m.name }),
-      el("div", { class: "group-head" }, el("div", {}, el("b", { text: m.name }), el("span", { text: "  " + rows.length + " " + plural(rows.length, DEALS) + " · " + grpName(m.group) })), close),
+      el("div", { class: "group-head" }, el("div", {}, el("b", { text: m.name }), el("span", { text: "  " + rows.length + " " + plural(rows.length, DEALS) + (upsell ? "" : " · " + grpName(m.group)) })), close),
       el("div", { class: "stack" }, ...groups), more);
   }
 
