@@ -280,7 +280,7 @@ async function activityPayload() {
   return {
     day: isoDay(day), idle: idleOf(managers, events, day, now, live.absent), days: await feedDays(),
     updatedAt: live.updatedAt,
-    messagesUpdatedAt: snap ? snap.updatedAt : null,
+    messagesUpdatedAt: state.snapshot ? state.snapshot.updatedAt : null,
     error: live.error,
     managers,
     online: Object.fromEntries(Object.entries(live.online).map(([id, on]) => [id, { online: on, lastSeenAt: live.lastSeen[id] ? new Date(live.lastSeen[id]).toISOString() : null, absentUntil: live.absent[id] || null }])),
@@ -428,7 +428,13 @@ const server = http.createServer(async (req, res) => {
         return res.end("Нет данных за этот день");
       }
     }
-    const body = JSON.stringify(await activityPayload());
+    // an error here must not take the whole server down (02.11.2026: an unhandled rejection stopped it)
+    let body;
+    try { body = JSON.stringify(await activityPayload()); } catch (e) {
+      log("activity error:", e.message);
+      res.writeHead(500, { ...baseHeaders, "Content-Type": "text/plain; charset=utf-8" });
+      return res.end("Ошибка ленты");
+    }
     res.writeHead(200, { ...baseHeaders, "Content-Type": "application/json; charset=utf-8" });
     return res.end(body);
   }
