@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Корпоративные продажи</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+/* Same tokens as the B2C page (index.html) */
+:root {
+  --bg: #F2F4F6; --surface: #FFFFFF; --ink: #16202C; --muted: #5B6878; --line: #DCE2E9;
+  --accent: #1F6F8B; --accent-soft: #E3EFF3; --on-accent: #FFFFFF;
+  --warn: #A86A12; --warn-soft: #FBF1DE; --crit: #B42318; --crit-soft: #FBE4E2; --ok: #2F7D4F; --ok-soft: #E2F2E8;
+  --font: "Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0F151C; --surface: #17212B; --ink: #E6EDF3; --muted: #93A1B1; --line: #28343F;
+    --accent: #62B4D0; --accent-soft: #17313B; --on-accent: #0F151C;
+    --warn: #E3A948; --warn-soft: #3A2E17; --crit: #F27272; --crit-soft: #401D1E; --ok: #6BCB92; --ok-soft: #173325;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font); }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 48px; display: grid; gap: 24px; }
+.wrap > * { min-width: 0; }
+@media (max-width: 480px) { .wrap { padding-inline: 16px; } }
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -0.01em; }
+.sub { margin: 4px 0 0; color: var(--muted); }
+.fresh { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 500; background: var(--ok-soft); color: var(--ok); }
+.fresh::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.fresh.stale { background: var(--warn-soft); color: var(--warn); }
+.fresh.dead { background: var(--crit-soft); color: var(--crit); }
+h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+
+.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+@media (max-width: 760px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { background: var(--surface); padding: 16px 18px; display: grid; gap: 2px; align-content: start; }
+.stat b { font: 600 30px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.stat span { color: var(--muted); font-size: 13px; }
+.stat.crit b { color: var(--crit); }
+
+.stages { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(176px, 40vw), 1fr)); gap: 8px; }
+.stg { text-align: left; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; align-content: start; cursor: pointer; }
+.stg:hover { border-color: var(--accent); }
+.stg[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.stg-head { display: flex; gap: 8px; align-items: baseline; }
+.stg-n { font: 600 12px var(--mono); color: var(--muted); }
+.stg-name { font-weight: 600; line-height: 1.3; }
+.stg-num { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.stg-num b { font: 600 20px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.stg-num span { font: 500 12px var(--mono); color: var(--muted); white-space: nowrap; }
+.stg-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--ok) 55%, var(--line)); }
+.stg-bar i { display: block; height: 100%; background: var(--crit); }
+.stg-bad { font-size: 13px; color: var(--muted); }
+.stg-bad b { color: var(--crit); font-weight: 600; }
+.stg-rule { font-size: 12px; color: var(--muted); line-height: 1.35; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+.seg { display: inline-flex; max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.seg button { font: inherit; font-size: 14px; white-space: nowrap; border: 0; background: transparent; color: var(--ink); padding: 7px 14px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.filter-note { font-size: 13px; color: var(--muted); }
+.link-btn { font: inherit; font-size: 13px; color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.link-btn:hover { border-color: var(--accent); }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.mgrs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 10px; }
+.mgr { text-align: left; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; cursor: pointer; }
+.mgr:hover { border-color: var(--accent); }
+.mgr[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.mgr.zero { cursor: default; }
+.mgr.zero:hover { border-color: var(--line); }
+.mgr-name { font-weight: 600; }
+.mgr-sub { color: var(--muted); font-size: 12px; }
+.mgr-rows { display: grid; gap: 3px; }
+.mgr-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); padding: 1px 6px; margin-inline: -6px; border-radius: 5px; }
+.mgr-row i { width: 8px; height: 8px; border-radius: 2px; flex: none; background: var(--crit); }
+.mgr-row b { margin-left: auto; font: 600 13px var(--mono); color: var(--ink); }
+.mgr-row.on { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.mgr-row.none i { background: var(--line); }
+.mgr-row.none b { color: var(--muted); font-weight: 500; }
+
+.stack { display: grid; gap: 16px; }
+.group { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.group-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.group-head b { font-weight: 600; font-size: 16px; }
+.group-head span { color: var(--muted); font-size: 13px; }
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; min-width: 1040px; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
+th { text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); padding: 8px 12px; white-space: nowrap; }
+td { padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+th.c-deal { width: 22%; } th.c-who { width: 130px; } th.c-sum { width: 110px; } th.c-days { width: 96px; } th.c-task { width: 110px; } th.c-note { width: 104px; } th.c-cont { width: 120px; } th.c-do { width: auto; }
+a { color: var(--accent); text-decoration: none; font-weight: 500; }
+a:hover { text-decoration: underline; }
+.deal-id { display: block; font: 500 12px var(--mono); color: var(--muted); }
+.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font: 600 13px/1.5 var(--mono); white-space: nowrap; background: var(--line); color: var(--ink); }
+.pill.c { background: var(--crit-soft); color: var(--crit); }
+.bad { color: var(--crit); font-weight: 600; }
+.muted { color: var(--muted); }
+.rule { display: block; font-size: 13px; line-height: 1.4; }
+.rule + .rule { margin-top: 3px; }
+.ok-line { color: var(--ok); font-size: 13px; }
+.more-rows { display: flex; justify-content: center; padding: 10px; border-top: 1px solid var(--line); }
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); }
+.note { font-size: 13px; color: var(--muted); max-width: 80ch; margin: 0; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Корпоративные продажи</h1>
+      <p class="sub">Воронка «Корпоративные клиенты» · что не так со сделками по правилам этапов</p>
+    </div>
+    <span class="fresh dead" id="fresh">Загружаю данные…</span>
+  </header>
+
+  <section class="stats" id="stats" aria-label="Сводка"></section>
+
+  <section aria-labelledby="h-funnel">
+    <h2 id="h-funnel">Воронка</h2>
+    <div class="stages" id="stages"></div>
+  </section>
+
+  <div class="toolbar">
+    <div class="seg" id="types" role="group" aria-label="Нарушение"></div>
+    <span class="filter-note" id="filter-note"></span>
+  </div>
+
+  <section aria-labelledby="h-mgrs">
+    <h2 id="h-mgrs">По менеджерам</h2>
+    <div class="mgrs" id="mgrs"></div>
+  </section>
+
+  <section aria-labelledby="h-list">
+    <h2 id="h-list">Сделки</h2>
+    <div id="list" class="stack"></div>
+  </section>
+
+  <p class="note">Задача — только из раздела «Задачи», привязанная к сделке; актуальный срок — сегодня или позже (дела не считаются).
+    Комментарий — заметка в ленте сделки за последние 30 дней. Связь на базовых этапах — звонок с разговором, письмо, чат
+    или проведённая встреча по сделке, её контакту или компании за 30 дней, либо заметка о разговоре («созвонились», «встреча», «договорились»…).
+    Данные обновляются каждые 15 минут.</p>
+</div>
+
+<script>
+(() => {
+  const TYPES = [
+    { key: "all", name: "Все нарушения" },
+    { key: "task", name: "Нет задачи" },
+    { key: "comment", name: "Нет комментария" },
+    { key: "stage", name: "Долго на этапе" },
+    { key: "contact", name: "Нет связи" },
+  ];
+  const BASES = new Set(["partners", "agents"]);
+  const LIMIT = 30;
+  const OTHERS = -1;
+  const state = { data: null, error: null, type: "all", stage: null, manager: null, showAll: false };
+
+  const $ = (id) => document.getElementById(id);
+  function el(tag, attrs = {}, ...kids) {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k === "text") n.textContent = v; else if (k === "class") n.className = v; else n.setAttribute(k, v);
+    }
+    for (const c of kids.flat()) if (c !== null && c !== undefined && c !== false) n.append(c);
+    return n;
+  }
+  const plural = (n, f) => f[n % 10 === 1 && n % 100 !== 11 ? 0 : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 1 : 2];
+  const DEALS = ["сделка", "сделки", "сделок"];
+  const DAYS = ["день", "дня", "дней"];
+  const money = (x) => x ? Math.round(x).toLocaleString("ru-RU") + " ₽" : "—";
+  const dayFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", timeZone: "Europe/Moscow" });
+  const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
+  const KIND = { call: "звонок", email: "письмо", chat: "чат", meeting: "встреча", note: "заметка" };
+
+  const has = (it, type) => type === "all" ? it.rules.length > 0 : it.rules.some((r) => r.type === type);
+  const ownerKey = (it) => state.data.team.some((m) => m.id === it.owner) ? it.owner : OTHERS;
+
+  function renderFresh() {
+    const f = $("fresh");
+    if (!state.data) { f.className = "fresh dead"; f.textContent = state.error ? "Ошибка: " + state.error : "Первый сбор данных ещё идёт…"; return; }
+    const at = Date.parse(state.data.updatedAt), age = Date.now() - at;
+    f.className = "fresh" + (age > 60 * 60e3 ? " dead" : age > 25 * 60e3 ? " stale" : "");
+    f.textContent = "Обновлено в " + timeFmt.format(new Date(at)) + (state.error ? " · последняя попытка не удалась" : "");
+  }
+
+  function render() {
+    renderFresh();
+    if (!state.data) return;
+    const D = state.data, items = D.items;
+    const stageIdx = new Map(D.stages.map((s, i) => [s.key, i]));
+    const inStage = (it) => !state.stage || it.stage === state.stage;
+    const inMgr = (it) => state.manager === null || ownerKey(it) === state.manager;
+
+    // summary over the whole pipeline
+    const cnt = (type) => items.filter((it) => has(it, type)).length;
+    $("stats").replaceChildren(
+      el("div", { class: "stat crit" }, el("b", { text: String(cnt("all")) }), el("span", { text: "с нарушениями из " + items.length + " открытых " + plural(items.length, DEALS) })),
+      ...TYPES.slice(1).map((t) => el("div", { class: "stat" }, el("b", { text: String(cnt(t.key)) }), el("span", { text: t.name.toLowerCase() }))));
+
+    // funnel: stage cards
+    $("stages").replaceChildren(...D.stages.map((s, i) => {
+      const its = items.filter((it) => it.stage === s.key && inMgr(it));
+      const bad = its.filter((it) => has(it, state.type)).length;
+      const sum = its.reduce((a, it) => a + it.amount, 0);
+      const b = el("button", { type: "button", class: "stg", "aria-pressed": String(state.stage === s.key), title: state.stage === s.key ? "Показать все этапы" : "Показать только этот этап" },
+        el("div", { class: "stg-head" }, el("span", { class: "stg-n", text: String(i + 1) }), el("span", { class: "stg-name", text: s.name })),
+        el("div", { class: "stg-num" }, el("b", { text: String(its.length) }), el("span", { text: sum ? money(sum) : "" })),
+        el("div", { class: "stg-bar", "aria-hidden": "true" }, el("i", { style: "width:" + (its.length ? (100 * bad / its.length) : 0) + "%" })),
+        el("div", { class: "stg-bad" }, bad ? el("b", { text: bad + " с нарушениями" }) : document.createTextNode(its.length ? "всё по правилам" : "сделок нет")),
+        el("div", { class: "stg-rule", text: s.rule }));
+      b.addEventListener("click", () => { state.stage = state.stage === s.key ? null : s.key; state.showAll = false; render(); });
+      return b;
+    }));
+
+    // violation type switcher (counts follow the stage and manager filters)
+    $("types").replaceChildren(...TYPES.map((t) => {
+      const n = items.filter((it) => inStage(it) && inMgr(it) && has(it, t.key)).length;
+      const b = el("button", { type: "button", "aria-pressed": String(state.type === t.key), text: t.name + " · " + n });
+      b.addEventListener("click", () => { state.type = t.key; state.showAll = false; render(); });
+      return b;
+    }));
+    const notes = [];
+    if (state.stage) notes.push("этап «" + D.stages[stageIdx.get(state.stage)].name + "»");
+    if (state.manager !== null) notes.push(state.manager === OTHERS ? "другие ответственные" : D.team.find((m) => m.id === state.manager).name);
+    const fn = $("filter-note"); fn.replaceChildren();
+    if (notes.length) {
+      const reset = el("button", { type: "button", class: "link-btn", text: "Сбросить" });
+      reset.addEventListener("click", () => { state.stage = null; state.manager = null; state.showAll = false; render(); });
+      fn.append("Показано: " + notes.join(", ") + " ", reset);
+    }
+
+    // manager cards: the team plus «Другие ответственные»
+    const owners = [...D.team.map((m) => ({ id: m.id, name: m.name })), ...(items.some((it) => ownerKey(it) === OTHERS) ? [{ id: OTHERS, name: "Другие ответственные" }] : [])];
+    $("mgrs").replaceChildren(...owners.map((m) => {
+      const mine = items.filter((it) => ownerKey(it) === m.id && inStage(it));
+      const total = items.filter((it) => ownerKey(it) === m.id).length;
+      const rows = el("div", { class: "mgr-rows" }, ...TYPES.slice(1).map((t) => {
+        const c = mine.filter((it) => has(it, t.key)).length;
+        return el("div", { class: "mgr-row" + (t.key === state.type ? " on" : "") + (c ? "" : " none") }, el("i", { "aria-hidden": "true" }), el("span", { text: t.name }), el("b", { text: String(c) }));
+      }));
+      const b = el("button", { type: "button", class: "mgr" + (total ? "" : " zero"), "aria-pressed": String(state.manager === m.id) },
+        el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-sub", text: total ? total + " " + plural(total, DEALS) + " в воронке" + (state.stage ? " · на этапе " + mine.length : "") : "сделок в воронке нет" })),
+        total ? rows : null);
+      if (total) b.addEventListener("click", () => { state.manager = state.manager === m.id ? null : m.id; state.showAll = false; render(); });
+      return b;
+    }));
+
+    // the list: deals with the chosen violation, grouped by stage
+    const rows = items.filter((it) => inStage(it) && inMgr(it) && has(it, state.type))
+      .sort((a, b) => stageIdx.get(a.stage) - stageIdx.get(b.stage) || b.rules.length - a.rules.length || b.daysOnStage - a.daysOnStage);
+    const shown = state.showAll ? rows : rows.slice(0, LIMIT);
+    const list = $("list"); list.replaceChildren();
+    if (!rows.length) { list.append(el("div", { class: "empty", text: "Сделок с таким нарушением нет." })); return; }
+    const name = new Map(D.team.map((m) => [m.id, m.name]));
+    const showWho = state.manager === null;
+    for (const s of D.stages) {
+      const rs = shown.filter((it) => it.stage === s.key);
+      if (!rs.length) continue;
+      const total = rows.filter((it) => it.stage === s.key).length;
+      const base = BASES.has(s.key);
+      const head = ["Сделка", ...(showWho ? ["Ответственный"] : []), "Сумма", "На этапе", "Задача", "Комментарий", ...(base ? ["Связь"] : []), "Что сделать"];
+      const cls = ["c-deal", ...(showWho ? ["c-who"] : []), "c-sum", "c-days", "c-task", "c-note", ...(base ? ["c-cont"] : []), "c-do"];
+      list.append(el("div", { class: "group" },
+        el("div", { class: "group-head" }, el("div", {}, el("b", { text: s.name }), el("span", { text: "  " + total + " " + plural(total, DEALS) + " · " + s.rule }))),
+        el("div", { class: "tbl-wrap" }, el("table", {},
+          el("thead", {}, el("tr", {}, ...head.map((h, i) => el("th", { class: cls[i], text: h })))),
+          el("tbody", {}, ...rs.map((it) => el("tr", {},
+            el("td", {}, el("a", { href: D.portal + "/crm/deal/details/" + it.id + "/", target: "_blank", rel: "noopener", text: it.title }), el("span", { class: "deal-id", text: "#" + it.id })),
+            showWho ? el("td", { text: name.get(it.owner) || "другой ответственный" }) : null,
+            el("td", { class: "num", text: money(it.amount) }),
+            el("td", { class: "num" }, el("span", { class: "pill" + (it.rules.some((r) => r.type === "stage") ? " c" : ""), text: it.daysOnStage + " " + plural(it.daysOnStage, DAYS) })),
+            el("td", { class: it.task.state === "ok" ? "" : "bad", text: s.key === "base" || s.key === "new" ? "—" : it.task.state === "ok" ? dayFmt.format(new Date(it.task.next)) : it.task.state === "due" ? "просрочена" : it.task.state === "nodate" ? "без срока" : "нет" }),
+            // «База на проработку» and «Новый клиент» have no comment rule: the date is just for reference
+            el("td", { class: s.key === "base" || s.key === "new" ? "muted" : it.rules.some((r) => r.type === "comment") ? "bad" : "", text: it.lastNote ? dayFmt.format(new Date(it.lastNote)) : "нет" }),
+            base ? el("td", { class: it.rules.some((r) => r.type === "contact") ? "bad" : "", text: it.lastContact ? dayFmt.format(new Date(it.lastContact.at)) + " · " + KIND[it.lastContact.kind] : "нет" }) : null,
+            el("td", {}, it.rules.length ? it.rules.map((r) => el("span", { class: "rule", text: r.text })) : el("span", { class: "ok-line", text: "по правилам" })))))))));
+    }
+    if (rows.length > shown.length) {
+      const more = el("button", { type: "button", class: "link-btn", text: "Показать ещё " + (rows.length - shown.length) });
+      more.addEventListener("click", () => { state.showAll = true; render(); });
+      list.append(el("div", { class: "more-rows" }, more));
+    }
+  }
+
+  async function load() {
+    try {
+      const r = await fetch("api/corp", { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const j = await r.json();
+      state.data = j.data; state.error = j.error;
+    } catch (e) { state.error = e.message; }
+    render();
+  }
+  load();
+  setInterval(load, 60e3);
+  setInterval(renderFresh, 30e3);
+})();
+</script>
+</body>
+</html>

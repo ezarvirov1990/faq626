@@ -11,6 +11,7 @@ import { decideAlerts, alertText, createMattermost, alertRecipient, BACKUP_ID, S
 import { collectWeek, weekStart, SUVVY_ID } from "./weekstats.js";
 import { collectUndelivered } from "./undelivered.js";
 import { collectReplies } from "./replies.js";
+import { collectCorp } from "./corp.js";
 
 const env = process.env;
 const config = loadConfig(env);
@@ -288,16 +289,44 @@ async function activityPayload() {
   };
 }
 
-function authorized(req) {
-  if (!config.password) return false;
+function basicAuth(req, user, password) {
+  if (!password) return false;
   const [scheme, encoded] = (req.headers.authorization || "").split(" ");
   if (scheme !== "Basic" || !encoded) return false;
   const given = Buffer.from(Buffer.from(encoded, "base64").toString("utf8"));
-  const expected = Buffer.from(`${config.user}:${config.password}`);
+  const expected = Buffer.from(`${user}:${password}`);
   return given.length === expected.length && timingSafeEqual(given, expected);
+}
+const authorized = (req) => basicAuth(req, config.user, config.password);
+
+// «Корпоративные клиенты» (corp.js, 06.11.2026): the corporate sales team's page /corp with its own login —
+// the B2C login doesn't open it and the corp login opens nothing else. Collected every CORP_MINUTES, kept on disk.
+const corpCreds = env.CORP_USER && env.CORP_PASSWORD ? { user: env.CORP_USER, password: env.CORP_PASSWORD } : null;
+const corp = { data: null, error: null, running: false };
+const CORP_MS = Number(env.CORP_MINUTES || 15) * 60e3;
+const corpFile = env.DATA_DIR ? path.join(env.DATA_DIR, "corp.json") : null;
+if (corpCreds && corpFile) {
+  try { corp.data = JSON.parse(await readFile(corpFile, "utf8")); } catch (e) { if (e.code !== "ENOENT") log("corp read error:", e.message); }
+}
+async function refreshCorp() {
+  if (!corpCreds || corp.running || !config.webhook) return;
+  corp.running = true;
+  const started = Date.now();
+  try {
+    corp.data = await collectCorp(createBitrix(config.webhook), started);
+    corp.error = null;
+    if (corpFile) await writeFile(corpFile + ".tmp", JSON.stringify(corp.data)).then(() => rename(corpFile + ".tmp", corpFile));
+    log(`corp ok: ${corp.data.items.length} deals, ${corp.data.items.filter((i) => i.rules.length).length} with violations in ${Math.round((Date.now() - started) / 1000)}s`);
+  } catch (e) {
+    corp.error = e.message;
+    log("corp error:", e.message);
+  } finally {
+    corp.running = false;
+  }
 }
 
 const page = await readFile(new URL("./public/index.html", import.meta.url));
+const corpPage = await readFile(new URL("./public/corp.html", import.meta.url));
 const weekPage = await readFile(new URL("./public/week.html", import.meta.url));
 
 // «Неделя»: computed on request from three lead lists (~5 s), cached 5 min (past weeks — 1 h)
@@ -353,6 +382,17 @@ const server = http.createServer(async (req, res) => {
   if (pathname === "/healthz") {
     res.writeHead(200, { ...baseHeaders, "Content-Type": "text/plain" });
     return res.end("ok");
+  }
+  if (pathname === "/corp" || pathname === "/api/corp") {
+    if (!corpCreds) { res.writeHead(404, { ...baseHeaders, "Content-Type": "text/plain; charset=utf-8" }); return res.end("Страница не настроена"); }
+    if (!basicAuth(req, corpCreds.user, corpCreds.password)) {
+      res.writeHead(401, { ...baseHeaders, "WWW-Authenticate": 'Basic realm="Corporate dashboard", charset="UTF-8"', "Content-Type": "text/plain; charset=utf-8" });
+      return res.end("Нужен логин и пароль");
+    }
+    if (req.method !== "GET") { res.writeHead(405, baseHeaders); return res.end(); }
+    if (pathname === "/corp") { res.writeHead(200, { ...baseHeaders, "Content-Type": "text/html; charset=utf-8" }); return res.end(corpPage); }
+    res.writeHead(200, { ...baseHeaders, "Content-Type": "application/json; charset=utf-8" });
+    return res.end(JSON.stringify({ data: corp.data, error: corp.error, running: corp.running }));
   }
   if (!authorized(req)) {
     res.writeHead(401, { ...baseHeaders, "WWW-Authenticate": 'Basic realm="Leads dashboard", charset="UTF-8"', "Content-Type": "text/plain; charset=utf-8" });
@@ -443,7 +483,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(config.port, () => log(`listening on ${config.port}, refresh every ${config.refreshMinutes} min`));
-refresh().then(refreshLive).then(refreshUndelivered).then(() => repliesFor(weekStart(Date.now())));
+refresh().then(refreshLive).then(refreshUndelivered).then(() => repliesFor(weekStart(Date.now()))).then(refreshCorp);
+setInterval(refreshCorp, CORP_MS);
 setInterval(refresh, config.refreshMinutes * 60e3);
 setInterval(refreshLive, LIVE_MS);
 setInterval(() => saveFeedDay(mskDayStart(Date.now())).catch((e) => log("feed save error:", e.message)), 5 * 60e3);
