@@ -60,6 +60,23 @@ test("episodes outside the week are left out", () => {
   assert.deepEqual(c, {});
 });
 
+test("a Suvvy lead: the talk with the bot isn't counted; an unanswered request waits from the hand-off", () => {
+  const ents = { L1: { owner: MGR } };
+  const bot = { L1: [msk("2026-10-20T09:00:00"), msk("2026-10-20T11:30:00")] };
+  const r = (messages, now = msk("2026-10-25T23:00:00")) =>
+    replyStats({ from: "2026-10-19", now, chats: { 1: { ents: ["L1"], users, messages } }, ents, calls: [], managers, schedules, bot }).cells;
+  const pre = [m("2026-10-20T10:00:00", MGR, "Добрый день"), // the manager's action marks the shift
+    m("2026-10-20T11:00:00", CLIENT, "Сколько стоит?"), m("2026-10-20T11:01:00", SUVVY, "Эксперт стоит…"), m("2026-10-20T11:10:00", CLIENT, "Хочу купить")];
+  // handed at 11:30, the manager wrote at 11:50 → 20 min, counted on the hand-off day
+  assert.deepEqual(r([...pre, m("2026-10-20T11:50:00", MGR, "Здравствуйте!")])[MGR]["2026-10-20"], { n: 1, waiting: 0, times: [20] });
+  // the manager answered while the lead was still with the bot → nothing to wait for
+  assert.deepEqual(r([...pre, m("2026-10-20T11:20:00", MGR, "Здравствуйте!")]), {});
+  // after the hand-off the usual rule: a new request waits from the client's message
+  assert.deepEqual(r([...pre, m("2026-10-20T11:20:00", MGR, "Здравствуйте!"), m("2026-10-20T12:00:00", CLIENT, "А скидка?"), m("2026-10-20T12:05:00", MGR, "Есть")])[MGR]["2026-10-20"], { n: 1, waiting: 0, times: [5] });
+  // nobody answered yet → waiting since the hand-off
+  assert.deepEqual(r(pre, msk("2026-10-20T12:00:00"))[MGR]["2026-10-20"], { n: 1, waiting: 1, times: [] });
+});
+
 test("the Suvvy bot answering doesn't end the wait — the manager's answer does; story mentions, echoes and mass sends don't open one", () => {
   const base = [m("2026-10-20T10:00:00", MGR, "Добрый день")];
   const bot = [m("2026-10-20T11:00:00", CLIENT, "Сколько стоит?"), m("2026-10-20T11:01:00", SUVVY, "Эксперт стоит…"), m("2026-10-20T11:05:00", CLIENT, "А скидка есть?")];

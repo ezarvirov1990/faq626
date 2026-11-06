@@ -10,6 +10,7 @@
 // wrote after hours) — not counted for anyone.
 
 import { messageAuthor, managerIndex } from "./activity.js";
+import { SUVVY_ID, WARM_STAGES, stageMoves } from "./weekstats.js";
 
 const H = 3600e3;
 const DAY = 24 * H;
@@ -56,7 +57,8 @@ export function workTime(shifts, a, b) {
 // chats: { id: { ents: ["L1","D2"], users: { id: { client } }, messages: [{ id, at, a, text, file }] } }
 // ents: { "L1": { owner } }, calls: [{ at, user, dur, code, key: "L1" }], managers: [{ id, name }] — everyone whose
 // messages answer a client; schedules: SCHEDULES; from: Monday "YYYY-MM-DD" (MSK)
-export function replyStats({ from, now, chats, ents, calls, managers, schedules, details = null }) {
+// bot: { "L1": [created, handedAt] } — Suvvy's leads handed to a manager (first move to a warm stage)
+export function replyStats({ from, now, chats, ents, calls, managers, schedules, bot = {}, details = null }) {
   const index = managerIndex(managers);
   const weekStart = Date.parse(from + "T00:00:00+03:00");
   const weekEnd = weekStart + 7 * DAY;
@@ -101,19 +103,32 @@ export function replyStats({ from, now, chats, ents, calls, managers, schedules,
     const sorted = [...c.messages].sort((a, b) => a.at - b.at || a.id - b.id);
     const ours = sorted.filter((m) => m.a && !isClient.get(String(m.a))).map((m) => ({ at: m.at, t: norm(m.text) }));
     const echo = (m, t) => ours.some((o) => o.t === t && Math.abs(o.at - m.at) <= ECHO_MS);
+    // While a Suvvy lead is with the bot (created → handed to a manager) the client talks to the bot: a request
+    // still unanswered by a manager at the hand-off starts waiting at the hand-off moment (user's rule 06.11.2026)
+    const periods = c.ents.map((k) => bot[k]).filter(Boolean);
+    const inBot = (at) => periods.find(([s, e]) => at >= s && at < e);
     const episodes = [];
-    let open = null;
+    let open = null, pending = null;
     for (const m of sorted) {
+      if (!open && pending !== null && m.at >= pending) { open = { at: pending, reply: null }; pending = null; }
       if (open) { const t = callTimes.find((x) => x > open.at && x < m.at); if (t) { open.reply = t; episodes.push(open); open = null; } }
       if (!m.a || String(m.text).includes(WAZZUP_SYSTEM)) continue;
       if (isClient.get(String(m.a)) && !OUTGOING.test(m.text)) {
         const t = clean(m.text), n = t.toLowerCase();
         if (open || NOT_A_QUESTION.test(t) || (n && (echo(m, n) || mass(n)))) continue;
-        if (m.file || (t && !TRIVIAL.test(t) && /[\p{L}\p{N}]/u.test(t))) open = { at: m.at, reply: null };
+        if (m.file || (t && !TRIVIAL.test(t) && /[\p{L}\p{N}]/u.test(t))) {
+          const p = inBot(m.at);
+          if (!p) open = { at: m.at, reply: null }; else if (pending === null) pending = p[1];
+        }
         continue;
       }
-      if (open && messageAuthor({ author_id: m.a, text: m.text }, isClient, index)) { open.reply = m.at; episodes.push(open); open = null; }
+      // a manager's message answers the open request (or one still with the bot); the bot's and robots' don't
+      if (messageAuthor({ author_id: m.a, text: m.text }, isClient, index)) {
+        if (open) { open.reply = m.at; episodes.push(open); open = null; }
+        pending = null;
+      }
     }
+    if (!open && pending !== null && pending <= now) open = { at: pending, reply: null };
     if (open) { const t = callTimes.find((x) => x > open.at); open.reply = t || null; episodes.push(open); }
 
     for (const e of episodes) {
@@ -134,7 +149,7 @@ export async function collectReplies(bx, { from, now = Date.now(), owners, manag
   const ids = owners.map((o) => o.id);
   const fromIso = from + "T00:00:00+03:00";
   const weekStart = Date.parse(fromIso);
-  const leadSel = ["ID", "ASSIGNED_BY_ID"], dealSel = ["ID", "ASSIGNED_BY_ID"];
+  const leadSel = ["ID", "ASSIGNED_BY_ID", "CREATED_BY_ID", "DATE_CREATE"], dealSel = ["ID", "ASSIGNED_BY_ID"];
   const lists = await Promise.all([
     bx.list("crm.lead.list", { filter: { ASSIGNED_BY_ID: ids, STATUS_SEMANTIC_ID: "P" }, select: leadSel }),
     bx.list("crm.lead.list", { filter: { ASSIGNED_BY_ID: ids, ">=DATE_CLOSED": fromIso }, select: leadSel }),
@@ -144,6 +159,18 @@ export async function collectReplies(bx, { from, now = Date.now(), owners, manag
   ]);
   const ents = {};
   lists.forEach((rows, i) => { for (const r of rows) ents[(i < 3 ? "L" : "D") + r.ID] = { owner: Number(r.ASSIGNED_BY_ID) }; });
+
+  // Suvvy's leads now on the managers: the bot had them from creation to the first warm move (the hand-off);
+  // no warm move found → no bot period (the whole chat counts)
+  const botLeads = new Map(lists.slice(0, 3).flat().filter((r) => Number(r.CREATED_BY_ID) === SUVVY_ID).map((r) => [String(r.ID), Date.parse(r.DATE_CREATE)]));
+  const bot = {};
+  const botIds = [...botLeads.keys()];
+  for (let i = 0; i < botIds.length; i += 50) {
+    for (const mv of await stageMoves(bx, { OWNER_ID: botIds.slice(i, i + 50), STATUS_ID: WARM_STAGES })) {
+      const k = String(mv.OWNER_ID), at = Date.parse(mv.CREATED_TIME);
+      if (!bot["L" + k] || at < bot["L" + k][1]) bot["L" + k] = [botLeads.get(k), at];
+    }
+  }
 
   const keys = Object.keys(ents);
   const { out: chatRes } = await bx.batch(Object.fromEntries(keys.map((k) => [k, `imopenlines.crm.chat.get?CRM_ENTITY_TYPE=${k[0] === "L" ? "LEAD" : "DEAL"}&CRM_ENTITY=${k.slice(1)}&ACTIVE_ONLY=N`])));
@@ -176,6 +203,6 @@ export async function collectReplies(bx, { from, now = Date.now(), owners, manag
   const calls = (await bx.list("voximplant.statistic.get", { FILTER: { ">=CALL_START_DATE": fromIso, PORTAL_USER_ID: managers.map((m) => m.id) } }))
     .map((k) => ({ at: Date.parse(k.CALL_START_DATE), user: Number(k.PORTAL_USER_ID), dur: Number(k.CALL_DURATION), code: String(k.CALL_FAILED_CODE),
       key: ({ LEAD: "L", DEAL: "D" }[k.CRM_ENTITY_TYPE] || "") && Number(k.CRM_ENTITY_ID) ? { LEAD: "L", DEAL: "D" }[k.CRM_ENTITY_TYPE] + k.CRM_ENTITY_ID : null }));
-  log(`replies ${from}: ${keys.length} cards, ${Object.keys(chats).length} chats, ${calls.length} calls`);
-  return replyStats({ from, now, chats, ents, calls, managers, schedules, details });
+  log(`replies ${from}: ${keys.length} cards, ${Object.keys(chats).length} chats, ${calls.length} calls, ${Object.keys(bot).length} of ${botLeads.size} Suvvy leads handed`);
+  return replyStats({ from, now, chats, ents, calls, managers, schedules, bot, details });
 }

@@ -92,7 +92,7 @@ export function suvvyFunnel({ from, now, created, closed, firstWarm, exclude = [
 }
 
 // Bitrix for the funnel: the bot's leads created this week, closed this week, or first moved to a warm stage this week
-async function stageMoves(bx, filter) {
+export async function stageMoves(bx, filter) {
   const out = [];
   let start = 0;
   do {
