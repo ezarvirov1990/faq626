@@ -229,11 +229,8 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     if (R) for (const id of ids) for (const c of Object.values(R.cells[id] || {})) { t.n += c.n; t.waiting += c.waiting; t.times.push(...c.times); }
     return t;
   }
-  function repMedian(t) {
-    if (!t.n) return null;
-    const s = [...t.times].sort((a, b) => a - b), k = Math.floor(t.n / 2);
-    return k < s.length ? s[k] : Infinity;
-  }
+  // the average over answered requests (user's choice 06.11.2026: mean, not median); unanswered ones are shown apart
+  const repMean = (t) => (t.times.length ? Math.round(t.times.reduce((a, x) => a + x, 0) / t.times.length) : t.n ? Infinity : null);
   const share = (t, max) => pct(t.times.filter((x) => x <= max).length, t.n);
   function add(t, c) { for (const k in t) t[k] += c[k] || 0; }
 
@@ -398,12 +395,12 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     }
     const SUVVY = (state.data.owners.find((o) => o.group === "бот") || {}).id;
     const people = ids.filter((id) => R.data.cells[id]);
-    const T = repAgg(people), med = repMedian(T);
-    $("t-reply").textContent = fmtMin(med);
-    $("t-reply-s").textContent = T.n ? "медиана без Савви · за час " + share(T, 60) + " · без ответа " + num(T.waiting) : ids.every((id) => id === String(SUVVY)) ? "у Савви не считается" : "обращений нет";
+    const T = repAgg(people), avg = repMean(T);
+    $("t-reply").textContent = fmtMin(avg);
+    $("t-reply-s").textContent = T.n ? "среднее без Савви · за час " + share(T, 60) + " · без ответа " + num(T.waiting) : ids.every((id) => id === String(SUVVY)) ? "у Савви не считается" : "обращений нет";
     const rows = list.filter((o) => R.data.cells[o.id]).map((o) => ({ o, t: repAgg([String(o.id)]) })).filter((r) => r.t.n).sort((a, b) => b.t.n - a.t.n);
     if (!rows.length) return box.replaceChildren(el("div", { class: "msg", text: ids.every((id) => id === String(SUVVY)) ? "У Савви скорость ответа не считается: он отвечает сразу" : "Обращений клиентов за эту неделю нет" }));
-    const cells = (t) => [el("td", { text: num(t.n) }), el("td", { text: fmtMin(repMedian(t)) }), el("td", { text: share(t, 15) }), el("td", { text: share(t, 60) }), el("td", { class: t.waiting ? null : "dim", text: num(t.waiting) })];
+    const cells = (t) => [el("td", { text: num(t.n) }), el("td", { text: fmtMin(repMean(t)) }), el("td", { text: share(t, 15) }), el("td", { text: share(t, 60) }), el("td", { class: t.waiting ? null : "dim", text: num(t.waiting) })];
     const tr = (r) => {
       const on = state.owner === String(r.o.id);
       const n = el("tr", { tabindex: "0", role: "button", "aria-pressed": String(on), "aria-selected": String(on), "aria-label": r.o.name + (on ? ", выбран — нажмите, чтобы показать всех" : ", показать только его") },
@@ -415,7 +412,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     };
     const all = repAgg(rows.map((r) => String(r.o.id)));
     box.replaceChildren(el("table", { class: "rep" },
-      el("thead", {}, el("tr", {}, el("th", { text: "Ответственный" }), el("th", { text: "Обращений" }), el("th", { text: "Медиана ответа" }), el("th", { text: "За 15 минут" }), el("th", { text: "За 1 час" }), el("th", { text: "Без ответа" }))),
+      el("thead", {}, el("tr", {}, el("th", { text: "Ответственный" }), el("th", { text: "Обращений" }), el("th", { text: "Среднее время ответа" }), el("th", { text: "За 15 минут" }), el("th", { text: "За 1 час" }), el("th", { text: "Без ответа" }))),
       el("tbody", {}, ...rows.map(tr)),
       rows.length > 1 ? el("tfoot", {}, el("tr", { class: "total" }, el("td", { text: "Менеджеры без Савви" }), ...cells(all))) : null));
   }
