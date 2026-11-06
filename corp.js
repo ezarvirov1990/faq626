@@ -30,6 +30,8 @@ const NO_CARD_RULES = new Set(["base", "new"]); // no task / comment rules there
 const FLEX = new Set(["lpr", "kp", "terms", "contract", "signed"]); // over 30 days is fine with an actual task
 const BASES = new Set(["partners", "agents"]);
 const BASE_AGE_DAYS = 60;
+const INVOICE_TYPE = 31; // smart invoices
+const INVOICE_SENT = "DT31_1:S"; // «Отправлен клиенту»
 
 const mskDay = (ms) => Math.floor((ms + MSK) / DAY);
 const ddmm = (ms) => new Date(ms + MSK).toISOString().slice(5, 10).split("-").reverse().join(".");
@@ -198,13 +200,34 @@ export async function collectCorp(bx, now, { pause = 600 } = {}) {
     }
   }
 
+  // payments we wait for (the user 06.11.2026): invoices «Отправлен клиенту» of the deals' companies or bound to the deals;
+  // a company's invoice is counted once in the total even when the company has several deals
+  const companies = [...new Set(rows.map((r) => String(r.COMPANY_ID)).filter((x) => Number(x)))];
+  const invCmds = {};
+  const invSelect = ["id", "opportunity", "companyId", "parentId2", "begindate"].map((f) => "&select[]=" + f).join("");
+  const invList = (key, field, part) => { for (const s of [0, 50]) invCmds[`${key}_${s}`] = `crm.item.list?entityTypeId=${INVOICE_TYPE}&filter[stageId]=${INVOICE_SENT}&${part.map((id) => `filter[@${field}][]=${id}`).join("&")}${invSelect}&start=${s}`; };
+  chunks(companies, 50).forEach((part, i) => invList("ic" + i, "companyId", part));
+  chunks(ids, 50).forEach((part, i) => invList("id" + i, "parentId2", part));
+  await sleep(pause);
+  const invOut = await batches(bx, invCmds, pause);
+  const invoices = new Map();
+  for (const r of Object.values(invOut)) for (const x of (r && r.items) || []) invoices.set(x.id, { id: x.id, sum: Number(x.opportunity) || 0, company: String(x.companyId || ""), deal: String(x.parentId2 || ""), at: ms(x.begindate) });
+  const waitingOf = (r) => {
+    const mine = [...invoices.values()].filter((v) => (Number(r.COMPANY_ID) && v.company === String(r.COMPANY_ID)) || v.deal === String(r.ID));
+    if (!mine.length) return null;
+    const dates = mine.map((v) => v.at).filter((x) => !Number.isNaN(x));
+    return { sum: mine.reduce((a, v) => a + v.sum, 0), count: mine.length, since: dates.length ? Math.min(...dates) : null };
+  };
+  const waitingAll = [...invoices.values()].filter((v) => companies.includes(v.company) || ids.includes(v.deal));
+  const waiting = { sum: waitingAll.reduce((a, v) => a + v.sum, 0), count: waitingAll.length };
+
   const items = rows.map((r) => {
     const id = String(r.ID);
     const res = corpRules({
       stageId: r.STAGE_ID, createdAt: ms(r.DATE_CREATE), movedAt: ms(r.MOVED_TIME) || ms(r.DATE_CREATE),
       tasks: tasks.get(id) || [], notes: notes.get(id) || [], contacts: contacts.get(id) || [],
     }, now);
-    return res && { id: Number(r.ID), title: r.TITLE || "Сделка " + r.ID, owner: Number(r.ASSIGNED_BY_ID), amount: Number(r.OPPORTUNITY) || 0, stageId: r.STAGE_ID, ...res };
+    return res && { id: Number(r.ID), title: r.TITLE || "Сделка " + r.ID, owner: Number(r.ASSIGNED_BY_ID), amount: Number(r.OPPORTUNITY) || 0, stageId: r.STAGE_ID, waiting: waitingOf(r), ...res };
   }).filter(Boolean);
-  return { updatedAt: new Date(now).toISOString(), portal: bx.portal, team, stages: CORP_STAGES, items };
+  return { updatedAt: new Date(now).toISOString(), portal: bx.portal, team, stages: CORP_STAGES, items, waiting };
 }

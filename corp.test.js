@@ -97,6 +97,9 @@ test("collectCorp: team, deals, tasks, notes, contacts via the company", async (
         if (q.startsWith("crm.activity.list") && q.includes("CRM_TASKS_TASK")) out[k] = q.includes("start=0") ? [{ ID: "1", OWNER_ID: "11", DEADLINE: "2026-11-10T19:00:00+03:00" }] : [];
         else if (q.startsWith("crm.timeline.comment.list")) out[k] = q.includes("ENTITY_ID]=11") ? [{ CREATED: "2026-11-01T10:00:00+03:00", COMMENT: "План" }] : [];
         else if (q.startsWith("crm.activity.list") && q.includes("OWNER_TYPE_ID]=4")) out[k] = [{ ID: "9", OWNER_TYPE_ID: "4", OWNER_ID: "701", PROVIDER_ID: "CRM_EMAIL", CREATED: "2026-11-02T10:00:00+03:00", LAST_UPDATED: "2026-11-02T10:00:00+03:00", COMPLETED: "Y" }];
+        else if (q.startsWith("crm.item.list") && q.includes("companyId][]=701") && q.includes("start=0")) out[k] = { items: [{ id: 4622, opportunity: 51500, companyId: 701, parentId2: null, begindate: "2026-11-02T03:00:00+03:00" }] };
+        else if (q.startsWith("crm.item.list") && q.includes("parentId2") && q.includes("start=0")) out[k] = { items: [{ id: 4622, opportunity: 51500, companyId: 701, parentId2: null, begindate: "2026-11-02T03:00:00+03:00" }, { id: 4700, opportunity: 10000, companyId: 0, parentId2: 11, begindate: "2026-11-03T03:00:00+03:00" }] };
+        else if (q.startsWith("crm.item.list")) out[k] = { items: [] };
         else out[k] = [];
       }
       return { out, errors: 0 };
@@ -112,4 +115,8 @@ test("collectCorp: team, deals, tasks, notes, contacts via the company", async (
   assert.deepEqual(b.lastContact, { at: Date.parse("2026-11-02T10:00:00+03:00"), kind: "email" });
   assert.ok(b.rules.some((x) => x.code === "notask"));
   assert.ok(!b.rules.some((x) => x.code === "nocontact"));
+  // invoices «Отправлен клиенту»: by the company or bound to the deal; one invoice counted once in the total
+  assert.deepEqual(b.waiting, { sum: 51500, count: 1, since: Date.parse("2026-11-02T03:00:00+03:00") });
+  assert.deepEqual(a.waiting, { sum: 10000, count: 1, since: Date.parse("2026-11-03T03:00:00+03:00") });
+  assert.deepEqual(r.waiting, { sum: 61500, count: 2 });
 });

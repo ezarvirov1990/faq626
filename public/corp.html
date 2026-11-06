@@ -38,12 +38,13 @@ h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spa
 .fresh.dead { background: var(--crit-soft); color: var(--crit); }
 h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 
-.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 @media (max-width: 760px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .stat { background: var(--surface); padding: 16px 18px; display: grid; gap: 2px; align-content: start; }
 .stat b { font: 600 30px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
 .stat span { color: var(--muted); font-size: 13px; }
 .stat.crit b { color: var(--crit); }
+.stat.pay b { color: var(--ok); font-size: 24px; line-height: 1.25; white-space: nowrap; }
 
 .stages { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(176px, 40vw), 1fr)); gap: 8px; }
 .stg { text-align: left; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; align-content: start; cursor: pointer; }
@@ -97,7 +98,7 @@ table { width: 100%; min-width: 1040px; border-collapse: collapse; font-size: 14
 th { text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); padding: 8px 12px; white-space: nowrap; }
 td { padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
 td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
-th.c-deal { width: 22%; } th.c-who { width: 130px; } th.c-sum { width: 110px; } th.c-days { width: 96px; } th.c-task { width: 110px; } th.c-note { width: 104px; } th.c-cont { width: 120px; } th.c-do { width: auto; }
+th.c-deal { width: 22%; } th.c-who { width: 130px; } th.c-sum { width: 110px; } th.c-pay { width: 124px; } th.c-days { width: 96px; } th.c-task { width: 110px; } th.c-note { width: 104px; } th.c-cont { width: 120px; } th.c-do { width: auto; }
 a { color: var(--accent); text-decoration: none; font-weight: 500; }
 a:hover { text-decoration: underline; }
 .deal-id { display: block; font: 500 12px var(--mono); color: var(--muted); }
@@ -179,6 +180,7 @@ a:hover { text-decoration: underline; }
   const plural = (n, f) => f[n % 10 === 1 && n % 100 !== 11 ? 0 : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 1 : 2];
   const DEALS = ["сделка", "сделки", "сделок"];
   const DAYS = ["день", "дня", "дней"];
+  const INVOICES = ["счёт", "счёта", "счетов"];
   const money = (x) => x ? Math.round(x).toLocaleString("ru-RU") + " ₽" : "—";
   const dayFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", timeZone: "Europe/Moscow" });
   const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
@@ -207,7 +209,10 @@ a:hover { text-decoration: underline; }
     const cnt = (type) => items.filter((it) => has(it, type)).length;
     $("stats").replaceChildren(
       el("div", { class: "stat crit" }, el("b", { text: String(cnt("all")) }), el("span", { text: "с нарушениями из " + items.length + " открытых " + plural(items.length, DEALS) })),
-      ...TYPES.slice(1).map((t) => el("div", { class: "stat" }, el("b", { text: String(cnt(t.key)) }), el("span", { text: t.name.toLowerCase() }))));
+      ...TYPES.slice(1).map((t) => el("div", { class: "stat" }, el("b", { text: String(cnt(t.key)) }), el("span", { text: t.name.toLowerCase() }))),
+      // invoices «Отправлен клиенту» of the pipeline's companies, each counted once
+      el("div", { class: "stat pay" }, el("b", { text: money(D.waiting ? D.waiting.sum : 0) }),
+        el("span", { text: "ждём оплату" + (D.waiting && D.waiting.count ? " · " + D.waiting.count + " " + plural(D.waiting.count, INVOICES) + " «Отправлен клиенту»" : "") })));
 
     // funnel: stage cards
     $("stages").replaceChildren(...D.stages.map((s, i) => {
@@ -270,8 +275,8 @@ a:hover { text-decoration: underline; }
       if (!rs.length) continue;
       const total = rows.filter((it) => it.stage === s.key).length;
       const base = BASES.has(s.key);
-      const head = ["Сделка", ...(showWho ? ["Ответственный"] : []), "Сумма", "На этапе", "Задача", "Комментарий", ...(base ? ["Связь"] : []), "Что сделать"];
-      const cls = ["c-deal", ...(showWho ? ["c-who"] : []), "c-sum", "c-days", "c-task", "c-note", ...(base ? ["c-cont"] : []), "c-do"];
+      const head = ["Сделка", ...(showWho ? ["Ответственный"] : []), "Сумма", "Ждём оплату", "На этапе", "Задача", "Комментарий", ...(base ? ["Связь"] : []), "Что сделать"];
+      const cls = ["c-deal", ...(showWho ? ["c-who"] : []), "c-sum", "c-pay", "c-days", "c-task", "c-note", ...(base ? ["c-cont"] : []), "c-do"];
       list.append(el("div", { class: "group" },
         el("div", { class: "group-head" }, el("div", {}, el("b", { text: s.name }), el("span", { text: "  " + total + " " + plural(total, DEALS) + " · " + s.rule }))),
         el("div", { class: "tbl-wrap" }, el("table", {},
@@ -280,6 +285,8 @@ a:hover { text-decoration: underline; }
             el("td", {}, el("a", { href: D.portal + "/crm/deal/details/" + it.id + "/", target: "_blank", rel: "noopener", text: it.title }), el("span", { class: "deal-id", text: "#" + it.id })),
             showWho ? el("td", { text: name.get(it.owner) || "другой ответственный" }) : null,
             el("td", { class: "num", text: money(it.amount) }),
+            // the company's invoices «Отправлен клиенту»: the sum and the oldest one's date
+            el("td", { class: "num" }, it.waiting ? [document.createTextNode(money(it.waiting.sum)), el("span", { class: "deal-id", text: (it.waiting.count > 1 ? it.waiting.count + " " + plural(it.waiting.count, INVOICES) + ", " : "") + (it.waiting.since ? "с " + dayFmt.format(new Date(it.waiting.since)) : "") })] : el("span", { class: "muted", text: "—" })),
             el("td", { class: "num" }, el("span", { class: "pill" + (it.rules.some((r) => r.type === "stage") ? " c" : ""), text: it.daysOnStage + " " + plural(it.daysOnStage, DAYS) })),
             el("td", { class: it.task.state === "ok" ? "" : "bad", text: s.key === "base" || s.key === "new" ? "—" : it.task.state === "ok" ? dayFmt.format(new Date(it.task.next)) : it.task.state === "due" ? "просрочена" : it.task.state === "nodate" ? "без срока" : "нет" }),
             // «База на проработку» and «Новый клиент» have no comment rule: the date is just for reference
