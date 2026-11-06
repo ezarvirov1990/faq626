@@ -96,8 +96,14 @@ table.pay { min-width: 680px; }
 .filter-note { font-size: 14px; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
 
 /* money row: each figure opens its list */
-.money.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-@media (max-width: 900px) { .money.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } .money.four .m:nth-child(3) { border-left: 0; } .money.four .m:nth-child(n+3) { border-top: 1px solid var(--line); } }
+.money.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+/* narrower: «Ждём оплату» on its own row, the other four in pairs */
+@media (max-width: 1000px) and (min-width: 761px) {
+  .money.five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .money.five .m:first-child { grid-column: 1 / -1; border-radius: 12px 12px 0 0; }
+  .money.five .m:nth-child(even) { border-left: 0; }
+  .money.five .m:nth-child(n+2) { border-top: 1px solid var(--line); }
+}
 button.m[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 0 -3px 0 var(--accent); }
 
 /* funnel: stage cards left→right like the B2C page; the bar and the red line follow the chosen list */
@@ -175,7 +181,7 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
 
   <div class="who" id="who" role="group" aria-label="Ответственный"></div>
 
-  <section class="money four" id="money" aria-label="Главные показатели"></section>
+  <section class="money five" id="money" aria-label="Главные показатели"></section>
 
   <section class="sec" aria-labelledby="h-funnel">
     <div class="sec-head"><h2 id="h-funnel">Воронка</h2><span class="filter-note" id="funnel-note"></span></div>
@@ -214,7 +220,9 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
   // the four lists (the user's priorities 06.11.2026: contact, tasks; plus time on stage and awaited payments)
   const BUCKETS = [
     { key: "contact", name: "Нет связи", line: "без связи", codes: ["nocontact"] },
-    { key: "task", name: "Нет задачи или просрочена", line: "без задачи", codes: ["notask", "taskdue"] },
+    // tasks split into two lists (the user's request 06.11.2026)
+    { key: "notask", name: "Нет задачи", line: "без задачи", codes: ["notask"] },
+    { key: "due", name: "Просрочена задача", line: "просрочено", codes: ["taskdue"] },
     { key: "stage", name: "Долго на этапе", line: "дольше срока", codes: ["over", "notaken", "old"] },
     { key: "pay", name: "Ждём оплату" },
   ];
@@ -297,8 +305,8 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
     const bases = live.filter((it) => BASES.has(it.stage));
     const noContact = bases.filter((it) => inBucket(it, "contact")).length;
     const carded = live.filter((it) => !NO_CARD.has(it.stage));
-    const noTask = carded.filter((it) => inBucket(it, "task")).length;
-    const due = carded.filter((it) => it.task.state === "due").length;
+    const noTask = carded.filter((it) => inBucket(it, "notask")).length;
+    const due = carded.filter((it) => inBucket(it, "due")).length;
     const tile = (key, label, val, note, cls) => {
       const b = el("button", { type: "button", class: "m", "aria-pressed": String(state.bucket === key), title: "Открыть список" },
         el("span", { class: "m-label", text: label }), el("span", { class: "m-val" + (cls ? " " + cls : ""), text: val }), el("span", { class: "m-note" }, note));
@@ -310,7 +318,8 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
       el("div", { class: "m" }, el("span", { class: "m-label", text: "В работе: от КП до счёта" }), el("span", { class: "m-val", text: short(workSum) }),
         el("span", { class: "m-note", text: inWork.length + " " + plural(inWork.length, DEALS) + " · суммы из карточек" })),
       tile("contact", "Нет связи больше месяца", String(noContact), "из " + bases.length + " партнёров и агентов"),
-      tile("task", "Нет задачи или просрочена", String(noTask), ["из " + carded.length + " сделок в работе", due ? el("span", { class: "bad", text: " · просрочено " + due }) : null]));
+      tile("notask", "Нет задачи", String(noTask), "из " + carded.length + " сделок в работе"),
+      tile("due", "Просрочена задача", String(due), "из " + carded.length + " сделок в работе"));
   }
 
   // each stage card shows every problem the stage's rules check (like the B2C funnel), the chosen list's line is bold
@@ -319,7 +328,7 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
       const its = live.filter((it) => it.stage === s.key);
       const old = mine.filter((it) => it.stage === s.key && isOld(it)).length;
       const sum = its.reduce((a, it) => a + (it.amount >= 1000 ? it.amount : 0), 0);
-      const checks = BUCKETS.filter((b) => b.key !== "pay" && (b.key === "contact" ? BASES.has(s.key) : b.key === "task" ? !NO_CARD.has(s.key) : true));
+      const checks = BUCKETS.filter((b) => b.key !== "pay" && (b.key === "contact" ? BASES.has(s.key) : ["notask", "due"].includes(b.key) ? !NO_CARD.has(s.key) : true));
       const bad = its.filter((it) => checks.some((b) => inBucket(it, b.key)));
       const lines = its.length ? checks.map((b) => {
         const n = its.filter((it) => inBucket(it, b.key)).length;
@@ -379,7 +388,8 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
     const list = $("list");
     if (state.bucket === "pay") return renderPay(D, mine.filter((it) => !state.stage || it.stage === state.stage));
     const order = { contact: (a, b) => (a.lastContact ? a.lastContact.at : 0) - (b.lastContact ? b.lastContact.at : 0),
-      task: (a, b) => Number(b.task.state === "due") - Number(a.task.state === "due") || b.amount - a.amount || b.daysOnStage - a.daysOnStage,
+      notask: (a, b) => b.amount - a.amount || b.daysOnStage - a.daysOnStage,
+      due: (a, b) => (a.task.next || 0) - (b.task.next || 0), // longest overdue first
       stage: (a, b) => b.daysOnStage - a.daysOnStage }[state.bucket];
     const idx = new Map(D.stages.map((s, i) => [s.key, i]));
     const rows = live.filter((it) => inBucket(it, state.bucket) && (!state.stage || it.stage === state.stage))
@@ -487,8 +497,8 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
     } catch (e) { state.error = e.message; }
     render();
   }
-  // …/corp#pay, #task, #stage open that list; #old opens the old deals
-  const hash = location.hash.slice(1);
+  // …/corp#pay, #notask, #due, #stage open that list (old #task → #notask); #old opens the old deals
+  const hash = location.hash.slice(1) === "task" ? "notask" : location.hash.slice(1);
   if (BUCKETS.some((b) => b.key === hash)) state.bucket = hash;
   if (hash === "old") $("old-fold").open = true;
   load();
