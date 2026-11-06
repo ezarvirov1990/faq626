@@ -95,24 +95,49 @@ table.pay { min-width: 680px; }
 .empty { padding: 22px; text-align: center; color: var(--muted); }
 .filter-note { font-size: 14px; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
 
-/* funnel: one strip of the sequential stages + the two long-term bases apart */
-.strip { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.strip.bases { --n: 2; max-width: 460px; }
-@media (max-width: 900px) { .strip { grid-template-columns: repeat(3, minmax(0, 1fr)); } .strip.bases { max-width: none; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.st { text-align: left; background: none; border: 0; border-left: 1px solid var(--line); padding: 12px 12px 12px; display: grid; gap: 3px; align-content: start; cursor: pointer; min-width: 0; }
-.st:first-child { border-left: 0; }
-@media (max-width: 900px) { .st { border-top: 1px solid var(--line); } }
-.st:hover { background: var(--accent-soft); }
-.st[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 0 -3px 0 var(--accent); }
-.st-name { font-size: 13px; font-weight: 600; line-height: 1.3; min-height: 2.6em; }
-.st-n { font: 600 22px/1.1 var(--mono); }
-.st-sum { font: 500 12px var(--mono); color: var(--muted); min-height: 1.5em; }
-.st-act { font-size: 12px; color: var(--crit); font-weight: 600; }
-.st-act.none { color: var(--muted); font-weight: 400; }
-.st-old { font-size: 12px; color: var(--muted); }
-.funnel-legend { font-size: 13px; color: var(--muted); margin: 0; }
+/* money row: each figure opens its list */
+.money.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) { .money.four { grid-template-columns: repeat(2, minmax(0, 1fr)); } .money.four .m:nth-child(3) { border-left: 0; } .money.four .m:nth-child(n+3) { border-top: 1px solid var(--line); } }
+button.m[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 0 -3px 0 var(--accent); }
 
-/* folded blocks */
+/* funnel: stage cards left→right like the B2C page; the bar and the red line follow the chosen list */
+.stages { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; }
+.stages.bases { margin-top: 6px; }
+.stages.bases .stg { grid-column: span 2; }
+@media (max-width: 1000px) { .stages { grid-template-columns: repeat(3, minmax(0, 1fr)); } .stages.bases { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stages.bases .stg { grid-column: auto; } }
+.stg { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 10px 11px; display: grid; gap: 5px; align-content: start; cursor: pointer; min-width: 0; }
+.stg:hover { border-color: var(--accent); }
+.stg[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.stg-name { font-size: 13px; font-weight: 600; line-height: 1.25; min-height: 2.5em; }
+.stg-num { font: 600 22px/1.1 var(--mono); }
+.stg-sum { font: 500 12px var(--mono); color: var(--muted); min-height: 1.4em; }
+.stg-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--ok) 55%, var(--line)); }
+.stg-bar.off { background: var(--line); }
+.stg-bar i { display: block; height: 100%; background: var(--crit); }
+.stg-line { font-size: 12px; line-height: 1.3; }
+.stg-line b { color: var(--crit); font-weight: 500; }
+.stg-line.on b { font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.stg-line.ok { color: var(--ok); }
+.stg-line.off, .stg-old { font-size: 12px; color: var(--muted); }
+.stg-line.pay b { color: var(--ok); }
+
+/* list switcher */
+.seg { display: inline-flex; max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.seg button { font-size: 14px; white-space: nowrap; border: 0; background: transparent; padding: 8px 14px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.seg button b { font-family: var(--mono); font-weight: 600; margin-left: 4px; }
+@media (max-width: 640px) { .seg { display: grid; grid-template-columns: 1fr 1fr; } .seg button + button { border-left: 0; } .seg button:nth-child(even) { border-left: 1px solid var(--line); } .seg button:nth-child(n+3) { border-top: 1px solid var(--line); } }
+.list-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 16px; }
+.group + .group { margin-top: 14px; }
+.group-head { padding: 11px 14px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.group-head b { font-weight: 600; }
+.group-head span { font-size: 13px; color: var(--muted); }
+table.list { min-width: 860px; }
+table.list td:first-child { width: 26%; }
+.cell-bad { color: var(--crit); font-weight: 600; }
+
+/* folded old deals */
 details.fold { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
 details.fold > summary { list-style: none; cursor: pointer; padding: 14px 18px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
 details.fold > summary::-webkit-details-marker { display: none; }
@@ -120,20 +145,11 @@ details.fold > summary::before { content: ""; width: 8px; height: 8px; border-ri
 details.fold[open] > summary::before { transform: rotate(45deg); }
 details.fold > summary b { font-size: 17px; font-weight: 600; }
 details.fold > summary span { font-size: 14px; color: var(--muted); }
-.fold-body { border-top: 1px solid var(--line); display: grid; gap: 18px; padding: 16px 18px 18px; }
-.fold-body.flush { padding: 0; gap: 0; }
-.gauges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 24px; }
-@media (max-width: 760px) { .gauges { grid-template-columns: minmax(0, 1fr); } }
-.gauge { display: grid; gap: 6px; font-size: 14px; }
-.gauge b { font: 600 18px var(--mono); }
-.gauge-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
-.gauge-bar i { display: block; height: 100%; background: var(--accent); }
-table.mgr { min-width: 620px; }
-table.mgr td, table.mgr th { padding-inline: 12px; }
-.defs { margin: 0; font-size: 13px; color: var(--muted); max-width: 72ch; display: grid; gap: 6px; }
+.fold-body { border-top: 1px solid var(--line); }
+.defs { margin: 0; font-size: 13px; color: var(--muted); max-width: 75ch; display: grid; gap: 4px; }
+.defs p { margin: 0; }
 .defs b { color: var(--ink); font-weight: 600; }
-.def { margin: 0; }
-/* phones: table rows become cards — the deal and its key number on top, the rest below, nothing scrolls sideways */
+/* phones: table rows become cards — the deal and its key figure on top, the rest below, nothing scrolls sideways */
 @media (max-width: 640px) {
   table.cards { min-width: 0; }
   table.cards thead { display: none; }
@@ -142,6 +158,7 @@ table.mgr td, table.mgr th { padding-inline: 12px; }
   table.cards td { border: 0; padding: 0; width: auto !important; }
   table.cards td:not(:first-child):not(.lead) { grid-column: 1 / -1; text-align: left; }
   table.cards td.lead { grid-column: 2; grid-row: 1; }
+  table.cards td[data-l]::before { content: attr(data-l) ": "; color: var(--muted); font-weight: 400; }
 }
 [hidden] { display: none !important; }
 </style>
@@ -151,72 +168,60 @@ table.mgr td, table.mgr th { padding-inline: 12px; }
   <header>
     <div>
       <h1>Корпоративные продажи</h1>
-      <p class="sub">Воронка «Корпоративные клиенты» · деньги и следующие шаги</p>
+      <p class="sub">Воронка «Корпоративные клиенты»</p>
     </div>
     <span class="fresh dead" id="fresh">Загружаю данные…</span>
   </header>
 
   <div class="who" id="who" role="group" aria-label="Ответственный"></div>
 
-  <section class="money" id="money" aria-label="Деньги"></section>
-
-  <section class="sec" aria-labelledby="h-todo">
-    <div class="sec-head"><h2 id="h-todo">Сделать сейчас <small id="todo-count"></small></h2><span class="filter-note" id="todo-filter"></span></div>
-    <div class="box" id="todo"></div>
-  </section>
-
-  <section class="sec" aria-labelledby="h-pay" id="pay-sec">
-    <div class="sec-head"><h2 id="h-pay">Ждём оплату <small id="pay-count"></small></h2></div>
-    <div class="box" id="pay"></div>
-  </section>
+  <section class="money four" id="money" aria-label="Главные показатели"></section>
 
   <section class="sec" aria-labelledby="h-funnel">
-    <div class="sec-head"><h2 id="h-funnel">Воронка</h2><p class="funnel-legend">Число — живые сделки на этапе, красным — сколько ждут действия. Нажмите этап, чтобы отфильтровать «Сделать сейчас».</p></div>
-    <div class="strip" id="funnel" style="--n: 9"></div>
-    <div class="strip bases" id="bases"></div>
+    <div class="sec-head"><h2 id="h-funnel">Воронка</h2><span class="filter-note" id="funnel-note"></span></div>
+    <div class="stages" id="funnel"></div>
+    <div class="stages bases" id="bases"></div>
   </section>
 
-  <details class="fold" id="crm-fold">
-    <summary><b>Порядок в CRM</b><span id="crm-sum"></span></summary>
-    <div class="fold-body" id="crm"></div>
-  </details>
+  <section class="sec" aria-labelledby="h-list">
+    <div class="list-head">
+      <div class="seg" id="buckets" role="group" aria-label="Список"></div>
+      <span class="filter-note" id="list-filter"></span>
+    </div>
+    <h2 id="h-list" hidden>Сделки</h2>
+    <div id="list"></div>
+  </section>
 
   <details class="fold" id="old-fold">
     <summary><b>Старые сделки</b><span id="old-sum"></span></summary>
-    <div class="fold-body flush" id="old"></div>
+    <div class="fold-body" id="old"></div>
   </details>
+
+  <div class="defs">
+    <p><b>Связь</b> — на базах партнёров и агентов раз в месяц: звонок с разговором, письмо, чат или проведённая встреча по сделке, её контакту или компании, либо заметка о разговоре («созвонились», «встреча», «договорились»).</p>
+    <p><b>Задача</b> — только из раздела «Задачи», привязанная к сделке, со сроком сегодня или позже; дела не считаются. <b>Комментарий</b> — заметка в ленте сделки за 30 дней.</p>
+    <p><b>Старые сделки</b> — больше 180 дней на одном этапе (кроме баз), в списки не попадают. Данные обновляются каждые 15 минут.</p>
+  </div>
 </div>
 
 <script>
 (() => {
   const BASES = new Set(["partners", "agents"]);
-  const OLD_DAYS = 180; // a deal this long on a funnel stage is out of the live pipeline (bases are long-term by design)
+  const NO_CARD = new Set(["base", "new"]); // no task / comment rules there
+  const OLD_DAYS = 180; // this long on a funnel stage = out of the live pipeline (bases are long-term by design)
   const OLD_INVOICE_DAYS = 90;
-  const TODO_LIMIT = 15, PAY_LIMIT = 5, OLD_LIMIT = 30;
+  const LIMIT = 30, OLD_LIMIT = 30;
   const OTHERS = -1;
-  // «Сделать сейчас» order: the untaken new deal first, then closest to money
-  const STAGE_RANK = { new: 0, invoice: 1, signed: 2, contract: 3, terms: 4, kp: 5, lpr: 6, partners: 7, agents: 8, work: 9, base: 10 };
-  // the deal's main action is its most urgent rule; the rest go as tags
-  const RULE_RANK = { notaken: 0, over: 1, nocontact: 2, taskdue: 3, old: 4, nocomment: 5, notask: 6 };
-  // «Сделать сейчас» takes deals with a real next step; a missing task or comment alone is CRM hygiene («Порядок в CRM»),
-  // otherwise nearly every deal lands in the list while the team moves from «дела» to tasks
-  const ACTION = new Set(["notaken", "over", "nocontact", "taskdue", "old"]);
-  const ddmm = (at) => new Date(at + 3 * 3600e3).toISOString().slice(5, 10).split("-").reverse().join(".");
-  function actionText(r, it, D) {
-    const lim = (D.stages.find((s) => s.key === it.stage) || {}).limit;
-    switch (r.code) {
-      case "notaken": return "Взять в работу";
-      case "over": return it.daysOnStage + " " + plural(it.daysOnStage, DAYS) + " на этапе (норма " + lim + ") — двигать дальше или закрыть";
-      case "nocontact": return it.lastContact ? "Связаться: последний контакт " + ddmm(it.lastContact.at) : "Связаться: за месяц контакта не было";
-      case "taskdue": return "Задача просрочена (" + ddmm(it.task.next) + ") — перенести срок";
-      case "old": return "Взять в работу или закрыть";
-      case "notask": return "Поставить задачу со сроком";
-      case "nocomment": return "Записать дальнейшие действия";
-      default: return r.text;
-    }
-  }
-  const TAG = { notask: "нет задачи", taskdue: "задача просрочена", nocomment: "нет комментария", nocontact: "нет связи за месяц", over: "долго на этапе", notaken: "не взята в работу", old: "давно в базе" };
-  const state = { data: null, error: null, who: null, stage: null, showTodo: false, showPay: false, showOld: false };
+  // the four lists (the user's priorities 06.11.2026: contact, tasks; plus time on stage and awaited payments)
+  const BUCKETS = [
+    { key: "contact", name: "Нет связи", line: "без связи", codes: ["nocontact"] },
+    { key: "task", name: "Нет задачи или просрочена", line: "без задачи", codes: ["notask", "taskdue"] },
+    { key: "stage", name: "Долго на этапе", line: "дольше срока", codes: ["over", "notaken", "old"] },
+    { key: "pay", name: "Ждём оплату" },
+  ];
+  const TAG = { notask: "нет задачи", taskdue: "задача просрочена", nocomment: "нет комментария", nocontact: "нет связи", over: "долго на этапе", notaken: "не взята в работу", old: "давно в базе" };
+  const KIND = { call: "звонок", email: "письмо", chat: "чат", meeting: "встреча", note: "заметка" };
+  const state = { data: null, error: null, who: null, stage: null, bucket: "contact", showAll: false, showOld: false };
 
   const $ = (id) => document.getElementById(id);
   function el(tag, attrs = {}, ...kids) {
@@ -234,20 +239,38 @@ table.mgr td, table.mgr th { padding-inline: 12px; }
   const short = (x) => x >= 1e6 ? (x / 1e6).toFixed(x >= 1e7 ? 0 : 1).replace(".", ",") + " млн ₽" : x >= 1e4 ? Math.round(x / 1e3) + " тыс ₽" : rub(x);
   const amount = (x) => x >= 1000 ? rub(x) : "—"; // sums under 1 000 ₽ are placeholders in this pipeline («1 ₽», «106 ₽»)
   const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Moscow" });
+  const dayFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", timeZone: "Europe/Moscow" });
   const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
   const ageDays = (at) => Math.floor((Date.now() - at) / 864e5);
-  const link = (D, it) => el("a", { href: D.portal + "/crm/deal/details/" + it.id + "/", target: "_blank", rel: "noopener", text: it.title });
+  // dd.mm this year, dd.mm.yy for older dates (a «10.10» contact may be from 2024)
+  const shortDate = (at) => new Date(at).getFullYear() === new Date().getFullYear() ? dayFmt.format(new Date(at)) : dateFmt.format(new Date(at)).replace(/\.(\d\d)(\d\d)$/, ".$2");
+  // the list's main action, short; the full rule text stays in the cell's tooltip
+  function actionText(r, it, D) {
+    const lim = (D.stages.find((s) => s.key === it.stage) || {}).limit;
+    switch (r.code) {
+      case "nocontact": return "Связаться: позвонить, написать или встретиться";
+      case "notask": return it.task.state === "nodate" ? "Поставить срок задаче" : "Поставить задачу со сроком";
+      case "taskdue": return "Перенести срок задачи или закрыть её";
+      case "over": return "Двигать дальше или закрыть" + (lim ? " (норма " + lim + " дней)" : "");
+      case "notaken": return "Взять в работу";
+      case "old": return "Взять в работу или закрыть";
+      default: return r.text;
+    }
+  }
+  const ago = (at) => { const d = ageDays(at); return d === 0 ? "сегодня" : d + " " + plural(d, DAYS) + " назад"; };
 
   const isOld = (it) => !BASES.has(it.stage) && it.daysOnStage > OLD_DAYS;
   const ownerKey = (it) => state.data.team.some((m) => m.id === it.owner) ? it.owner : OTHERS;
-  const mainRule = (it) => it.rules.slice().sort((a, b) => RULE_RANK[a.code] - RULE_RANK[b.code])[0];
-  const needsAction = (it) => it.rules.some((r) => ACTION.has(r.code));
+  const bucketOf = (key) => BUCKETS.find((b) => b.key === key);
+  const inBucket = (it, key) => key === "pay" ? Boolean(it.waiting) : it.rules.some((r) => bucketOf(key).codes.includes(r.code));
   function paySum(list) {
     const seen = new Map();
     for (const it of list) for (const v of (it.waiting && it.waiting.invoices) || []) seen.set(v.id, v);
     const all = [...seen.values()];
-    return { sum: all.reduce((a, v) => a + v.sum, 0), count: all.length, old: all.filter((v) => v.at && ageDays(v.at) > OLD_INVOICE_DAYS) };
+    return { sum: all.reduce((a, v) => a + v.sum, 0), count: all.length, old: all.filter((v) => v.at && ageDays(v.at) > OLD_INVOICE_DAYS).length };
   }
+  const link = (D, it) => el("a", { href: D.portal + "/crm/deal/details/" + it.id + "/", target: "_blank", rel: "noopener", text: it.title });
+  const pick = (key) => { state.bucket = key; state.showAll = false; render(); };
 
   function renderFresh() {
     const f = $("fresh");
@@ -262,60 +285,136 @@ table.mgr td, table.mgr th { padding-inline: 12px; }
     $("who").replaceChildren(el("span", { text: "Ответственный:" }), ...owners.map((m) => {
       const n = m.id === null ? D.items.length : D.items.filter((it) => ownerKey(it) === m.id).length;
       const b = el("button", { type: "button", class: "chip-btn", "aria-pressed": String(state.who === m.id) }, m.name, el("b", { text: String(n) }));
-      b.addEventListener("click", () => { state.who = m.id; state.showTodo = state.showPay = state.showOld = false; render(); });
+      b.addEventListener("click", () => { state.who = m.id; state.showAll = state.showOld = false; render(); });
       return b;
     }));
   }
 
-  function renderMoney(D, mine, live, todo) {
+  function renderMoney(D, mine, live) {
     const pay = paySum(mine);
     const late = ["kp", "terms", "contract", "signed", "invoice"];
     const inWork = live.filter((it) => late.includes(it.stage));
     const workSum = inWork.reduce((a, it) => a + (it.amount >= 1000 ? it.amount : 0), 0);
-    const payBtn = el("button", { type: "button", class: "m", title: "К списку счетов" },
-      el("span", { class: "m-label", text: "Ждём оплату" }),
-      el("span", { class: "m-val ok", text: short(pay.sum) }),
-      el("span", { class: "m-note" }, pay.count + " " + plural(pay.count, INVOICES) + " «Отправлен клиенту»", pay.old.length ? el("span", { class: "bad", text: " · " + pay.old.length + " старше 3 месяцев" }) : null));
-    payBtn.addEventListener("click", () => $("pay-sec").scrollIntoView({ behavior: "smooth", block: "start" }));
-    $("money").replaceChildren(payBtn,
+    const bases = live.filter((it) => BASES.has(it.stage));
+    const noContact = bases.filter((it) => inBucket(it, "contact")).length;
+    const carded = live.filter((it) => !NO_CARD.has(it.stage));
+    const noTask = carded.filter((it) => inBucket(it, "task")).length;
+    const due = carded.filter((it) => it.task.state === "due").length;
+    const tile = (key, label, val, note, cls) => {
+      const b = el("button", { type: "button", class: "m", "aria-pressed": String(state.bucket === key), title: "Открыть список" },
+        el("span", { class: "m-label", text: label }), el("span", { class: "m-val" + (cls ? " " + cls : ""), text: val }), el("span", { class: "m-note" }, note));
+      b.addEventListener("click", () => { pick(key); $("list").scrollIntoView({ behavior: "smooth", block: "start" }); });
+      return b;
+    };
+    $("money").replaceChildren(
+      tile("pay", "Ждём оплату", short(pay.sum), [pay.count + " " + plural(pay.count, INVOICES) + " «Отправлен клиенту»", pay.old ? el("span", { class: "bad", text: " · " + pay.old + " старше 3 мес." }) : null], "ok"),
       el("div", { class: "m" }, el("span", { class: "m-label", text: "В работе: от КП до счёта" }), el("span", { class: "m-val", text: short(workSum) }),
-        el("span", { class: "m-note", text: inWork.length + " " + plural(inWork.length, DEALS) + " · суммы из карточек сделок" })),
-      el("div", { class: "m" }, el("span", { class: "m-label", text: "Ждут действия" }), el("span", { class: "m-val", text: String(todo.length) }),
-        el("span", { class: "m-note", text: "из " + live.length + " живых " + plural(live.length, DEALS) + " · где нет только задачи или комментария — в «Порядке в CRM»" })));
+        el("span", { class: "m-note", text: inWork.length + " " + plural(inWork.length, DEALS) + " · суммы из карточек" })),
+      tile("contact", "Нет связи больше месяца", String(noContact), "из " + bases.length + " партнёров и агентов"),
+      tile("task", "Нет задачи или просрочена", String(noTask), ["из " + carded.length + " сделок в работе", due ? el("span", { class: "bad", text: " · просрочено " + due }) : null]));
   }
 
-  function renderTodo(D, todo) {
-    const stageName = new Map(D.stages.map((s) => [s.key, s.name]));
-    const rows = todo.filter((it) => !state.stage || it.stage === state.stage)
-      .sort((a, b) => STAGE_RANK[a.stage] - STAGE_RANK[b.stage] || b.amount - a.amount || b.daysOnStage - a.daysOnStage);
-    $("todo-count").textContent = rows.length + " " + plural(rows.length, DEALS);
-    const fn = $("todo-filter"); fn.replaceChildren();
+  // each stage card shows every problem the stage's rules check (like the B2C funnel), the chosen list's line is bold
+  function renderFunnel(D, mine, live) {
+    const card = (s) => {
+      const its = live.filter((it) => it.stage === s.key);
+      const old = mine.filter((it) => it.stage === s.key && isOld(it)).length;
+      const sum = its.reduce((a, it) => a + (it.amount >= 1000 ? it.amount : 0), 0);
+      const checks = BUCKETS.filter((b) => b.key !== "pay" && (b.key === "contact" ? BASES.has(s.key) : b.key === "task" ? !NO_CARD.has(s.key) : true));
+      const bad = its.filter((it) => checks.some((b) => inBucket(it, b.key)));
+      const lines = its.length ? checks.map((b) => {
+        const n = its.filter((it) => inBucket(it, b.key)).length;
+        return n ? el("div", { class: "stg-line" + (state.bucket === b.key ? " on" : "") }, el("b", { text: n + " " + b.line })) : null;
+      }).filter(Boolean) : [];
+      const p = paySum(its);
+      const btn = el("button", { type: "button", class: "stg", "aria-pressed": String(state.stage === s.key), title: s.rule },
+        el("span", { class: "stg-name", text: s.name }),
+        el("span", { class: "stg-num", text: String(its.length) }),
+        el("span", { class: "stg-sum", text: sum ? short(sum) : "" }),
+        el("div", { class: "stg-bar" + (its.length ? "" : " off"), "aria-hidden": "true" }, its.length ? el("i", { style: "width:" + (100 * bad.length / its.length) + "%" }) : null),
+        ...(lines.length ? lines : [el("div", { class: "stg-line " + (its.length ? "ok" : "off"), text: its.length ? "всё в порядке" : "сделок нет" })]),
+        p.count ? el("div", { class: "stg-line pay" + (state.bucket === "pay" ? " on" : "") }, "ждём ", el("b", { text: short(p.sum) })) : null,
+        old ? el("span", { class: "stg-old", text: "+ " + old + " " + plural(old, ["старая", "старые", "старых"]) }) : null);
+      btn.addEventListener("click", () => { state.stage = state.stage === s.key ? null : s.key; state.showAll = false; render(); });
+      return btn;
+    };
+    $("funnel").replaceChildren(...D.stages.filter((s) => !BASES.has(s.key)).map(card));
+    $("bases").replaceChildren(...D.stages.filter((s) => BASES.has(s.key)).map(card));
+    $("funnel-note").textContent = "живые сделки по этапам · красная полоса — доля сделок с проблемами";
+  }
+
+  function renderBuckets(D, mine, live) {
+    $("buckets").replaceChildren(...BUCKETS.map((b) => {
+      const n = b.key === "pay" ? paySum(mine).count : live.filter((it) => inBucket(it, b.key)).length;
+      const btn = el("button", { type: "button", "aria-pressed": String(state.bucket === b.key) }, b.name, el("b", { text: String(n) }));
+      btn.addEventListener("click", () => pick(b.key));
+      return btn;
+    }));
+    const fn = $("list-filter"); fn.replaceChildren();
     if (state.stage) {
       const reset = el("button", { type: "button", class: "link-btn", text: "Все этапы" });
-      reset.addEventListener("click", () => { state.stage = null; state.showTodo = false; render(); });
-      fn.append("Этап «" + stageName.get(state.stage) + "»", reset);
+      reset.addEventListener("click", () => { state.stage = null; state.showAll = false; render(); });
+      fn.append("Этап «" + D.stages.find((s) => s.key === state.stage).name + "»", reset);
     }
-    const box = $("todo");
-    if (!rows.length) { box.replaceChildren(el("div", { class: "empty", text: "Все живые сделки в порядке." })); return; }
-    const shown = state.showTodo ? rows : rows.slice(0, TODO_LIMIT);
+  }
+
+  // one cell per column, same order as the header
+  function taskCell(it) {
+    if (NO_CARD.has(it.stage)) return el("td", { "data-l": "Задача", class: "muted", text: "—" });
+    if (it.task.state === "ok") return el("td", { "data-l": "Задача", text: "до " + dayFmt.format(new Date(it.task.next)) });
+    if (it.task.state === "due") return el("td", { "data-l": "Задача", class: "cell-bad", text: "просрочена с " + shortDate(it.task.next) });
+    return el("td", { "data-l": "Задача", class: "cell-bad", text: it.task.state === "nodate" ? "без срока" : "нет" });
+  }
+  const noteCell = (it) => el("td", { "data-l": "Комментарий", class: it.rules.some((r) => r.code === "nocomment") ? "cell-bad" : "" }, it.lastNote ? shortDate(it.lastNote) : "нет",
+    it.lastNote ? el("span", { class: "sub-line", text: ago(it.lastNote) }) : null);
+  const contactCell = (it) => el("td", { "data-l": "Связь", class: it.rules.some((r) => r.code === "nocontact") ? "cell-bad" : "" }, it.lastContact ? shortDate(it.lastContact.at) + " · " + KIND[it.lastContact.kind] : "за месяц не было",
+    it.lastContact ? el("span", { class: "sub-line", text: ago(it.lastContact.at) }) : null);
+  function doCell(it, D) {
+    const b = bucketOf(state.bucket);
+    const main = it.rules.find((r) => b.codes.includes(r.code));
+    const rest = it.rules.filter((r) => r !== main);
+    return el("td", { title: it.rules.map((r) => r.text).join("\n") }, main ? el("span", { class: "act", text: actionText(main, it, D) }) : null,
+      rest.length ? el("span", { class: "tags" }, ...rest.map((r) => el("span", { class: "tag", text: TAG[r.code] }))) : null);
+  }
+
+  function renderList(D, mine, live) {
+    const list = $("list");
+    if (state.bucket === "pay") return renderPay(D, mine.filter((it) => !state.stage || it.stage === state.stage));
+    const order = { contact: (a, b) => (a.lastContact ? a.lastContact.at : 0) - (b.lastContact ? b.lastContact.at : 0),
+      task: (a, b) => Number(b.task.state === "due") - Number(a.task.state === "due") || b.amount - a.amount || b.daysOnStage - a.daysOnStage,
+      stage: (a, b) => b.daysOnStage - a.daysOnStage }[state.bucket];
+    const idx = new Map(D.stages.map((s, i) => [s.key, i]));
+    const rows = live.filter((it) => inBucket(it, state.bucket) && (!state.stage || it.stage === state.stage))
+      .sort((a, b) => idx.get(a.stage) - idx.get(b.stage) || order(a, b));
+    if (!rows.length) { list.replaceChildren(el("div", { class: "box" }, el("div", { class: "empty", text: "В этом списке пусто." }))); return; }
+    const shown = state.showAll ? rows : rows.slice(0, LIMIT);
     const who = new Map(D.team.map((m) => [m.id, m.name]));
     const showWho = state.who === null;
-    box.replaceChildren(el("div", { class: "tbl-wrap" }, el("table", { class: "todo cards" },
-      el("thead", {}, el("tr", {}, el("th", { text: "Сделка" }), el("th", { text: "Этап" }), showWho ? el("th", { text: "Ответственный" }) : null, el("th", { class: "r", text: "Сумма" }), el("th", { text: "Что сделать" }))),
-      el("tbody", {}, ...shown.map((it) => {
-        const main = mainRule(it);
-        const rest = it.rules.filter((r) => r !== main);
-        return el("tr", {},
-          el("td", {}, link(D, it)),
-          el("td", {}, stageName.get(it.stage), el("span", { class: "sub-line", text: it.daysOnStage + " " + plural(it.daysOnStage, DAYS) + " на этапе" })),
-          showWho ? el("td", { text: who.get(it.owner) || "другой ответственный" }) : null,
-          el("td", { class: "num lead", text: amount(it.amount) }),
-          el("td", { title: it.rules.map((r) => r.text).join("\n") }, el("span", { class: "act", text: actionText(main, it, D) }), rest.length ? el("span", { class: "tags" }, ...rest.map((r) => el("span", { class: "tag", text: TAG[r.code] }))) : null));
-      })))));
+    const groups = D.stages.map((s) => {
+      const rs = shown.filter((it) => it.stage === s.key);
+      if (!rs.length) return null;
+      const total = rows.filter((it) => it.stage === s.key).length;
+      const base = BASES.has(s.key);
+      const head = ["Сделка", ...(showWho ? ["Ответственный"] : []), "Сумма", "На этапе", ...(base ? ["Связь"] : []), "Задача", "Комментарий", "Что сделать"];
+      return el("div", { class: "box group" },
+        el("div", { class: "group-head" }, el("b", { text: s.name }), el("span", { text: total + " " + plural(total, DEALS) + " · " + s.rule })),
+        el("div", { class: "tbl-wrap" }, el("table", { class: "list cards" },
+          el("thead", {}, el("tr", {}, ...head.map((h) => el("th", { class: h === "Сумма" ? "r" : "", text: h })))),
+          el("tbody", {}, ...rs.map((it) => el("tr", {},
+            el("td", {}, link(D, it)),
+            showWho ? el("td", { "data-l": "Ответственный", text: who.get(it.owner) || "другой ответственный" }) : null,
+            el("td", { class: "num lead", text: amount(it.amount) }),
+            el("td", { "data-l": "На этапе", class: it.rules.some((r) => ["over", "notaken", "old"].includes(r.code)) ? "cell-bad" : "", text: it.daysOnStage + " " + plural(it.daysOnStage, DAYS) + (s.limit ? " из " + s.limit : "") }),
+            base ? contactCell(it) : null,
+            taskCell(it),
+            noteCell(it),
+            doCell(it, D)))))));
+    }).filter(Boolean);
+    list.replaceChildren(...groups);
     if (rows.length > shown.length) {
       const more = el("button", { type: "button", class: "link-btn", text: "Показать ещё " + (rows.length - shown.length) });
-      more.addEventListener("click", () => { state.showTodo = true; render(); });
-      box.append(el("div", { class: "more" }, more));
+      more.addEventListener("click", () => { state.showAll = true; render(); });
+      list.append(el("div", { class: "more", style: "border:0" }, more));
     }
   }
 
@@ -324,88 +423,27 @@ table.mgr td, table.mgr th { padding-inline: 12px; }
     const byInv = new Map();
     for (const it of mine) for (const v of (it.waiting && it.waiting.invoices) || []) if (!byInv.has(v.id)) byInv.set(v.id, { ...v, deal: it });
     const rows = [...byInv.values()].sort((a, b) => b.sum - a.sum);
-    const pay = paySum(mine);
-    $("pay-count").textContent = rows.length ? short(pay.sum) + " · " + rows.length + " " + plural(rows.length, INVOICES) : "";
-    const box = $("pay");
-    if (!rows.length) { box.replaceChildren(el("div", { class: "empty", text: "Счетов «Отправлен клиенту» нет." })); return; }
-    const shown = state.showPay ? rows : rows.slice(0, PAY_LIMIT);
+    const list = $("list");
+    if (!rows.length) { list.replaceChildren(el("div", { class: "box" }, el("div", { class: "empty", text: "Счетов «Отправлен клиенту» нет." }))); return; }
     const who = new Map(D.team.map((m) => [m.id, m.name]));
     const showWho = state.who === null;
-    box.replaceChildren(el("div", { class: "tbl-wrap" }, el("table", { class: "pay cards" },
-      el("thead", {}, el("tr", {}, el("th", { text: "Компания" }), el("th", { text: "Счёт" }), showWho ? el("th", { text: "Ответственный" }) : null, el("th", { class: "r", text: "Сумма" }), el("th", { text: "Выставлен" }))),
-      el("tbody", {}, ...shown.map((v) => {
-        const days = v.at ? ageDays(v.at) : null, old = days !== null && days > OLD_INVOICE_DAYS;
-        return el("tr", {},
-          el("td", {}, link(D, v.deal)),
-          el("td", {}, el("a", { href: D.portal + "/crm/type/31/details/" + v.id + "/", target: "_blank", rel: "noopener", text: "Счёт #" + v.id })),
-          showWho ? el("td", { text: who.get(v.deal.owner) || "другой ответственный" }) : null,
-          el("td", { class: "num lead", text: rub(v.sum) }),
-          el("td", {}, v.at ? dateFmt.format(new Date(v.at)) : "—",
-            days !== null ? el("span", { class: "sub-line" + (old ? " bad" : ""), text: days + " " + plural(days, DAYS) + (old ? " — уточнить, будет ли оплата" : "") }) : null));
-      })))));
-    if (rows.length > shown.length) {
-      const more = el("button", { type: "button", class: "link-btn", text: "Показать все " + rows.length });
-      more.addEventListener("click", () => { state.showPay = true; render(); });
-      box.append(el("div", { class: "more" }, more));
-    }
-  }
-
-  function renderFunnel(D, mine, todo) {
-    const cell = (s) => {
-      const live = mine.filter((it) => it.stage === s.key && !isOld(it));
-      const act = todo.filter((it) => it.stage === s.key).length;
-      const old = mine.filter((it) => it.stage === s.key && isOld(it)).length;
-      const sum = live.reduce((a, it) => a + (it.amount >= 1000 ? it.amount : 0), 0);
-      const base = BASES.has(s.key);
-      const pay = base ? paySum(live) : null;
-      const b = el("button", { type: "button", class: "st", "aria-pressed": String(state.stage === s.key), title: s.rule },
-        el("span", { class: "st-name", text: s.name }),
-        el("span", { class: "st-n", text: String(live.length) }),
-        el("span", { class: "st-sum", text: base ? (pay.count ? "ждём " + short(pay.sum) : "") : sum ? short(sum) : "" }),
-        el("span", { class: "st-act" + (act ? "" : " none"), text: act ? act + " ждут действия" : live.length ? "всё в порядке" : "сделок нет" }),
-        old ? el("span", { class: "st-old", text: "+ " + old + " " + plural(old, ["старая", "старые", "старых"]) }) : null);
-      b.addEventListener("click", () => {
-        state.stage = state.stage === s.key ? null : s.key; state.showTodo = false; render();
-        if (state.stage) $("h-todo").scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-      return b;
-    };
-    $("funnel").replaceChildren(...D.stages.filter((s) => !BASES.has(s.key)).map(cell));
-    $("bases").replaceChildren(...D.stages.filter((s) => BASES.has(s.key)).map(cell));
-  }
-
-  function renderCrm(D, mine, live) {
-    const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
-    const carded = live.filter((it) => !["base", "new"].includes(it.stage));
-    const withTask = carded.filter((it) => it.task.state === "ok").length;
-    const withNote = carded.filter((it) => !it.rules.some((r) => r.type === "comment")).length;
-    const bases = live.filter((it) => BASES.has(it.stage));
-    const touched = bases.filter((it) => !it.rules.some((r) => r.type === "contact")).length;
-    $("crm-sum").textContent = "задачи стоят на " + withTask + " из " + carded.length + " · свежий комментарий на " + withNote + " · связь с " + touched + " из " + bases.length + " партнёров и агентов";
-    const gauge = (label, a, b) => el("div", { class: "gauge" }, el("span", {}, el("b", { text: pct(a, b) + " %" }), " " + label),
-      el("div", { class: "gauge-bar", "aria-hidden": "true" }, el("i", { style: "width:" + pct(a, b) + "%" })), el("span", { class: "muted", text: a + " из " + b }));
-    const owners = [...D.team, ...(D.items.some((it) => ownerKey(it) === OTHERS) ? [{ id: OTHERS, name: "Другие ответственные" }] : [])]
-      .filter((m) => state.who === null || state.who === m.id);
-    const row = (m) => {
-      const all = D.items.filter((it) => ownerKey(it) === m.id), lv = all.filter((it) => !isOld(it)), cd = lv.filter((it) => !["base", "new"].includes(it.stage));
-      return el("tr", {}, el("td", { text: m.name }),
-        el("td", { class: "num", text: String(lv.length) }),
-        el("td", { class: "num", text: String(lv.filter(needsAction).length) }),
-        el("td", { class: "num", text: cd.filter((it) => it.task.state === "ok").length + " из " + cd.length }),
-        el("td", { class: "num", text: cd.filter((it) => !it.rules.some((r) => r.type === "comment")).length + " из " + cd.length }),
-        el("td", { class: "num", text: String(all.length - lv.length) }),
-        el("td", { class: "num", text: paySum(all).count ? short(paySum(all).sum) : "—" }));
-    };
-    $("crm").replaceChildren(
-      el("div", { class: "gauges" }, gauge("сделок с задачей на будущее", withTask, carded.length), gauge("со свежим комментарием (30 дней)", withNote, carded.length), gauge("партнёров и агентов со связью за месяц", touched, bases.length)),
-      el("div", { class: "box" }, el("div", { class: "tbl-wrap" }, el("table", { class: "mgr" },
-        el("thead", {}, el("tr", {}, ...["Ответственный", "Живые сделки", "Ждут действия", "С задачей", "С комментарием", "Старые", "Ждём оплату"].map((h, i) => el("th", { class: i ? "r" : "", text: h })))),
-        el("tbody", {}, ...owners.map(row))))),
-      el("div", { class: "defs" },
-        el("p", { class: "def" }, el("b", { text: "Задача" }), " — только из раздела «Задачи», привязанная к сделке, со сроком сегодня или позже; дела не считаются."),
-        el("p", { class: "def" }, el("b", { text: "Комментарий" }), " — заметка в ленте сделки за последние 30 дней."),
-        el("p", { class: "def" }, el("b", { text: "Связь" }), " на базах партнёров и агентов — звонок с разговором, письмо, чат или проведённая встреча за 30 дней по сделке, её контакту или компании, либо заметка о разговоре («созвонились», «встреча», «договорились»)."),
-        el("p", { class: "def" }, el("b", { text: "Старые сделки" }), " — больше " + OLD_DAYS + " дней на одном этапе воронки (кроме баз партнёров и агентов). Данные обновляются каждые 15 минут.")));
+    const stageName = new Map(D.stages.map((s) => [s.key, s.name]));
+    const p = paySum(mine);
+    list.replaceChildren(el("div", { class: "box group" },
+      el("div", { class: "group-head" }, el("b", { text: "Ждём оплату" }), el("span", { text: rub(p.sum) + " · " + p.count + " " + plural(p.count, INVOICES) + " «Отправлен клиенту»" })),
+      el("div", { class: "tbl-wrap" }, el("table", { class: "pay cards" },
+        el("thead", {}, el("tr", {}, ...["Компания", "Счёт", "Этап", ...(showWho ? ["Ответственный"] : []), "Сумма", "Выставлен"].map((h) => el("th", { class: h === "Сумма" ? "r" : "", text: h })))),
+        el("tbody", {}, ...rows.map((v) => {
+          const days = v.at ? ageDays(v.at) : null, old = days !== null && days > OLD_INVOICE_DAYS;
+          return el("tr", {},
+            el("td", {}, link(D, v.deal)),
+            el("td", {}, el("a", { href: D.portal + "/crm/type/31/details/" + v.id + "/", target: "_blank", rel: "noopener", text: "Счёт #" + v.id })),
+            el("td", { "data-l": "Этап", text: stageName.get(v.deal.stage) }),
+            showWho ? el("td", { "data-l": "Ответственный", text: who.get(v.deal.owner) || "другой ответственный" }) : null,
+            el("td", { class: "num lead", text: rub(v.sum) }),
+            el("td", { "data-l": "Выставлен", class: old ? "cell-bad" : "" }, v.at ? dateFmt.format(new Date(v.at)) : "—",
+              days !== null ? el("span", { class: "sub-line", text: days + " " + plural(days, DAYS) + (old ? " — уточнить, будет ли оплата" : "") }) : null));
+        }))))));
   }
 
   function renderOld(D, mine) {
@@ -416,11 +454,11 @@ table.mgr td, table.mgr th { padding-inline: 12px; }
     if (!rows.length) { box.replaceChildren(el("div", { class: "empty", text: "Старых сделок нет." })); return; }
     const shown = state.showOld ? rows : rows.slice(0, OLD_LIMIT);
     const who = new Map(D.team.map((m) => [m.id, m.name]));
-    box.replaceChildren(el("div", { class: "tbl-wrap" }, el("table", { class: "todo cards" },
-      el("thead", {}, el("tr", {}, el("th", { text: "Сделка" }), el("th", { text: "Этап" }), el("th", { text: "Ответственный" }), el("th", { class: "r", text: "На этапе" }), el("th", { class: "r", text: "Сумма" }))),
+    box.replaceChildren(el("div", { class: "tbl-wrap" }, el("table", { class: "list cards" },
+      el("thead", {}, el("tr", {}, ...["Сделка", "Этап", "Ответственный", "На этапе", "Сумма"].map((h) => el("th", { class: h === "Сумма" ? "r" : "", text: h })))),
       el("tbody", {}, ...shown.map((it) => el("tr", {},
-        el("td", {}, link(D, it)), el("td", { text: stageName.get(it.stage) }), el("td", { text: who.get(it.owner) || "другой ответственный" }),
-        el("td", { class: "num lead", text: it.daysOnStage + " " + plural(it.daysOnStage, DAYS) }), el("td", { class: "num", text: amount(it.amount) })))))));
+        el("td", {}, link(D, it)), el("td", { "data-l": "Этап", text: stageName.get(it.stage) }), el("td", { "data-l": "Ответственный", text: who.get(it.owner) || "другой ответственный" }),
+        el("td", { "data-l": "На этапе", text: it.daysOnStage + " " + plural(it.daysOnStage, DAYS) }), el("td", { class: "num lead", text: amount(it.amount) })))))));
     if (rows.length > shown.length) {
       const more = el("button", { type: "button", class: "link-btn", text: "Показать ещё " + (rows.length - shown.length) });
       more.addEventListener("click", () => { state.showOld = true; render(); });
@@ -434,13 +472,11 @@ table.mgr td, table.mgr th { padding-inline: 12px; }
     if (!D) return;
     const mine = D.items.filter((it) => state.who === null || ownerKey(it) === state.who);
     const live = mine.filter((it) => !isOld(it));
-    const todo = live.filter((it) => it.rules.some((r) => ACTION.has(r.code)));
     renderWho(D);
-    renderMoney(D, mine, live, todo);
-    renderTodo(D, todo);
-    renderPay(D, mine);
-    renderFunnel(D, mine, todo);
-    renderCrm(D, mine, live);
+    renderMoney(D, mine, live);
+    renderFunnel(D, mine, live);
+    renderBuckets(D, mine, live);
+    renderList(D, mine, live);
     renderOld(D, mine);
   }
 
@@ -453,10 +489,10 @@ table.mgr td, table.mgr th { padding-inline: 12px; }
     } catch (e) { state.error = e.message; }
     render();
   }
-  // …/corp#crm and #old open the folded blocks (links from messages)
-  if (location.hash === "#crm") $("crm-fold").open = true;
-  if (location.hash === "#old") $("old-fold").open = true;
-  if (location.hash === "#pay") addEventListener("load", () => setTimeout(() => $("pay-sec").scrollIntoView(), 300));
+  // …/corp#pay, #task, #stage open that list; #old opens the old deals
+  const hash = location.hash.slice(1);
+  if (BUCKETS.some((b) => b.key === hash)) state.bucket = hash;
+  if (hash === "old") $("old-fold").open = true;
   load();
   setInterval(load, 60e3);
   setInterval(renderFresh, 30e3);
