@@ -123,6 +123,7 @@ button.m[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inse
 .stg-line { font-size: 12px; line-height: 1.3; }
 .stg-line b { color: var(--crit); font-weight: 500; }
 .stg-line.on b { font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.stg-old.on { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 .stg-line.ok { color: var(--ok); }
 .stg-line.off, .stg-old { font-size: 12px; color: var(--muted); }
 .stg-line.pay b { color: var(--ok); }
@@ -143,15 +144,6 @@ table.list { min-width: 860px; }
 table.list td:first-child { width: 26%; }
 .cell-bad { color: var(--crit); font-weight: 600; }
 
-/* folded old deals */
-details.fold { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
-details.fold > summary { list-style: none; cursor: pointer; padding: 14px 18px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
-details.fold > summary::-webkit-details-marker { display: none; }
-details.fold > summary::before { content: ""; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); margin-right: 4px; align-self: center; transition: transform .15s ease-out; }
-details.fold[open] > summary::before { transform: rotate(45deg); }
-details.fold > summary b { font-size: 17px; font-weight: 600; }
-details.fold > summary span { font-size: 14px; color: var(--muted); }
-.fold-body { border-top: 1px solid var(--line); }
 .defs { margin: 0; font-size: 13px; color: var(--muted); max-width: 75ch; display: grid; gap: 4px; }
 .defs p { margin: 0; }
 .defs b { color: var(--ink); font-weight: 600; }
@@ -197,15 +189,10 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
     <div id="list"></div>
   </section>
 
-  <details class="fold" id="old-fold">
-    <summary><b>Старые сделки</b><span id="old-sum"></span></summary>
-    <div class="fold-body" id="old"></div>
-  </details>
-
   <div class="defs">
     <p><b>Связь</b> — на базах партнёров и агентов раз в месяц: звонок с разговором, письмо, чат или проведённая встреча по сделке, её контакту или компании, либо заметка о разговоре («созвонились», «встреча», «договорились»).</p>
     <p><b>Задача</b> — только из раздела «Задачи», привязанная к сделке, со сроком сегодня или позже; дела не считаются. <b>Комментарий</b> — заметка в ленте сделки за 30 дней.</p>
-    <p><b>Старые сделки</b> — больше 180 дней на одном этапе (кроме баз), в списки не попадают. Данные обновляются каждые 15 минут.</p>
+    <p><b>Сделки к закрытию</b> — больше 180 дней на одном этапе (кроме баз): закрыть или вернуть в работу; в остальные списки не попадают. Данные обновляются каждые 15 минут.</p>
   </div>
 </div>
 
@@ -224,11 +211,13 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
     { key: "notask", name: "Нет задачи", line: "без задачи", codes: ["notask"] },
     { key: "due", name: "Просрочена задача", line: "просрочено", codes: ["taskdue"] },
     { key: "stage", name: "Сделка зависла", line: "дольше срока", codes: ["over", "notaken", "old"] },
+    // deals > 180 days on a funnel stage (was a folded block; a list button on the user's request 06.11.2026)
+    { key: "close", name: "Сделки к закрытию" },
     { key: "pay", name: "Ждём оплату" },
   ];
   const TAG = { notask: "нет задачи", taskdue: "задача просрочена", nocomment: "нет комментария", nocontact: "нет связи", over: "долго на этапе", notaken: "не взята в работу", old: "давно в базе" };
   const KIND = { call: "звонок", email: "письмо", chat: "чат", meeting: "встреча", note: "заметка" };
-  const state = { data: null, error: null, who: null, stage: null, bucket: "contact", showAll: false, showOld: false };
+  const state = { data: null, error: null, who: null, stage: null, bucket: "contact", showAll: false };
 
   const $ = (id) => document.getElementById(id);
   function el(tag, attrs = {}, ...kids) {
@@ -293,7 +282,7 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
     $("who").replaceChildren(el("span", { text: "Ответственный:" }), ...owners.map((m) => {
       const n = m.id === null ? D.items.length : D.items.filter((it) => ownerKey(it) === m.id).length;
       const b = el("button", { type: "button", class: "chip-btn", "aria-pressed": String(state.who === m.id) }, m.name, el("b", { text: String(n) }));
-      b.addEventListener("click", () => { state.who = m.id; state.showAll = state.showOld = false; render(); });
+      b.addEventListener("click", () => { state.who = m.id; state.showAll = false; render(); });
       return b;
     }));
   }
@@ -329,7 +318,7 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
       const its = live.filter((it) => it.stage === s.key);
       const old = mine.filter((it) => it.stage === s.key && isOld(it)).length;
       const sum = its.reduce((a, it) => a + (it.amount >= 1000 ? it.amount : 0), 0);
-      const checks = BUCKETS.filter((b) => b.key !== "pay" && (b.key === "contact" ? BASES.has(s.key) : ["notask", "due"].includes(b.key) ? !NO_CARD.has(s.key) : true));
+      const checks = BUCKETS.filter((b) => b.codes && (b.key === "contact" ? BASES.has(s.key) : ["notask", "due"].includes(b.key) ? !NO_CARD.has(s.key) : true));
       const bad = its.filter((it) => checks.some((b) => inBucket(it, b.key)));
       const lines = its.length ? checks.map((b) => {
         const n = its.filter((it) => inBucket(it, b.key)).length;
@@ -343,7 +332,7 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
         el("div", { class: "stg-bar" + (its.length ? "" : " off"), "aria-hidden": "true" }, its.length ? el("i", { style: "width:" + (100 * bad.length / its.length) + "%" }) : null),
         ...(lines.length ? lines : [el("div", { class: "stg-line " + (its.length ? "ok" : "off"), text: its.length ? "всё в порядке" : "сделок нет" })]),
         p.count ? el("div", { class: "stg-line pay" + (state.bucket === "pay" ? " on" : "") }, "ждём ", el("b", { text: short(p.sum) })) : null,
-        old ? el("span", { class: "stg-old", text: "+ " + old + " " + plural(old, ["старая", "старые", "старых"]) }) : null);
+        old ? el("span", { class: "stg-old" + (state.bucket === "close" ? " on" : ""), text: "+ " + old + " к закрытию" }) : null);
       btn.addEventListener("click", () => { state.stage = state.stage === s.key ? null : s.key; state.showAll = false; render(); });
       return btn;
     };
@@ -353,7 +342,7 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
 
   function renderBuckets(D, mine, live) {
     $("buckets").replaceChildren(...BUCKETS.map((b) => {
-      const n = b.key === "pay" ? paySum(mine).count : live.filter((it) => inBucket(it, b.key)).length;
+      const n = b.key === "pay" ? paySum(mine).count : b.key === "close" ? mine.filter(isOld).length : live.filter((it) => inBucket(it, b.key)).length;
       const btn = el("button", { type: "button", "aria-pressed": String(state.bucket === b.key) }, b.name, el("b", { text: String(n) }));
       btn.addEventListener("click", () => pick(b.key));
       return btn;
@@ -388,6 +377,7 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
   function renderList(D, mine, live) {
     const list = $("list");
     if (state.bucket === "pay") return renderPay(D, mine.filter((it) => !state.stage || it.stage === state.stage));
+    if (state.bucket === "close") return renderClose(D, mine);
     const order = { contact: (a, b) => (a.lastContact ? a.lastContact.at : 0) - (b.lastContact ? b.lastContact.at : 0),
       notask: (a, b) => b.amount - a.amount || b.daysOnStage - a.daysOnStage,
       due: (a, b) => (a.task.next || 0) - (b.task.next || 0), // longest overdue first
@@ -455,23 +445,30 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
         }))))));
   }
 
-  function renderOld(D, mine) {
+  // «Сделки к закрытию»: deals > OLD_DAYS on a funnel stage, longest first
+  function renderClose(D, mine) {
     const stageName = new Map(D.stages.map((s) => [s.key, s.name]));
-    const rows = mine.filter(isOld).sort((a, b) => b.daysOnStage - a.daysOnStage);
-    $("old-sum").textContent = rows.length ? rows.length + " " + plural(rows.length, DEALS) + " больше " + OLD_DAYS + " дней на этапе — закрыть или вернуть в работу" : "нет";
-    const box = $("old");
-    if (!rows.length) { box.replaceChildren(el("div", { class: "empty", text: "Старых сделок нет." })); return; }
-    const shown = state.showOld ? rows : rows.slice(0, OLD_LIMIT);
+    const rows = mine.filter((it) => isOld(it) && (!state.stage || it.stage === state.stage)).sort((a, b) => b.daysOnStage - a.daysOnStage);
+    const list = $("list");
+    if (!rows.length) { list.replaceChildren(el("div", { class: "box" }, el("div", { class: "empty", text: "Сделок к закрытию нет." }))); return; }
+    const shown = state.showAll ? rows : rows.slice(0, OLD_LIMIT);
     const who = new Map(D.team.map((m) => [m.id, m.name]));
-    box.replaceChildren(el("div", { class: "tbl-wrap" }, el("table", { class: "list cards" },
-      el("thead", {}, el("tr", {}, ...["Сделка", "Этап", "Ответственный", "На этапе", "Сумма"].map((h) => el("th", { class: h === "Сумма" ? "r" : "", text: h })))),
-      el("tbody", {}, ...shown.map((it) => el("tr", {},
-        el("td", {}, link(D, it)), el("td", { "data-l": "Этап", text: stageName.get(it.stage) }), el("td", { "data-l": "Ответственный", text: who.get(it.owner) || "другой ответственный" }),
-        el("td", { "data-l": "На этапе", text: it.daysOnStage + " " + plural(it.daysOnStage, DAYS) }), el("td", { class: "num lead", text: amount(it.amount) })))))));
+    const showWho = state.who === null;
+    list.replaceChildren(el("div", { class: "box group" },
+      el("div", { class: "group-head" }, el("b", { text: "Сделки к закрытию" }), el("span", { text: rows.length + " " + plural(rows.length, DEALS) + " больше " + OLD_DAYS + " дней на этапе — закрыть или вернуть в работу" })),
+      el("div", { class: "tbl-wrap" }, el("table", { class: "list cards" },
+        el("thead", {}, el("tr", {}, ...["Сделка", "Этап", ...(showWho ? ["Ответственный"] : []), "Сумма", "На этапе", "Комментарий"].map((h) => el("th", { class: h === "Сумма" ? "r" : "", text: h })))),
+        el("tbody", {}, ...shown.map((it) => el("tr", {},
+          el("td", {}, link(D, it)),
+          el("td", { "data-l": "Этап", text: stageName.get(it.stage) }),
+          showWho ? el("td", { "data-l": "Ответственный", text: who.get(it.owner) || "другой ответственный" }) : null,
+          el("td", { class: "num lead", text: amount(it.amount) }),
+          el("td", { "data-l": "На этапе", class: "cell-bad", text: it.daysOnStage + " " + plural(it.daysOnStage, DAYS) }),
+          noteCell(it))))))));
     if (rows.length > shown.length) {
       const more = el("button", { type: "button", class: "link-btn", text: "Показать ещё " + (rows.length - shown.length) });
-      more.addEventListener("click", () => { state.showOld = true; render(); });
-      box.append(el("div", { class: "more" }, more));
+      more.addEventListener("click", () => { state.showAll = true; render(); });
+      list.append(el("div", { class: "more", style: "border:0" }, more));
     }
   }
 
@@ -486,7 +483,6 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
     renderFunnel(D, mine, live);
     renderBuckets(D, mine, live);
     renderList(D, mine, live);
-    renderOld(D, mine);
   }
 
   async function load() {
@@ -498,10 +494,9 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
     } catch (e) { state.error = e.message; }
     render();
   }
-  // …/corp#pay, #notask, #due, #stage open that list (old #task → #notask); #old opens the old deals
-  const hash = location.hash.slice(1) === "task" ? "notask" : location.hash.slice(1);
+  // …/corp#pay, #notask, #due, #stage, #close open that list (old links: #task → #notask, #old → #close)
+  const hash = { task: "notask", old: "close" }[location.hash.slice(1)] || location.hash.slice(1);
   if (BUCKETS.some((b) => b.key === hash)) state.bucket = hash;
-  if (hash === "old") $("old-fold").open = true;
   load();
   setInterval(load, 60e3);
   setInterval(renderFresh, 30e3);
