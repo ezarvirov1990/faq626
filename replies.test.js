@@ -60,9 +60,11 @@ test("episodes outside the week are left out", () => {
   assert.deepEqual(c, {});
 });
 
-test("the Suvvy bot answering takes the episode out; story mentions, echoes and mass sends don't open one", () => {
+test("the Suvvy bot answering doesn't end the wait — the manager's answer does; story mentions, echoes and mass sends don't open one", () => {
   const base = [m("2026-10-20T10:00:00", MGR, "Добрый день")];
-  assert.deepEqual(run([...base, m("2026-10-20T11:00:00", CLIENT, "Сколько стоит?"), m("2026-10-20T11:01:00", SUVVY, "Эксперт стоит…")]), {});
+  const bot = [m("2026-10-20T11:00:00", CLIENT, "Сколько стоит?"), m("2026-10-20T11:01:00", SUVVY, "Эксперт стоит…"), m("2026-10-20T11:05:00", CLIENT, "А скидка есть?")];
+  assert.deepEqual(run([...base, ...bot, m("2026-10-20T11:40:00", MGR, "Здравствуйте! Есть…")])[MGR]["2026-10-20"], { n: 1, waiting: 0, times: [40] });
+  assert.deepEqual(run([...base, ...bot], { now: msk("2026-10-20T12:00:00") })[MGR]["2026-10-20"], { n: 1, waiting: 1, times: [] });
   assert.deepEqual(run([...base, m("2026-10-20T11:00:00", CLIENT, "You mentioned in the story")]), {});
   const promo = "Отличные новости: с 20 по 28 октября дарим отчёт";
   assert.deepEqual(run([...base, m("2026-10-20T11:00:00", MGR, promo + "!"), m("2026-10-20T11:00:05", CLIENT, promo + "!")]), {});

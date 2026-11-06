@@ -1,7 +1,8 @@
 // «Неделя» page: how fast managers answer clients in Open Lines chats.
 // An episode starts with a client's message (a series counts once; «спасибо / ок», Wazzup service notes and our
 // phone echoes don't start one) and ends with the first human message of any B2C manager in the chat or a connected
-// call on the chat's lead/deal. Robots' templates and the Suvvy bot are not answers. The episode belongs to the
+// call on the chat's lead/deal. Robots' templates and the Suvvy bot are not answers — a client the bot answered still
+// waits for a manager (user's definition 06.11.2026: from the client's message to the manager's answer). The episode belongs to the
 // current owner of the chat's «В2С Продажа» deal, else of its lead — only owners with a schedule in SCHEDULES.
 // Time is counted in the owner's working hours only (user's decision 26.10.2026): a message at 23:00 starts the clock
 // when the owner's next shift begins; a 2/2 shift counts only on days with at least one action of the owner; lunch is
@@ -9,7 +10,6 @@
 // wrote after hours) — not counted for anyone.
 
 import { messageAuthor, managerIndex } from "./activity.js";
-import { SUVVY_ID } from "./weekstats.js";
 
 const H = 3600e3;
 const DAY = 24 * H;
@@ -112,8 +112,6 @@ export function replyStats({ from, now, chats, ents, calls, managers, schedules,
         if (m.file || (t && !TRIVIAL.test(t) && /[\p{L}\p{N}]/u.test(t))) open = { at: m.at, reply: null };
         continue;
       }
-      // The Suvvy bot answered: it is handling the chat — not counted for anyone
-      if (open && Number(m.a) === SUVVY_ID) { open = null; continue; }
       if (open && messageAuthor({ author_id: m.a, text: m.text }, isClient, index)) { open.reply = m.at; episodes.push(open); open = null; }
     }
     if (open) { const t = callTimes.find((x) => x > open.at); open.reply = t || null; episodes.push(open); }
