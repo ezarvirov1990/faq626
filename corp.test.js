@@ -116,7 +116,8 @@ test("collectCorp: team, deals, tasks, notes, contacts via the company", async (
   assert.ok(b.rules.some((x) => x.code === "notask"));
   assert.ok(!b.rules.some((x) => x.code === "nocontact"));
   // invoices «Отправлен клиенту»: by the company or bound to the deal; one invoice counted once in the total
-  assert.deepEqual(b.waiting, { sum: 51500, count: 1, since: Date.parse("2026-11-02T03:00:00+03:00") });
-  assert.deepEqual(a.waiting, { sum: 10000, count: 1, since: Date.parse("2026-11-03T03:00:00+03:00") });
+  const nov2 = Date.parse("2026-11-02T03:00:00+03:00"), nov3 = Date.parse("2026-11-03T03:00:00+03:00");
+  assert.deepEqual(b.waiting, { sum: 51500, count: 1, since: nov2, invoices: [{ id: 4622, sum: 51500, at: nov2 }] });
+  assert.deepEqual(a.waiting, { sum: 10000, count: 1, since: nov3, invoices: [{ id: 4700, sum: 10000, at: nov3 }] });
   assert.deepEqual(r.waiting, { sum: 61500, count: 2 });
 });

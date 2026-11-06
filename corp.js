@@ -216,7 +216,8 @@ export async function collectCorp(bx, now, { pause = 600 } = {}) {
     const mine = [...invoices.values()].filter((v) => (Number(r.COMPANY_ID) && v.company === String(r.COMPANY_ID)) || v.deal === String(r.ID));
     if (!mine.length) return null;
     const dates = mine.map((v) => v.at).filter((x) => !Number.isNaN(x));
-    return { sum: mine.reduce((a, v) => a + v.sum, 0), count: mine.length, since: dates.length ? Math.min(...dates) : null };
+    return { sum: mine.reduce((a, v) => a + v.sum, 0), count: mine.length, since: dates.length ? Math.min(...dates) : null,
+      invoices: mine.map((v) => ({ id: v.id, sum: v.sum, at: Number.isNaN(v.at) ? null : v.at })).sort((a, b) => b.sum - a.sum) };
   };
   const waitingAll = [...invoices.values()].filter((v) => companies.includes(v.company) || ids.includes(v.deal));
   const waiting = { sum: waitingAll.reduce((a, v) => a + v.sum, 0), count: waitingAll.length };
