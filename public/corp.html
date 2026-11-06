@@ -245,9 +245,10 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
   const rub = (x) => Math.round(x).toLocaleString("ru-RU") + " ₽";
   const short = (x) => x >= 1e6 ? (x / 1e6).toFixed(x >= 1e7 ? 0 : 1).replace(".", ",") + " млн ₽" : x >= 1e4 ? Math.round(x / 1e3) + " тыс ₽" : rub(x);
   const amount = (x) => x >= 1000 ? rub(x) : "—"; // sums under 1 000 ₽ are placeholders in this pipeline («1 ₽», «106 ₽»)
-  const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Moscow" });
-  const dayFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", timeZone: "Europe/Moscow" });
-  const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
+  const TZ = "Asia/Novosibirsk"; // the team works in Novosibirsk time (the user's request 06.11.2026)
+  const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: TZ });
+  const dayFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", timeZone: TZ });
+  const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
   const ageDays = (at) => Math.floor((Date.now() - at) / 864e5);
   // dd.mm this year, dd.mm.yy for older dates (a «10.10» contact may be from 2024)
   const shortDate = (at) => new Date(at).getFullYear() === new Date().getFullYear() ? dayFmt.format(new Date(at)) : dateFmt.format(new Date(at)).replace(/\.(\d\d)(\d\d)$/, ".$2");
@@ -284,7 +285,7 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
     if (!state.data) { f.className = "fresh dead"; f.textContent = state.error ? "Ошибка: " + state.error : "Первый сбор данных ещё идёт…"; return; }
     const at = Date.parse(state.data.updatedAt), age = Date.now() - at;
     f.className = "fresh" + (age > 60 * 60e3 ? " dead" : age > 25 * 60e3 ? " stale" : "");
-    f.textContent = "Обновлено в " + timeFmt.format(new Date(at)) + (state.error ? " · последняя попытка не удалась" : "");
+    f.textContent = "Обновлено в " + timeFmt.format(new Date(at)) + " НСК" + (state.error ? " · последняя попытка не удалась" : "");
   }
 
   function renderWho(D) {
