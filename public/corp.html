@@ -8,11 +8,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
 <style>
-/* Same tokens as the B2C page (index.html) */
+/* Same tokens as the B2C page (index.html); light ok/warn a step darker for AA on their soft fills */
 :root {
   --bg: #F2F4F6; --surface: #FFFFFF; --ink: #16202C; --muted: #5B6878; --line: #DCE2E9;
   --accent: #1F6F8B; --accent-soft: #E3EFF3; --on-accent: #FFFFFF;
-  --warn: #A86A12; --warn-soft: #FBF1DE; --crit: #B42318; --crit-soft: #FBE4E2; --ok: #2F7D4F; --ok-soft: #E2F2E8;
+  --warn: #8A560B; --warn-soft: #FBF1DE; --crit: #B42318; --crit-soft: #FBE4E2; --ok: #276B43; --ok-soft: #E2F2E8;
   --font: "Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 }
@@ -25,10 +25,11 @@
   }
 }
 * { box-sizing: border-box; }
+::selection { background: var(--accent); color: var(--on-accent); }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font); }
-.wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 48px; display: grid; gap: 24px; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 56px; display: grid; gap: 28px; }
 .wrap > * { min-width: 0; }
-@media (max-width: 480px) { .wrap { padding-inline: 16px; } }
+@media (max-width: 480px) { .wrap { padding-inline: 14px; gap: 22px; } }
 header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
 h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -0.01em; }
 .sub { margin: 4px 0 0; color: var(--muted); }
@@ -36,94 +37,112 @@ h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spa
 .fresh::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 .fresh.stale { background: var(--warn-soft); color: var(--warn); }
 .fresh.dead { background: var(--crit-soft); color: var(--crit); }
-h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-
-.stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-@media (max-width: 760px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.stat { background: var(--surface); padding: 16px 18px; display: grid; gap: 2px; align-content: start; }
-.stat b { font: 600 30px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
-.stat span { color: var(--muted); font-size: 13px; }
-.stat.crit b { color: var(--crit); }
-.stat.pay b { color: var(--ok); font-size: 24px; line-height: 1.25; white-space: nowrap; }
-button.stat { font: inherit; color: inherit; text-align: left; border: 0; cursor: pointer; }
-button.stat:hover, button.stat[aria-pressed="true"] { background: var(--accent-soft); }
-.stg-bad b.pay { color: var(--ok); }
-.mgr-row.pay i { background: var(--ok); }
-.mgr-row span, .mgr-row b { white-space: nowrap; }
-td .deal-id { font-family: var(--font); }
-.mgr-row.pay.none i { background: var(--line); }
-.inv { display: block; font-size: 13px; white-space: nowrap; }
-.inv + .inv { margin-top: 2px; }
-table.pay-tbl { min-width: 900px; }
-th.c-stage { width: 170px; } th.c-inv { width: auto; } th.c-since { width: 150px; }
-table.pay-tbl th.c-deal { width: 26%; } table.pay-tbl th.c-pay { width: 130px; }
-
-.stages { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(176px, 40vw), 1fr)); gap: 8px; }
-.stg { text-align: left; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; align-content: start; cursor: pointer; }
-.stg:hover { border-color: var(--accent); }
-.stg[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
-.stg-head { display: flex; gap: 8px; align-items: baseline; }
-.stg-n { font: 600 12px var(--mono); color: var(--muted); }
-.stg-name { font-weight: 600; line-height: 1.3; }
-.stg-num { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.stg-num b { font: 600 20px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
-.stg-num span { font: 500 12px var(--mono); color: var(--muted); white-space: nowrap; }
-.stg-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--ok) 55%, var(--line)); }
-.stg-bar i { display: block; height: 100%; background: var(--crit); }
-.stg-bad { font-size: 13px; color: var(--muted); }
-.stg-bad b { color: var(--crit); font-weight: 600; }
-.stg-rule { font-size: 12px; color: var(--muted); line-height: 1.35; }
-
-.toolbar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
-.seg { display: inline-flex; max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
-.seg button { font: inherit; font-size: 14px; white-space: nowrap; border: 0; background: transparent; color: var(--ink); padding: 7px 14px; cursor: pointer; }
-.seg button + button { border-left: 1px solid var(--line); }
-.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
-.filter-note { font-size: 13px; color: var(--muted); }
-.link-btn { font: inherit; font-size: 13px; color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
-.link-btn:hover { border-color: var(--accent); }
-button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-.mgrs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 10px; }
-.mgr { text-align: left; font: inherit; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; cursor: pointer; }
-.mgr:hover { border-color: var(--accent); }
-.mgr[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
-.mgr.zero { cursor: default; }
-.mgr.zero:hover { border-color: var(--line); }
-.mgr-name { font-weight: 600; }
-.mgr-sub { color: var(--muted); font-size: 12px; }
-.mgr-rows { display: grid; gap: 3px; }
-.mgr-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); padding: 1px 6px; margin-inline: -6px; border-radius: 5px; }
-.mgr-row i { width: 8px; height: 8px; border-radius: 2px; flex: none; background: var(--crit); }
-.mgr-row b { margin-left: auto; font: 600 13px var(--mono); color: var(--ink); }
-.mgr-row.on { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
-.mgr-row.none i { background: var(--line); }
-.mgr-row.none b { color: var(--muted); font-weight: 500; }
-
-.stack { display: grid; gap: 16px; }
-.group { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.group-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
-.group-head b { font-weight: 600; font-size: 16px; }
-.group-head span { color: var(--muted); font-size: 13px; }
-.tbl-wrap { overflow-x: auto; }
-table { width: 100%; min-width: 1040px; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
-th { text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); padding: 8px 12px; white-space: nowrap; }
-td { padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
-td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
-th.c-deal { width: 22%; } th.c-who { width: 130px; } th.c-sum { width: 110px; } th.c-pay { width: 124px; } th.c-days { width: 96px; } th.c-task { width: 110px; } th.c-note { width: 104px; } th.c-cont { width: 120px; } th.c-do { width: auto; }
-a { color: var(--accent); text-decoration: none; font-weight: 500; }
+h2 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.005em; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+h2 small { font-size: 14px; font-weight: 400; color: var(--muted); }
+.sec { display: grid; gap: 12px; }
+.sec-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 16px; }
+button { font: inherit; color: inherit; }
+button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a { color: var(--accent); text-decoration: none; font-weight: 500; text-underline-offset: 3px; }
 a:hover { text-decoration: underline; }
-.deal-id { display: block; font: 500 12px var(--mono); color: var(--muted); }
-.pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font: 600 13px/1.5 var(--mono); white-space: nowrap; background: var(--line); color: var(--ink); }
-.pill.c { background: var(--crit-soft); color: var(--crit); }
-.bad { color: var(--crit); font-weight: 600; }
+.num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
-.rule { display: block; font-size: 13px; line-height: 1.4; }
-.rule + .rule { margin-top: 3px; }
-.ok-line { color: var(--ok); font-size: 13px; }
-.more-rows { display: flex; justify-content: center; padding: 10px; border-top: 1px solid var(--line); }
-.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); }
-.note { font-size: 13px; color: var(--muted); max-width: 80ch; margin: 0; }
+.bad { color: var(--crit); }
+
+/* manager filter: one place, applies to the whole page */
+.who { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.who span { font-size: 14px; color: var(--muted); margin-right: 2px; }
+.chip-btn { font-size: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; cursor: pointer; white-space: nowrap; }
+.chip-btn:hover { border-color: var(--accent); }
+.chip-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.chip-btn b { font-family: var(--mono); font-weight: 600; margin-left: 6px; }
+
+/* money: three statements, not a metric wall */
+.money { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+@media (max-width: 760px) { .money { grid-template-columns: minmax(0, 1fr); } }
+.m { padding: 16px 20px; display: grid; gap: 4px; align-content: start; text-align: left; background: none; border: 0; }
+.m + .m { border-left: 1px solid var(--line); }
+@media (max-width: 760px) { .m + .m { border-left: 0; border-top: 1px solid var(--line); } }
+.m-label { font-size: 14px; color: var(--muted); }
+.m-val { font: 600 26px/1.15 var(--mono); font-variant-numeric: tabular-nums; }
+.m-val.ok { color: var(--ok); }
+.m-note { font-size: 13px; color: var(--muted); }
+.m-note .bad { font-weight: 600; }
+button.m { cursor: pointer; border-radius: 0; }
+button.m:hover { background: var(--accent-soft); }
+.money > :first-child { border-radius: 12px 0 0 12px; }
+@media (max-width: 760px) { .money > :first-child { border-radius: 12px 12px 0 0; } }
+
+/* tables */
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); padding: 10px 14px 8px; white-space: nowrap; border-bottom: 1px solid var(--line); }
+td { padding: 11px 14px; border-top: 1px solid var(--line); vertical-align: top; }
+tbody tr:first-child td { border-top: 0; }
+td.num { white-space: nowrap; text-align: right; }
+th.r { text-align: right; }
+.sub-line { display: block; font-size: 12px; color: var(--muted); font-family: var(--font); font-weight: 400; }
+.act { font-weight: 500; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 5px; }
+.tag { font-size: 12px; line-height: 1.5; padding: 0 7px; border-radius: 5px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+table.todo { min-width: 760px; }
+table.todo td:first-child { width: 30%; }
+table.pay { min-width: 680px; }
+.more { display: flex; justify-content: center; padding: 10px; border-top: 1px solid var(--line); }
+.link-btn { font-size: 13px; color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+.link-btn:hover { border-color: var(--accent); }
+.empty { padding: 22px; text-align: center; color: var(--muted); }
+.filter-note { font-size: 14px; color: var(--muted); display: inline-flex; gap: 8px; align-items: center; }
+
+/* funnel: one strip of the sequential stages + the two long-term bases apart */
+.strip { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.strip.bases { --n: 2; max-width: 460px; }
+@media (max-width: 900px) { .strip { grid-template-columns: repeat(3, minmax(0, 1fr)); } .strip.bases { max-width: none; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.st { text-align: left; background: none; border: 0; border-left: 1px solid var(--line); padding: 12px 12px 12px; display: grid; gap: 3px; align-content: start; cursor: pointer; min-width: 0; }
+.st:first-child { border-left: 0; }
+@media (max-width: 900px) { .st { border-top: 1px solid var(--line); } }
+.st:hover { background: var(--accent-soft); }
+.st[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 0 -3px 0 var(--accent); }
+.st-name { font-size: 13px; font-weight: 600; line-height: 1.3; min-height: 2.6em; }
+.st-n { font: 600 22px/1.1 var(--mono); }
+.st-sum { font: 500 12px var(--mono); color: var(--muted); min-height: 1.5em; }
+.st-act { font-size: 12px; color: var(--crit); font-weight: 600; }
+.st-act.none { color: var(--muted); font-weight: 400; }
+.st-old { font-size: 12px; color: var(--muted); }
+.funnel-legend { font-size: 13px; color: var(--muted); margin: 0; }
+
+/* folded blocks */
+details.fold { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+details.fold > summary { list-style: none; cursor: pointer; padding: 14px 18px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+details.fold > summary::-webkit-details-marker { display: none; }
+details.fold > summary::before { content: ""; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); margin-right: 4px; align-self: center; transition: transform .15s ease-out; }
+details.fold[open] > summary::before { transform: rotate(45deg); }
+details.fold > summary b { font-size: 17px; font-weight: 600; }
+details.fold > summary span { font-size: 14px; color: var(--muted); }
+.fold-body { border-top: 1px solid var(--line); display: grid; gap: 18px; padding: 16px 18px 18px; }
+.fold-body.flush { padding: 0; gap: 0; }
+.gauges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 24px; }
+@media (max-width: 760px) { .gauges { grid-template-columns: minmax(0, 1fr); } }
+.gauge { display: grid; gap: 6px; font-size: 14px; }
+.gauge b { font: 600 18px var(--mono); }
+.gauge-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.gauge-bar i { display: block; height: 100%; background: var(--accent); }
+table.mgr { min-width: 620px; }
+table.mgr td, table.mgr th { padding-inline: 12px; }
+.defs { margin: 0; font-size: 13px; color: var(--muted); max-width: 72ch; display: grid; gap: 6px; }
+.defs b { color: var(--ink); font-weight: 600; }
+.def { margin: 0; }
+/* phones: table rows become cards — the deal and its key number on top, the rest below, nothing scrolls sideways */
+@media (max-width: 640px) {
+  table.cards { min-width: 0; }
+  table.cards thead { display: none; }
+  table.cards tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 14px; border-top: 1px solid var(--line); }
+  table.cards tbody tr:first-child { border-top: 0; }
+  table.cards td { border: 0; padding: 0; width: auto !important; }
+  table.cards td:not(:first-child):not(.lead) { grid-column: 1 / -1; text-align: left; }
+  table.cards td.lead { grid-column: 2; grid-row: 1; }
+}
 [hidden] { display: none !important; }
 </style>
 </head>
@@ -132,56 +151,72 @@ a:hover { text-decoration: underline; }
   <header>
     <div>
       <h1>Корпоративные продажи</h1>
-      <p class="sub">Воронка «Корпоративные клиенты» · что не так со сделками по правилам этапов</p>
+      <p class="sub">Воронка «Корпоративные клиенты» · деньги и следующие шаги</p>
     </div>
     <span class="fresh dead" id="fresh">Загружаю данные…</span>
   </header>
 
-  <section class="stats" id="stats" aria-label="Сводка"></section>
+  <div class="who" id="who" role="group" aria-label="Ответственный"></div>
 
-  <section aria-labelledby="h-funnel">
-    <h2 id="h-funnel">Воронка</h2>
-    <div class="stages" id="stages"></div>
+  <section class="money" id="money" aria-label="Деньги"></section>
+
+  <section class="sec" aria-labelledby="h-todo">
+    <div class="sec-head"><h2 id="h-todo">Сделать сейчас <small id="todo-count"></small></h2><span class="filter-note" id="todo-filter"></span></div>
+    <div class="box" id="todo"></div>
   </section>
 
-  <div class="toolbar">
-    <div class="seg" id="types" role="group" aria-label="Нарушение"></div>
-    <span class="filter-note" id="filter-note"></span>
-  </div>
-
-  <section aria-labelledby="h-mgrs">
-    <h2 id="h-mgrs">По менеджерам</h2>
-    <div class="mgrs" id="mgrs"></div>
+  <section class="sec" aria-labelledby="h-pay" id="pay-sec">
+    <div class="sec-head"><h2 id="h-pay">Ждём оплату <small id="pay-count"></small></h2></div>
+    <div class="box" id="pay"></div>
   </section>
 
-  <section aria-labelledby="h-list">
-    <h2 id="h-list">Сделки</h2>
-    <div id="list" class="stack"></div>
+  <section class="sec" aria-labelledby="h-funnel">
+    <div class="sec-head"><h2 id="h-funnel">Воронка</h2><p class="funnel-legend">Число — живые сделки на этапе, красным — сколько ждут действия. Нажмите этап, чтобы отфильтровать «Сделать сейчас».</p></div>
+    <div class="strip" id="funnel" style="--n: 9"></div>
+    <div class="strip bases" id="bases"></div>
   </section>
 
-  <p class="note">Задача — только из раздела «Задачи», привязанная к сделке; актуальный срок — сегодня или позже (дела не считаются).
-    Комментарий — заметка в ленте сделки за последние 30 дней. Связь на базовых этапах — звонок с разговором, письмо, чат
-    или проведённая встреча по сделке, её контакту или компании за 30 дней, либо заметка о разговоре («созвонились», «встреча», «договорились»…).
-    Данные обновляются каждые 15 минут.</p>
+  <details class="fold" id="crm-fold">
+    <summary><b>Порядок в CRM</b><span id="crm-sum"></span></summary>
+    <div class="fold-body" id="crm"></div>
+  </details>
+
+  <details class="fold" id="old-fold">
+    <summary><b>Старые сделки</b><span id="old-sum"></span></summary>
+    <div class="fold-body flush" id="old"></div>
+  </details>
 </div>
 
 <script>
 (() => {
-  const TYPES = [
-    { key: "all", name: "Все нарушения" },
-    { key: "task", name: "Нет задачи" },
-    { key: "comment", name: "Нет комментария" },
-    { key: "stage", name: "Долго на этапе" },
-    { key: "contact", name: "Нет связи" },
-  ];
-  // the switcher also has «Ждём оплату»: deals whose company has invoices «Отправлен клиенту» (not a violation)
-  const SWITCH = [...TYPES, { key: "pay", name: "Ждём оплату" }];
-  const OLD_INVOICE_DAYS = 90;
   const BASES = new Set(["partners", "agents"]);
-  const LIMIT = 30;
+  const OLD_DAYS = 180; // a deal this long on a funnel stage is out of the live pipeline (bases are long-term by design)
+  const OLD_INVOICE_DAYS = 90;
+  const TODO_LIMIT = 15, PAY_LIMIT = 5, OLD_LIMIT = 30;
   const OTHERS = -1;
-  // …/corp#pay opens straight on «Ждём оплату»
-  const state = { data: null, error: null, type: location.hash === "#pay" ? "pay" : "all", stage: null, manager: null, showAll: false };
+  // «Сделать сейчас» order: the untaken new deal first, then closest to money
+  const STAGE_RANK = { new: 0, invoice: 1, signed: 2, contract: 3, terms: 4, kp: 5, lpr: 6, partners: 7, agents: 8, work: 9, base: 10 };
+  // the deal's main action is its most urgent rule; the rest go as tags
+  const RULE_RANK = { notaken: 0, over: 1, nocontact: 2, taskdue: 3, old: 4, nocomment: 5, notask: 6 };
+  // «Сделать сейчас» takes deals with a real next step; a missing task or comment alone is CRM hygiene («Порядок в CRM»),
+  // otherwise nearly every deal lands in the list while the team moves from «дела» to tasks
+  const ACTION = new Set(["notaken", "over", "nocontact", "taskdue", "old"]);
+  const ddmm = (at) => new Date(at + 3 * 3600e3).toISOString().slice(5, 10).split("-").reverse().join(".");
+  function actionText(r, it, D) {
+    const lim = (D.stages.find((s) => s.key === it.stage) || {}).limit;
+    switch (r.code) {
+      case "notaken": return "Взять в работу";
+      case "over": return it.daysOnStage + " " + plural(it.daysOnStage, DAYS) + " на этапе (норма " + lim + ") — двигать дальше или закрыть";
+      case "nocontact": return it.lastContact ? "Связаться: последний контакт " + ddmm(it.lastContact.at) : "Связаться: за месяц контакта не было";
+      case "taskdue": return "Задача просрочена (" + ddmm(it.task.next) + ") — перенести срок";
+      case "old": return "Взять в работу или закрыть";
+      case "notask": return "Поставить задачу со сроком";
+      case "nocomment": return "Записать дальнейшие действия";
+      default: return r.text;
+    }
+  }
+  const TAG = { notask: "нет задачи", taskdue: "задача просрочена", nocomment: "нет комментария", nocontact: "нет связи за месяц", over: "долго на этапе", notaken: "не взята в работу", old: "давно в базе" };
+  const state = { data: null, error: null, who: null, stage: null, showTodo: false, showPay: false, showOld: false };
 
   const $ = (id) => document.getElementById(id);
   function el(tag, attrs = {}, ...kids) {
@@ -194,23 +229,25 @@ a:hover { text-decoration: underline; }
     return n;
   }
   const plural = (n, f) => f[n % 10 === 1 && n % 100 !== 11 ? 0 : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 1 : 2];
-  const DEALS = ["сделка", "сделки", "сделок"];
-  const DAYS = ["день", "дня", "дней"];
-  const INVOICES = ["счёт", "счёта", "счетов"];
-  const money = (x) => x ? Math.round(x).toLocaleString("ru-RU") + " ₽" : "—";
-  const dayFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", timeZone: "Europe/Moscow" });
+  const DEALS = ["сделка", "сделки", "сделок"], DAYS = ["день", "дня", "дней"], INVOICES = ["счёт", "счёта", "счетов"];
+  const rub = (x) => Math.round(x).toLocaleString("ru-RU") + " ₽";
+  const short = (x) => x >= 1e6 ? (x / 1e6).toFixed(x >= 1e7 ? 0 : 1).replace(".", ",") + " млн ₽" : x >= 1e4 ? Math.round(x / 1e3) + " тыс ₽" : rub(x);
+  const amount = (x) => x >= 1000 ? rub(x) : "—"; // sums under 1 000 ₽ are placeholders in this pipeline («1 ₽», «106 ₽»)
+  const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Moscow" });
   const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" });
-  const KIND = { call: "звонок", email: "письмо", chat: "чат", meeting: "встреча", note: "заметка" };
+  const ageDays = (at) => Math.floor((Date.now() - at) / 864e5);
+  const link = (D, it) => el("a", { href: D.portal + "/crm/deal/details/" + it.id + "/", target: "_blank", rel: "noopener", text: it.title });
 
-  const has = (it, type) => type === "pay" ? Boolean(it.waiting) : type === "all" ? it.rules.length > 0 : it.rules.some((r) => r.type === type);
-  // awaited payments of several deals: a company's invoice is shared by its deals, so it is counted once
+  const isOld = (it) => !BASES.has(it.stage) && it.daysOnStage > OLD_DAYS;
+  const ownerKey = (it) => state.data.team.some((m) => m.id === it.owner) ? it.owner : OTHERS;
+  const mainRule = (it) => it.rules.slice().sort((a, b) => RULE_RANK[a.code] - RULE_RANK[b.code])[0];
+  const needsAction = (it) => it.rules.some((r) => ACTION.has(r.code));
   function paySum(list) {
     const seen = new Map();
-    for (const it of list) for (const v of (it.waiting && it.waiting.invoices) || []) seen.set(v.id, v.sum);
-    return { sum: [...seen.values()].reduce((a, x) => a + x, 0), count: seen.size };
+    for (const it of list) for (const v of (it.waiting && it.waiting.invoices) || []) seen.set(v.id, v);
+    const all = [...seen.values()];
+    return { sum: all.reduce((a, v) => a + v.sum, 0), count: all.length, old: all.filter((v) => v.at && ageDays(v.at) > OLD_INVOICE_DAYS) };
   }
-  const ageDays = (at) => Math.floor((Date.now() - at) / 864e5);
-  const ownerKey = (it) => state.data.team.some((m) => m.id === it.owner) ? it.owner : OTHERS;
 
   function renderFresh() {
     const f = $("fresh");
@@ -220,147 +257,191 @@ a:hover { text-decoration: underline; }
     f.textContent = "Обновлено в " + timeFmt.format(new Date(at)) + (state.error ? " · последняя попытка не удалась" : "");
   }
 
-  function render() {
-    renderFresh();
-    if (!state.data) return;
-    const D = state.data, items = D.items;
-    const stageIdx = new Map(D.stages.map((s, i) => [s.key, i]));
-    const inStage = (it) => !state.stage || it.stage === state.stage;
-    const inMgr = (it) => state.manager === null || ownerKey(it) === state.manager;
-
-    // summary over the whole pipeline
-    const cnt = (type) => items.filter((it) => has(it, type)).length;
-    $("stats").replaceChildren(
-      el("div", { class: "stat crit" }, el("b", { text: String(cnt("all")) }), el("span", { text: "с нарушениями из " + items.length + " открытых " + plural(items.length, DEALS) })),
-      ...TYPES.slice(1).map((t) => el("div", { class: "stat" }, el("b", { text: String(cnt(t.key)) }), el("span", { text: t.name.toLowerCase() }))),
-      // invoices «Отправлен клиенту» of the pipeline's companies, each counted once
-      el("button", { type: "button", class: "stat pay", "aria-pressed": String(state.type === "pay"), title: "Показать сделки, по которым ждём оплату" }, el("b", { text: money(D.waiting ? D.waiting.sum : 0) }),
-        el("span", { text: "ждём оплату" + (D.waiting && D.waiting.count ? " · " + D.waiting.count + " " + plural(D.waiting.count, INVOICES) + " «Отправлен клиенту»" : "") })));
-    $("stats").lastChild.addEventListener("click", () => { state.type = "pay"; state.showAll = false; render(); $("list").scrollIntoView({ behavior: "smooth", block: "start" }); });
-
-    // funnel: stage cards
-    $("stages").replaceChildren(...D.stages.map((s, i) => {
-      const its = items.filter((it) => it.stage === s.key && inMgr(it));
-      const bad = its.filter((it) => has(it, state.type)).length;
-      const sum = its.reduce((a, it) => a + it.amount, 0);
-      const pay = state.type === "pay" ? paySum(its) : null;
-      const b = el("button", { type: "button", class: "stg", "aria-pressed": String(state.stage === s.key), title: state.stage === s.key ? "Показать все этапы" : "Показать только этот этап" },
-        el("div", { class: "stg-head" }, el("span", { class: "stg-n", text: String(i + 1) }), el("span", { class: "stg-name", text: s.name })),
-        el("div", { class: "stg-num" }, el("b", { text: String(its.length) }), el("span", { text: sum ? money(sum) : "" })),
-        pay ? null : el("div", { class: "stg-bar", "aria-hidden": "true" }, el("i", { style: "width:" + (its.length ? (100 * bad / its.length) : 0) + "%" })),
-        pay ? el("div", { class: "stg-bad" }, pay.count ? el("b", { class: "pay", text: "ждём " + money(pay.sum) }) : document.createTextNode("счетов к оплате нет"))
-          : el("div", { class: "stg-bad" }, bad ? el("b", { text: bad + " с нарушениями" }) : document.createTextNode(its.length ? "всё по правилам" : "сделок нет")),
-        el("div", { class: "stg-rule", text: s.rule }));
-      b.addEventListener("click", () => { state.stage = state.stage === s.key ? null : s.key; state.showAll = false; render(); });
+  function renderWho(D) {
+    const owners = [{ id: null, name: "Все" }, ...D.team, ...(D.items.some((it) => ownerKey(it) === OTHERS) ? [{ id: OTHERS, name: "Другие" }] : [])];
+    $("who").replaceChildren(el("span", { text: "Ответственный:" }), ...owners.map((m) => {
+      const n = m.id === null ? D.items.length : D.items.filter((it) => ownerKey(it) === m.id).length;
+      const b = el("button", { type: "button", class: "chip-btn", "aria-pressed": String(state.who === m.id) }, m.name, el("b", { text: String(n) }));
+      b.addEventListener("click", () => { state.who = m.id; state.showTodo = state.showPay = state.showOld = false; render(); });
       return b;
     }));
+  }
 
-    // violation type switcher (counts follow the stage and manager filters)
-    $("types").replaceChildren(...SWITCH.map((t) => {
-      const n = items.filter((it) => inStage(it) && inMgr(it) && has(it, t.key)).length;
-      const b = el("button", { type: "button", "aria-pressed": String(state.type === t.key), text: t.name + " · " + n });
-      b.addEventListener("click", () => { state.type = t.key; state.showAll = false; render(); });
-      return b;
-    }));
-    const notes = [];
-    if (state.stage) notes.push("этап «" + D.stages[stageIdx.get(state.stage)].name + "»");
-    if (state.manager !== null) notes.push(state.manager === OTHERS ? "другие ответственные" : D.team.find((m) => m.id === state.manager).name);
-    const fn = $("filter-note"); fn.replaceChildren();
-    if (notes.length) {
-      const reset = el("button", { type: "button", class: "link-btn", text: "Сбросить" });
-      reset.addEventListener("click", () => { state.stage = null; state.manager = null; state.showAll = false; render(); });
-      fn.append("Показано: " + notes.join(", ") + " ", reset);
-    }
+  function renderMoney(D, mine, live, todo) {
+    const pay = paySum(mine);
+    const late = ["kp", "terms", "contract", "signed", "invoice"];
+    const inWork = live.filter((it) => late.includes(it.stage));
+    const workSum = inWork.reduce((a, it) => a + (it.amount >= 1000 ? it.amount : 0), 0);
+    const payBtn = el("button", { type: "button", class: "m", title: "К списку счетов" },
+      el("span", { class: "m-label", text: "Ждём оплату" }),
+      el("span", { class: "m-val ok", text: short(pay.sum) }),
+      el("span", { class: "m-note" }, pay.count + " " + plural(pay.count, INVOICES) + " «Отправлен клиенту»", pay.old.length ? el("span", { class: "bad", text: " · " + pay.old.length + " старше 3 месяцев" }) : null));
+    payBtn.addEventListener("click", () => $("pay-sec").scrollIntoView({ behavior: "smooth", block: "start" }));
+    $("money").replaceChildren(payBtn,
+      el("div", { class: "m" }, el("span", { class: "m-label", text: "В работе: от КП до счёта" }), el("span", { class: "m-val", text: short(workSum) }),
+        el("span", { class: "m-note", text: inWork.length + " " + plural(inWork.length, DEALS) + " · суммы из карточек сделок" })),
+      el("div", { class: "m" }, el("span", { class: "m-label", text: "Ждут действия" }), el("span", { class: "m-val", text: String(todo.length) }),
+        el("span", { class: "m-note", text: "из " + live.length + " живых " + plural(live.length, DEALS) + " · где нет только задачи или комментария — в «Порядке в CRM»" })));
+  }
 
-    // manager cards: the team plus «Другие ответственные»
-    const owners = [...D.team.map((m) => ({ id: m.id, name: m.name })), ...(items.some((it) => ownerKey(it) === OTHERS) ? [{ id: OTHERS, name: "Другие ответственные" }] : [])];
-    $("mgrs").replaceChildren(...owners.map((m) => {
-      const mine = items.filter((it) => ownerKey(it) === m.id && inStage(it));
-      const total = items.filter((it) => ownerKey(it) === m.id).length;
-      const rows = el("div", { class: "mgr-rows" }, ...TYPES.slice(1).map((t) => {
-        const c = mine.filter((it) => has(it, t.key)).length;
-        return el("div", { class: "mgr-row" + (t.key === state.type ? " on" : "") + (c ? "" : " none") }, el("i", { "aria-hidden": "true" }), el("span", { text: t.name }), el("b", { text: String(c) }));
-      }));
-      const pay = paySum(mine);
-      rows.append(el("div", { class: "mgr-row pay" + (state.type === "pay" ? " on" : "") + (pay.count ? "" : " none") }, el("i", { "aria-hidden": "true" }), el("span", { text: "Ждём оплату" }),
-        el("b", { text: pay.count ? money(pay.sum) : "0", title: pay.count ? pay.count + " " + plural(pay.count, INVOICES) + " «Отправлен клиенту»" : null })));
-      const b = el("button", { type: "button", class: "mgr" + (total ? "" : " zero"), "aria-pressed": String(state.manager === m.id) },
-        el("div", {}, el("div", { class: "mgr-name", text: m.name }), el("div", { class: "mgr-sub", text: total ? total + " " + plural(total, DEALS) + " в воронке" + (state.stage ? " · на этапе " + mine.length : "") : "сделок в воронке нет" })),
-        total ? rows : null);
-      if (total) b.addEventListener("click", () => { state.manager = state.manager === m.id ? null : m.id; state.showAll = false; render(); });
-      return b;
-    }));
-
-    // the list: deals with the chosen violation, grouped by stage
-    const rows = items.filter((it) => inStage(it) && inMgr(it) && has(it, state.type))
-      .sort((a, b) => stageIdx.get(a.stage) - stageIdx.get(b.stage) || b.rules.length - a.rules.length || b.daysOnStage - a.daysOnStage);
-    const shown = state.showAll ? rows : rows.slice(0, LIMIT);
-    const list = $("list"); list.replaceChildren();
-    if (!rows.length) { list.append(el("div", { class: "empty", text: state.type === "pay" ? "Счетов «Отправлен клиенту» нет." : "Сделок с таким нарушением нет." })); return; }
-    const name = new Map(D.team.map((m) => [m.id, m.name]));
-    const showWho = state.manager === null;
-    const dateFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Moscow" });
-    if (state.type === "pay") {
-      // one table by sum: the deal, its stage, the invoices «Отправлен клиенту» with links, how old the oldest is
-      const payRows = rows.slice().sort((a, b) => b.waiting.sum - a.waiting.sum);
-      const payShown = state.showAll ? payRows : payRows.slice(0, LIMIT);
-      const tot = paySum(payRows);
-      const head = ["Сделка", "Этап", ...(showWho ? ["Ответственный"] : []), "Ждём оплату", "Счета", "Ждём с"];
-      const cls = ["c-deal", "c-stage", ...(showWho ? ["c-who"] : []), "c-pay", "c-inv", "c-since"];
-      list.append(el("div", { class: "group" },
-        el("div", { class: "group-head" }, el("div", {}, el("b", { text: "Ждём оплату" }),
-          el("span", { text: "  " + money(tot.sum) + " · " + tot.count + " " + plural(tot.count, INVOICES) + " «Отправлен клиенту» · " + payRows.length + " " + plural(payRows.length, DEALS) }))),
-        el("div", { class: "tbl-wrap" }, el("table", { class: "pay-tbl" },
-          el("thead", {}, el("tr", {}, ...head.map((h, i) => el("th", { class: cls[i], text: h })))),
-          el("tbody", {}, ...payShown.map((it) => {
-            const old = it.waiting.since && ageDays(it.waiting.since) > OLD_INVOICE_DAYS;
-            return el("tr", {},
-              el("td", {}, el("a", { href: D.portal + "/crm/deal/details/" + it.id + "/", target: "_blank", rel: "noopener", text: it.title }), el("span", { class: "deal-id", text: "#" + it.id })),
-              el("td", { text: D.stages[stageIdx.get(it.stage)].name }),
-              showWho ? el("td", { text: name.get(it.owner) || "другой ответственный" }) : null,
-              el("td", { class: "num" }, el("b", { text: money(it.waiting.sum) })),
-              el("td", {}, ...it.waiting.invoices.map((v) => el("span", { class: "inv" },
-                el("a", { href: D.portal + "/crm/type/31/details/" + v.id + "/", target: "_blank", rel: "noopener", text: "Счёт #" + v.id }),
-                " · " + money(v.sum) + (v.at ? " · " + dateFmt.format(new Date(v.at)) : "")))),
-              el("td", { class: old ? "bad" : "" }, it.waiting.since ? dateFmt.format(new Date(it.waiting.since)) : "—",
-                it.waiting.since ? el("span", { class: "deal-id", text: ageDays(it.waiting.since) + " " + plural(ageDays(it.waiting.since), DAYS) + (old ? " · уточнить оплату" : "") }) : null));
-          }))))));
-      if (payRows.length > payShown.length) {
-        const more = el("button", { type: "button", class: "link-btn", text: "Показать ещё " + (payRows.length - payShown.length) });
-        more.addEventListener("click", () => { state.showAll = true; render(); });
-        list.append(el("div", { class: "more-rows" }, more));
-      }
-      return;
+  function renderTodo(D, todo) {
+    const stageName = new Map(D.stages.map((s) => [s.key, s.name]));
+    const rows = todo.filter((it) => !state.stage || it.stage === state.stage)
+      .sort((a, b) => STAGE_RANK[a.stage] - STAGE_RANK[b.stage] || b.amount - a.amount || b.daysOnStage - a.daysOnStage);
+    $("todo-count").textContent = rows.length + " " + plural(rows.length, DEALS);
+    const fn = $("todo-filter"); fn.replaceChildren();
+    if (state.stage) {
+      const reset = el("button", { type: "button", class: "link-btn", text: "Все этапы" });
+      reset.addEventListener("click", () => { state.stage = null; state.showTodo = false; render(); });
+      fn.append("Этап «" + stageName.get(state.stage) + "»", reset);
     }
-    for (const s of D.stages) {
-      const rs = shown.filter((it) => it.stage === s.key);
-      if (!rs.length) continue;
-      const total = rows.filter((it) => it.stage === s.key).length;
-      const base = BASES.has(s.key);
-      const head = ["Сделка", ...(showWho ? ["Ответственный"] : []), "Сумма", "Ждём оплату", "На этапе", "Задача", "Комментарий", ...(base ? ["Связь"] : []), "Что сделать"];
-      const cls = ["c-deal", ...(showWho ? ["c-who"] : []), "c-sum", "c-pay", "c-days", "c-task", "c-note", ...(base ? ["c-cont"] : []), "c-do"];
-      list.append(el("div", { class: "group" },
-        el("div", { class: "group-head" }, el("div", {}, el("b", { text: s.name }), el("span", { text: "  " + total + " " + plural(total, DEALS) + " · " + s.rule }))),
-        el("div", { class: "tbl-wrap" }, el("table", {},
-          el("thead", {}, el("tr", {}, ...head.map((h, i) => el("th", { class: cls[i], text: h })))),
-          el("tbody", {}, ...rs.map((it) => el("tr", {},
-            el("td", {}, el("a", { href: D.portal + "/crm/deal/details/" + it.id + "/", target: "_blank", rel: "noopener", text: it.title }), el("span", { class: "deal-id", text: "#" + it.id })),
-            showWho ? el("td", { text: name.get(it.owner) || "другой ответственный" }) : null,
-            el("td", { class: "num", text: money(it.amount) }),
-            // the company's invoices «Отправлен клиенту»: the sum and the oldest one's date
-            el("td", { class: "num" }, it.waiting ? [document.createTextNode(money(it.waiting.sum)), el("span", { class: "deal-id", text: (it.waiting.count > 1 ? it.waiting.count + " " + plural(it.waiting.count, INVOICES) + ", " : "") + (it.waiting.since ? "с " + dayFmt.format(new Date(it.waiting.since)) : "") })] : el("span", { class: "muted", text: "—" })),
-            el("td", { class: "num" }, el("span", { class: "pill" + (it.rules.some((r) => r.type === "stage") ? " c" : ""), text: it.daysOnStage + " " + plural(it.daysOnStage, DAYS) })),
-            el("td", { class: it.task.state === "ok" ? "" : "bad", text: s.key === "base" || s.key === "new" ? "—" : it.task.state === "ok" ? dayFmt.format(new Date(it.task.next)) : it.task.state === "due" ? "просрочена" : it.task.state === "nodate" ? "без срока" : "нет" }),
-            // «База на проработку» and «Новый клиент» have no comment rule: the date is just for reference
-            el("td", { class: s.key === "base" || s.key === "new" ? "muted" : it.rules.some((r) => r.type === "comment") ? "bad" : "", text: it.lastNote ? dayFmt.format(new Date(it.lastNote)) : "нет" }),
-            base ? el("td", { class: it.rules.some((r) => r.type === "contact") ? "bad" : "", text: it.lastContact ? dayFmt.format(new Date(it.lastContact.at)) + " · " + KIND[it.lastContact.kind] : "нет" }) : null,
-            el("td", {}, it.rules.length ? it.rules.map((r) => el("span", { class: "rule", text: r.text })) : el("span", { class: "ok-line", text: "по правилам" })))))))));
-    }
+    const box = $("todo");
+    if (!rows.length) { box.replaceChildren(el("div", { class: "empty", text: "Все живые сделки в порядке." })); return; }
+    const shown = state.showTodo ? rows : rows.slice(0, TODO_LIMIT);
+    const who = new Map(D.team.map((m) => [m.id, m.name]));
+    const showWho = state.who === null;
+    box.replaceChildren(el("div", { class: "tbl-wrap" }, el("table", { class: "todo cards" },
+      el("thead", {}, el("tr", {}, el("th", { text: "Сделка" }), el("th", { text: "Этап" }), showWho ? el("th", { text: "Ответственный" }) : null, el("th", { class: "r", text: "Сумма" }), el("th", { text: "Что сделать" }))),
+      el("tbody", {}, ...shown.map((it) => {
+        const main = mainRule(it);
+        const rest = it.rules.filter((r) => r !== main);
+        return el("tr", {},
+          el("td", {}, link(D, it)),
+          el("td", {}, stageName.get(it.stage), el("span", { class: "sub-line", text: it.daysOnStage + " " + plural(it.daysOnStage, DAYS) + " на этапе" })),
+          showWho ? el("td", { text: who.get(it.owner) || "другой ответственный" }) : null,
+          el("td", { class: "num lead", text: amount(it.amount) }),
+          el("td", { title: it.rules.map((r) => r.text).join("\n") }, el("span", { class: "act", text: actionText(main, it, D) }), rest.length ? el("span", { class: "tags" }, ...rest.map((r) => el("span", { class: "tag", text: TAG[r.code] }))) : null));
+      })))));
     if (rows.length > shown.length) {
       const more = el("button", { type: "button", class: "link-btn", text: "Показать ещё " + (rows.length - shown.length) });
-      more.addEventListener("click", () => { state.showAll = true; render(); });
-      list.append(el("div", { class: "more-rows" }, more));
+      more.addEventListener("click", () => { state.showTodo = true; render(); });
+      box.append(el("div", { class: "more" }, more));
     }
+  }
+
+  function renderPay(D, mine) {
+    // one row per invoice: a company's invoice is shared by its deals
+    const byInv = new Map();
+    for (const it of mine) for (const v of (it.waiting && it.waiting.invoices) || []) if (!byInv.has(v.id)) byInv.set(v.id, { ...v, deal: it });
+    const rows = [...byInv.values()].sort((a, b) => b.sum - a.sum);
+    const pay = paySum(mine);
+    $("pay-count").textContent = rows.length ? short(pay.sum) + " · " + rows.length + " " + plural(rows.length, INVOICES) : "";
+    const box = $("pay");
+    if (!rows.length) { box.replaceChildren(el("div", { class: "empty", text: "Счетов «Отправлен клиенту» нет." })); return; }
+    const shown = state.showPay ? rows : rows.slice(0, PAY_LIMIT);
+    const who = new Map(D.team.map((m) => [m.id, m.name]));
+    const showWho = state.who === null;
+    box.replaceChildren(el("div", { class: "tbl-wrap" }, el("table", { class: "pay cards" },
+      el("thead", {}, el("tr", {}, el("th", { text: "Компания" }), el("th", { text: "Счёт" }), showWho ? el("th", { text: "Ответственный" }) : null, el("th", { class: "r", text: "Сумма" }), el("th", { text: "Выставлен" }))),
+      el("tbody", {}, ...shown.map((v) => {
+        const days = v.at ? ageDays(v.at) : null, old = days !== null && days > OLD_INVOICE_DAYS;
+        return el("tr", {},
+          el("td", {}, link(D, v.deal)),
+          el("td", {}, el("a", { href: D.portal + "/crm/type/31/details/" + v.id + "/", target: "_blank", rel: "noopener", text: "Счёт #" + v.id })),
+          showWho ? el("td", { text: who.get(v.deal.owner) || "другой ответственный" }) : null,
+          el("td", { class: "num lead", text: rub(v.sum) }),
+          el("td", {}, v.at ? dateFmt.format(new Date(v.at)) : "—",
+            days !== null ? el("span", { class: "sub-line" + (old ? " bad" : ""), text: days + " " + plural(days, DAYS) + (old ? " — уточнить, будет ли оплата" : "") }) : null));
+      })))));
+    if (rows.length > shown.length) {
+      const more = el("button", { type: "button", class: "link-btn", text: "Показать все " + rows.length });
+      more.addEventListener("click", () => { state.showPay = true; render(); });
+      box.append(el("div", { class: "more" }, more));
+    }
+  }
+
+  function renderFunnel(D, mine, todo) {
+    const cell = (s) => {
+      const live = mine.filter((it) => it.stage === s.key && !isOld(it));
+      const act = todo.filter((it) => it.stage === s.key).length;
+      const old = mine.filter((it) => it.stage === s.key && isOld(it)).length;
+      const sum = live.reduce((a, it) => a + (it.amount >= 1000 ? it.amount : 0), 0);
+      const base = BASES.has(s.key);
+      const pay = base ? paySum(live) : null;
+      const b = el("button", { type: "button", class: "st", "aria-pressed": String(state.stage === s.key), title: s.rule },
+        el("span", { class: "st-name", text: s.name }),
+        el("span", { class: "st-n", text: String(live.length) }),
+        el("span", { class: "st-sum", text: base ? (pay.count ? "ждём " + short(pay.sum) : "") : sum ? short(sum) : "" }),
+        el("span", { class: "st-act" + (act ? "" : " none"), text: act ? act + " ждут действия" : live.length ? "всё в порядке" : "сделок нет" }),
+        old ? el("span", { class: "st-old", text: "+ " + old + " " + plural(old, ["старая", "старые", "старых"]) }) : null);
+      b.addEventListener("click", () => {
+        state.stage = state.stage === s.key ? null : s.key; state.showTodo = false; render();
+        if (state.stage) $("h-todo").scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      return b;
+    };
+    $("funnel").replaceChildren(...D.stages.filter((s) => !BASES.has(s.key)).map(cell));
+    $("bases").replaceChildren(...D.stages.filter((s) => BASES.has(s.key)).map(cell));
+  }
+
+  function renderCrm(D, mine, live) {
+    const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
+    const carded = live.filter((it) => !["base", "new"].includes(it.stage));
+    const withTask = carded.filter((it) => it.task.state === "ok").length;
+    const withNote = carded.filter((it) => !it.rules.some((r) => r.type === "comment")).length;
+    const bases = live.filter((it) => BASES.has(it.stage));
+    const touched = bases.filter((it) => !it.rules.some((r) => r.type === "contact")).length;
+    $("crm-sum").textContent = "задачи стоят на " + withTask + " из " + carded.length + " · свежий комментарий на " + withNote + " · связь с " + touched + " из " + bases.length + " партнёров и агентов";
+    const gauge = (label, a, b) => el("div", { class: "gauge" }, el("span", {}, el("b", { text: pct(a, b) + " %" }), " " + label),
+      el("div", { class: "gauge-bar", "aria-hidden": "true" }, el("i", { style: "width:" + pct(a, b) + "%" })), el("span", { class: "muted", text: a + " из " + b }));
+    const owners = [...D.team, ...(D.items.some((it) => ownerKey(it) === OTHERS) ? [{ id: OTHERS, name: "Другие ответственные" }] : [])]
+      .filter((m) => state.who === null || state.who === m.id);
+    const row = (m) => {
+      const all = D.items.filter((it) => ownerKey(it) === m.id), lv = all.filter((it) => !isOld(it)), cd = lv.filter((it) => !["base", "new"].includes(it.stage));
+      return el("tr", {}, el("td", { text: m.name }),
+        el("td", { class: "num", text: String(lv.length) }),
+        el("td", { class: "num", text: String(lv.filter(needsAction).length) }),
+        el("td", { class: "num", text: cd.filter((it) => it.task.state === "ok").length + " из " + cd.length }),
+        el("td", { class: "num", text: cd.filter((it) => !it.rules.some((r) => r.type === "comment")).length + " из " + cd.length }),
+        el("td", { class: "num", text: String(all.length - lv.length) }),
+        el("td", { class: "num", text: paySum(all).count ? short(paySum(all).sum) : "—" }));
+    };
+    $("crm").replaceChildren(
+      el("div", { class: "gauges" }, gauge("сделок с задачей на будущее", withTask, carded.length), gauge("со свежим комментарием (30 дней)", withNote, carded.length), gauge("партнёров и агентов со связью за месяц", touched, bases.length)),
+      el("div", { class: "box" }, el("div", { class: "tbl-wrap" }, el("table", { class: "mgr" },
+        el("thead", {}, el("tr", {}, ...["Ответственный", "Живые сделки", "Ждут действия", "С задачей", "С комментарием", "Старые", "Ждём оплату"].map((h, i) => el("th", { class: i ? "r" : "", text: h })))),
+        el("tbody", {}, ...owners.map(row))))),
+      el("div", { class: "defs" },
+        el("p", { class: "def" }, el("b", { text: "Задача" }), " — только из раздела «Задачи», привязанная к сделке, со сроком сегодня или позже; дела не считаются."),
+        el("p", { class: "def" }, el("b", { text: "Комментарий" }), " — заметка в ленте сделки за последние 30 дней."),
+        el("p", { class: "def" }, el("b", { text: "Связь" }), " на базах партнёров и агентов — звонок с разговором, письмо, чат или проведённая встреча за 30 дней по сделке, её контакту или компании, либо заметка о разговоре («созвонились», «встреча», «договорились»)."),
+        el("p", { class: "def" }, el("b", { text: "Старые сделки" }), " — больше " + OLD_DAYS + " дней на одном этапе воронки (кроме баз партнёров и агентов). Данные обновляются каждые 15 минут.")));
+  }
+
+  function renderOld(D, mine) {
+    const stageName = new Map(D.stages.map((s) => [s.key, s.name]));
+    const rows = mine.filter(isOld).sort((a, b) => b.daysOnStage - a.daysOnStage);
+    $("old-sum").textContent = rows.length ? rows.length + " " + plural(rows.length, DEALS) + " больше " + OLD_DAYS + " дней на этапе — закрыть или вернуть в работу" : "нет";
+    const box = $("old");
+    if (!rows.length) { box.replaceChildren(el("div", { class: "empty", text: "Старых сделок нет." })); return; }
+    const shown = state.showOld ? rows : rows.slice(0, OLD_LIMIT);
+    const who = new Map(D.team.map((m) => [m.id, m.name]));
+    box.replaceChildren(el("div", { class: "tbl-wrap" }, el("table", { class: "todo cards" },
+      el("thead", {}, el("tr", {}, el("th", { text: "Сделка" }), el("th", { text: "Этап" }), el("th", { text: "Ответственный" }), el("th", { class: "r", text: "На этапе" }), el("th", { class: "r", text: "Сумма" }))),
+      el("tbody", {}, ...shown.map((it) => el("tr", {},
+        el("td", {}, link(D, it)), el("td", { text: stageName.get(it.stage) }), el("td", { text: who.get(it.owner) || "другой ответственный" }),
+        el("td", { class: "num lead", text: it.daysOnStage + " " + plural(it.daysOnStage, DAYS) }), el("td", { class: "num", text: amount(it.amount) })))))));
+    if (rows.length > shown.length) {
+      const more = el("button", { type: "button", class: "link-btn", text: "Показать ещё " + (rows.length - shown.length) });
+      more.addEventListener("click", () => { state.showOld = true; render(); });
+      box.append(el("div", { class: "more" }, more));
+    }
+  }
+
+  function render() {
+    renderFresh();
+    const D = state.data;
+    if (!D) return;
+    const mine = D.items.filter((it) => state.who === null || ownerKey(it) === state.who);
+    const live = mine.filter((it) => !isOld(it));
+    const todo = live.filter((it) => it.rules.some((r) => ACTION.has(r.code)));
+    renderWho(D);
+    renderMoney(D, mine, live, todo);
+    renderTodo(D, todo);
+    renderPay(D, mine);
+    renderFunnel(D, mine, todo);
+    renderCrm(D, mine, live);
+    renderOld(D, mine);
   }
 
   async function load() {
@@ -372,6 +453,10 @@ a:hover { text-decoration: underline; }
     } catch (e) { state.error = e.message; }
     render();
   }
+  // …/corp#crm and #old open the folded blocks (links from messages)
+  if (location.hash === "#crm") $("crm-fold").open = true;
+  if (location.hash === "#old") $("old-fold").open = true;
+  if (location.hash === "#pay") addEventListener("load", () => setTimeout(() => $("pay-sec").scrollIntoView(), 300));
   load();
   setInterval(load, 60e3);
   setInterval(renderFresh, 30e3);
