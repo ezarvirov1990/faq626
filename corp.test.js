@@ -86,7 +86,7 @@ test("collectCorp: team, deals, tasks, notes, contacts via the company", async (
     portal: "https://x.bitrix24.ru",
     async call(method, body) {
       calls.push(method);
-      if (method === "user.get") return { result: [{ ID: "306916", NAME: "Светлана", LAST_NAME: "Камелина" }, { ID: "181", NAME: "Евгений", LAST_NAME: "Зарвиров" }] };
+      if (method === "user.get") return { result: [{ ID: "306916", NAME: "Светлана", LAST_NAME: "Камелина" }, { ID: "181", NAME: "Евгений", LAST_NAME: "Зарвиров" }, { ID: "192776", NAME: "Инесса", LAST_NAME: "Ершова" }] };
       if (method === "crm.deal.list") return { result: deals, total: 2 };
       if (method === "voximplant.statistic.get") return { result: [] };
       throw new Error("unexpected " + method);

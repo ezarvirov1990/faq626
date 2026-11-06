@@ -7,6 +7,8 @@ const MSK = 3 * 3600e3;
 const WINDOW = 30 * DAY; // fresh comment, monthly contact
 export const CORP_PIPELINE = 41;
 export const CORP_DEPARTMENT = 188;
+// in the department but not in sales: Инесса Ершова, events manager (the user 06.11.2026)
+export const CORP_EXCLUDE = new Set([192776]);
 
 const MIDDLE = "до 30 дней или задача на дату возврата · задача · комментарий";
 const BASE = "задача · план на месяц · связь раз в месяц";
@@ -119,7 +121,7 @@ export async function collectCorp(bx, now, { pause = 600 } = {}) {
   const sinceIso = new Date(since).toISOString();
 
   const users = (await bx.call("user.get", { FILTER: { UF_DEPARTMENT: CORP_DEPARTMENT, ACTIVE: true } })).result || [];
-  const team = users.map((u) => ({ id: Number(u.ID), name: `${u.NAME || ""} ${u.LAST_NAME || ""}`.trim() }));
+  const team = users.map((u) => ({ id: Number(u.ID), name: `${u.NAME || ""} ${u.LAST_NAME || ""}`.trim() })).filter((m) => !CORP_EXCLUDE.has(m.id));
   await sleep(pause);
 
   const select = ["ID", "TITLE", "STAGE_ID", "ASSIGNED_BY_ID", "DATE_CREATE", "MOVED_TIME", "OPPORTUNITY", "CONTACT_ID", "COMPANY_ID"];
