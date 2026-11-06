@@ -219,11 +219,11 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
   const OTHERS = -1;
   // the four lists (the user's priorities 06.11.2026: contact, tasks; plus time on stage and awaited payments)
   const BUCKETS = [
-    { key: "contact", name: "Нет связи", line: "без связи", codes: ["nocontact"] },
+    { key: "contact", name: "Давно не связывались", line: "без связи", codes: ["nocontact"] },
     // tasks split into two lists (the user's request 06.11.2026)
     { key: "notask", name: "Нет задачи", line: "без задачи", codes: ["notask"] },
     { key: "due", name: "Просрочена задача", line: "просрочено", codes: ["taskdue"] },
-    { key: "stage", name: "Долго на этапе", line: "дольше срока", codes: ["over", "notaken", "old"] },
+    { key: "stage", name: "Сделка зависла", line: "дольше срока", codes: ["over", "notaken", "old"] },
     { key: "pay", name: "Ждём оплату" },
   ];
   const TAG = { notask: "нет задачи", taskdue: "задача просрочена", nocomment: "нет комментария", nocontact: "нет связи", over: "долго на этапе", notaken: "не взята в работу", old: "давно в базе" };
@@ -318,7 +318,7 @@ details.fold > summary span { font-size: 14px; color: var(--muted); }
       tile("pay", "Ждём оплату", short(pay.sum), [pay.count + " " + plural(pay.count, INVOICES) + " «Отправлен клиенту»", pay.old ? el("span", { class: "bad", text: " · " + pay.old + " старше 3 мес." }) : null], "ok"),
       el("div", { class: "m" }, el("span", { class: "m-label", text: "В работе: от КП до счёта" }), el("span", { class: "m-val", text: short(workSum) }),
         el("span", { class: "m-note", text: inWork.length + " " + plural(inWork.length, DEALS) + " · суммы из карточек" })),
-      tile("contact", "Нет связи больше месяца", String(noContact), "из " + bases.length + " партнёров и агентов"),
+      tile("contact", "Давно не связывались", String(noContact), "больше месяца · из " + bases.length + " партнёров и агентов"),
       tile("notask", "Нет задачи", String(noTask), "из " + carded.length + " сделок в работе"),
       tile("due", "Просрочена задача", String(due), "из " + carded.length + " сделок в работе"));
   }
