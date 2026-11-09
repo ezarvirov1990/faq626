@@ -14,6 +14,10 @@ const OUTGOING_MARK = /^\s*=+\s*Исходящее сообщение/;
 // клиент изменил/удалил сообщение, пропущенный звонок. Не касание и не входящее от клиента.
 const WAZZUP_SYSTEM_MARK = "=== SYSTEM WZ ===";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Lead stages run by automation (warm-up chain, the AI agent writes, the robot calls) — managers don't work them,
+// so they are left out of «Без касаний 48 часов» and its open counts (user's request 09.11.2026):
+// «Прогрев 1/2 неделя», «Робот. попытка 1/2», «Робот. Не дошел до финала», «Робот. Недозвон», «Робот. Отказ»
+export const NO_TOUCH_LEAD_STAGES = new Set(["UC_ZLGN0N", "UC_A30NMX", "UC_8C77HR", "UC_33AW0X", "UC_5ZV4JA", "UC_ZIU6Y3", "UC_I6EXOS"]);
 
 export function loadConfig(env) {
   return {
@@ -333,9 +337,11 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel 
   for (const { spec, stages, items, chatsOf, calls } of loaded) {
     const openByManager = {};
     const rows = [];
+    let counted = 0;
     for (const it of items) {
       const managerId = Number(it.ASSIGNED_BY_ID);
-      openByManager[managerId] = (openByManager[managerId] || 0) + 1;
+      const automated = spec.entity === "lead" && NO_TOUCH_LEAD_STAGES.has(it[spec.stageField]);
+      if (!automated) { openByManager[managerId] = (openByManager[managerId] || 0) + 1; counted++; }
       const stage = stages[it[spec.stageField]] || it[spec.stageField];
 
       let lastOurMsg = 0, lastClient = 0;
@@ -384,6 +390,7 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel 
       if (spec.entity === "lead" && lastClient > lastOurMsg) {
         waitCands.push({ id: Number(it.ID), stage, managerId, created, lastClient, calledAfter: lastCall > lastClient });
       }
+      if (automated) continue;
       const silentSince = silenceStart(spec.entity, lastTouch, created);
       if (now - silentSince < spec.thresholdHours * HOUR) continue;
 
@@ -408,7 +415,7 @@ export async function collectSnapshot(bx, config, { withSlow = true, prevFunnel 
       title: spec.title, entity: spec.entity, thresholdHours: spec.thresholdHours, totalOpen: 0, openByManager: {}, items: [],
       ...(spec.pipeline ? { pipelines: [] } : {}),
     };
-    view.totalOpen += items.length;
+    view.totalOpen += counted;
     for (const [id, n] of Object.entries(openByManager)) view.openByManager[id] = (view.openByManager[id] || 0) + n;
     view.items.push(...rows);
     if (spec.pipeline) {
