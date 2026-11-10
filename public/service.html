@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Сервис B2C</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+/* Same tokens as corp.html / index.html */
+:root {
+  --bg: #F2F4F6; --surface: #FFFFFF; --ink: #16202C; --muted: #5B6878; --line: #DCE2E9;
+  --accent: #1F6F8B; --accent-soft: #E3EFF3; --on-accent: #FFFFFF;
+  --warn: #8A560B; --warn-soft: #FBF1DE; --crit: #B42318; --crit-soft: #FBE4E2; --ok: #276B43; --ok-soft: #E2F2E8;
+  --font: "Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0F151C; --surface: #17212B; --ink: #E6EDF3; --muted: #93A1B1; --line: #28343F;
+    --accent: #62B4D0; --accent-soft: #17313B; --on-accent: #0F151C;
+    --warn: #E3A948; --warn-soft: #3A2E17; --crit: #F27272; --crit-soft: #401D1E; --ok: #6BCB92; --ok-soft: #173325;
+  }
+}
+* { box-sizing: border-box; }
+::selection { background: var(--accent); color: var(--on-accent); }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--font); }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 56px; display: grid; gap: 24px; }
+.wrap > * { min-width: 0; }
+@media (max-width: 480px) { .wrap { padding-inline: 14px; gap: 20px; } }
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -0.01em; }
+.sub { margin: 4px 0 0; color: var(--muted); }
+.fresh { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 500; background: var(--ok-soft); color: var(--ok); }
+.fresh::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.fresh.stale { background: var(--warn-soft); color: var(--warn); }
+.fresh.dead { background: var(--crit-soft); color: var(--crit); }
+h2 { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.005em; }
+.sec { display: grid; gap: 12px; }
+button { font: inherit; color: inherit; }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a { color: var(--accent); text-decoration: none; font-weight: 500; text-underline-offset: 3px; }
+a:hover { text-decoration: underline; }
+.num, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.bad { color: var(--crit); }
+.good { color: var(--ok); }
+
+/* period and employee: two rows of controls, both apply to the whole page */
+.controls { display: grid; gap: 10px; }
+.seg { display: inline-flex; max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); justify-self: start; }
+.seg button { font-size: 14px; white-space: nowrap; border: 0; background: transparent; padding: 8px 14px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.seg button b { font-family: var(--mono); font-weight: 600; margin-left: 4px; }
+.who { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip-btn { font-size: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; cursor: pointer; white-space: nowrap; }
+.chip-btn:hover { border-color: var(--accent); }
+.chip-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* six figures; each opens its list */
+.money { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+@media (max-width: 1060px) { .money { grid-template-columns: repeat(3, minmax(0, 1fr)); } .m:nth-child(n+4) { border-top: 1px solid var(--line); } .m:nth-child(4) { border-left: 0; } }
+@media (max-width: 600px) { .money { grid-template-columns: repeat(2, minmax(0, 1fr)); } .m:nth-child(n+3) { border-top: 1px solid var(--line); } .m:nth-child(odd) { border-left: 0; } .m:nth-child(4) { border-left: 1px solid var(--line); } }
+.m { padding: 14px 16px 15px; display: grid; gap: 3px; align-content: start; text-align: left; background: none; border: 0; border-radius: 0; cursor: pointer; min-width: 0; }
+.m + .m { border-left: 1px solid var(--line); }
+.m:hover { background: var(--accent-soft); }
+.m[aria-pressed="true"] { background: var(--accent-soft); box-shadow: inset 0 -3px 0 var(--accent); }
+.m-label { font-size: 13px; color: var(--muted); }
+.m-val { font: 600 26px/1.15 var(--mono); font-variant-numeric: tabular-nums; }
+.m-val small { font-size: 15px; font-weight: 500; color: var(--muted); margin-left: 3px; }
+.m-note { font-size: 12.5px; color: var(--muted); line-height: 1.4; }
+.m-note b { font-weight: 600; }
+
+/* tables */
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-weight: 500; font-size: 12px; color: var(--muted); padding: 10px 12px 8px; border-bottom: 1px solid var(--line); vertical-align: bottom; line-height: 1.3; }
+th.r, td.num { text-align: right; }
+td { padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+tbody tr:first-child td { border-top: 0; }
+td.num { white-space: nowrap; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+th.grp { border-left: 1px solid var(--line); }
+td.grp { border-left: 1px solid var(--line); }
+table.team { min-width: 920px; }
+table.team tbody tr { cursor: pointer; }
+table.team tbody tr:hover td { background: var(--accent-soft); }
+table.team tbody tr[aria-selected="true"] td { background: var(--accent-soft); }
+table.team td:first-child { white-space: nowrap; font-weight: 500; }
+table.team tfoot td { border-top: 1px solid var(--line); font-weight: 600; }
+.zero { color: var(--muted); }
+.sub-line { display: block; font-size: 12px; color: var(--muted); font-family: var(--font); font-weight: 400; }
+table.list { min-width: 780px; }
+.quote { font-size: 13.5px; color: var(--ink); max-width: 60ch; }
+.st { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 5px; white-space: nowrap; }
+.st.missed, .st.none { background: var(--crit-soft); color: var(--crit); }
+.st.late { background: var(--warn-soft); color: var(--warn); }
+.st.done, .st.callback { background: var(--ok-soft); color: var(--ok); }
+.st.pending, .st.self { background: var(--accent-soft); color: var(--accent); }
+.list-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px 16px; }
+.list-note { font-size: 13px; color: var(--muted); }
+.more { display: flex; justify-content: center; padding: 10px; border-top: 1px solid var(--line); }
+.link-btn { font-size: 13px; color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 6px; padding: 4px 12px; cursor: pointer; }
+.link-btn:hover { border-color: var(--accent); }
+.empty { padding: 22px; text-align: center; color: var(--muted); }
+.defs { margin: 0; font-size: 13px; color: var(--muted); max-width: 80ch; display: grid; gap: 4px; }
+.defs p { margin: 0; }
+.defs b { color: var(--ink); font-weight: 600; }
+@media (max-width: 640px) {
+  .seg { display: grid; grid-template-columns: 1fr 1fr; } .seg button + button { border-left: 0; } .seg button:nth-child(even) { border-left: 1px solid var(--line); } .seg button:nth-child(n+3) { border-top: 1px solid var(--line); }
+  table.cards { min-width: 0; }
+  table.cards thead { display: none; }
+  table.cards tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 12px 14px; border-top: 1px solid var(--line); }
+  table.cards tbody tr:first-child { border-top: 0; }
+  table.cards td { border: 0; padding: 0; text-align: left; }
+  table.cards td:not(:first-child):not(.lead) { grid-column: 1 / -1; }
+  table.cards td.lead { grid-column: 2; grid-row: 1; text-align: right; }
+  table.cards td[data-l]::before { content: attr(data-l) ": "; color: var(--muted); font-weight: 400; font-family: var(--font); }
+}
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Сервис B2C</h1>
+      <p class="sub">Ответы клиентам, обещания, звонки и задачи отдела сервиса</p>
+    </div>
+    <span class="fresh dead" id="fresh">Загружаю данные…</span>
+  </header>
+
+  <div class="controls">
+    <div class="seg" id="period" role="group" aria-label="Период"></div>
+    <div class="who" id="who" role="group" aria-label="Сотрудник"></div>
+  </div>
+
+  <section class="money" id="money" aria-label="Главные показатели"></section>
+
+  <section class="sec" aria-labelledby="h-team">
+    <h2 id="h-team">По сотрудникам</h2>
+    <div class="box tbl-wrap" id="team"></div>
+  </section>
+
+  <section class="sec" aria-labelledby="h-list">
+    <div class="list-head">
+      <div class="seg" id="lists" role="group" aria-label="Список"></div>
+      <span class="list-note" id="list-note"></span>
+    </div>
+    <h2 id="h-list" hidden>Список</h2>
+    <div id="list"></div>
+  </section>
+
+  <div class="defs">
+    <p><b>Ответ клиенту</b> — от сообщения клиента до первого ответа сотрудника в чате или разговора по телефону, только в рабочие часы того, на ком диалог. Пока диалог ведёт Савви, время не идёт: отсчёт начинается, когда Савви передал диалог оператору. Ответ Савви ожиданием не заканчивается.</p>
+    <p><b>Обещание</b> — сообщение сотрудника со словами «перезвоню», «напишу», «уточню», «вернусь с ответом», «как узнаю — сообщу». Срок — из текста («через час», «завтра», «в пятницу»), иначе до конца следующей смены. Выполнено, если до срока кто-то из сервиса написал клиенту или позвонил. Ищется по словам — часть найденного может быть не обещанием.</p>
+    <p><b>Звонки</b> — входящие от клиентов с открытой сделкой в «B2C Сервис», кто бы ни взял трубку. <b>Перезвонили</b> — после пропущенного звонка клиенту позвонил кто-то из сервиса; время — в рабочих часах ответственного по сделке. Данные обновляются каждые 15 минут, время московское.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const PERIODS = [
+    { key: "today", name: "Сегодня" }, { key: "yesterday", name: "Вчера" },
+    { key: "week", name: "Эта неделя" }, { key: "prev", name: "Прошлая неделя" },
+  ];
+  const LISTS = [
+    { key: "wait", name: "Ждут ответа" }, { key: "slow", name: "Долгие ответы" }, { key: "promises", name: "Обещания" },
+    { key: "callback", name: "Не перезвонили" }, { key: "tasks", name: "Просроченные задачи" },
+  ];
+  const LIMIT = 30;
+  const DAY = 864e5, MSK = 3 * 3600e3;
+  const state = { data: null, error: null, period: "today", who: null, list: "wait", showAll: false };
+
+  const $ = (id) => document.getElementById(id);
+  function el(tag, attrs = {}, ...kids) {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k === "text") n.textContent = v; else if (k === "class") n.className = v; else if (k === "onclick") n.onclick = v; else n.setAttribute(k, v);
+    }
+    for (const c of kids.flat()) if (c !== null && c !== undefined && c !== false) n.append(c);
+    return n;
+  }
+  const plural = (n, f) => f[n % 10 === 1 && n % 100 !== 11 ? 0 : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 1 : 2];
+  const TZ = "Europe/Moscow";
+  const timeFmt = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
+  const dayFmt = new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", timeZone: TZ });
+  const wdFmt = new Intl.DateTimeFormat("ru-RU", { weekday: "short", timeZone: TZ });
+  const when = (at) => {
+    const today = Math.floor((Date.now() + MSK) / DAY), d = Math.floor((at + MSK) / DAY);
+    const t = timeFmt.format(new Date(at));
+    return d === today ? "сегодня " + t : d === today - 1 ? "вчера " + t : wdFmt.format(new Date(at)) + " " + dayFmt.format(new Date(at)) + " " + t;
+  };
+  // working minutes → «37 мин», «2 ч 05 мин»
+  const dur = (m) => m < 60 ? m + " мин" : Math.floor(m / 60) + " ч" + (m % 60 ? " " + String(m % 60).padStart(2, "0") + " мин" : "");
+  const avg = (xs) => xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null;
+
+  // ---- periods: MSK days and Monday-based weeks ----
+  const mskDay = (t) => Math.floor((t + MSK) / DAY);
+  const dayStart = (d) => d * DAY - MSK;
+  function range(key) {
+    const today = mskDay(Date.now());
+    const monday = today - ((new Date(dayStart(today) + MSK).getUTCDay() + 6) % 7);
+    if (key === "today") return [dayStart(today), dayStart(today + 1)];
+    if (key === "yesterday") return [dayStart(today - 1), dayStart(today)];
+    if (key === "week") return [dayStart(monday), dayStart(monday + 7)];
+    return [dayStart(monday - 7), dayStart(monday)];
+  }
+
+  function slice() {
+    const D = state.data;
+    const [a, b] = range(state.period);
+    const inR = (t) => t >= a && t < b;
+    const weeks = Object.values(D.weeks || {});
+    const chats = Object.assign({}, ...weeks.map((w) => w.chats || {}));
+    const deals = Object.assign({}, ...weeks.map((w) => w.deals || {}));
+    const mine = (id) => state.who === null || id === state.who;
+    const all = (k) => weeks.flatMap((w) => w[k] || []);
+    return {
+      chats, deals,
+      episodes: all("episodes").filter((e) => inR(e.at)),
+      promises: all("promises").filter((p) => inR(p.at)),
+      incoming: all("incoming").filter((c) => inR(c.at)),
+      cases: all("cases").filter((c) => inR(c.first)),
+      tasks: D.tasks || [],
+      mine,
+    };
+  }
+  // per-employee figures (no filter): the table; with the filter: the tiles
+  function figures(S, only) {
+    const pick = (id) => only === undefined || only === null || id === only;
+    const eps = S.episodes.filter((e) => pick(e.holder));
+    const answered = eps.filter((e) => e.reply).map((e) => e.min);
+    const prom = S.promises.filter((p) => pick(p.user));
+    const inc = S.incoming.filter((c) => pick(c.owner));
+    const cases = S.cases.filter((c) => pick(c.owner));
+    const tasks = S.tasks.filter((t) => pick(t.user));
+    const cb = cases.filter((c) => c.status === "callback");
+    return {
+      eps: eps.length, avg: avg(answered), fast: answered.filter((m) => m <= 15).length, hour: answered.filter((m) => m <= 60).length, answered: answered.length,
+      waiting: eps.filter((e) => !e.reply).length,
+      prom: prom.length, promBad: prom.filter((p) => p.status === "missed" || p.status === "late").length, promDone: prom.filter((p) => p.status === "done").length, promPending: prom.filter((p) => p.status === "pending").length,
+      inc: inc.length, incTeam: inc.filter((c) => c.team).length, missedCalls: inc.filter((c) => !c.ok).length,
+      missedClients: new Set(inc.filter((c) => !c.ok).map((c) => c.contact)).size,
+      cases: cases.length, cb: cb.length, cbAvg: avg(cb.map((c) => c.min)), self: cases.filter((c) => c.status === "self").length, none: cases.filter((c) => c.status === "none").length,
+      tasks: tasks.length, t1: tasks.filter((t) => Date.now() - t.deadline < DAY).length, t3: tasks.filter((t) => Date.now() - t.deadline >= DAY && Date.now() - t.deadline < 3 * DAY).length, t9: tasks.filter((t) => Date.now() - t.deadline >= 3 * DAY).length,
+    };
+  }
+  const pct = (a, b) => b ? Math.round((a / b) * 100) + " %" : "—";
+
+  const portal = () => state.data.portal || "https://mygenetics.bitrix24.ru";
+  function cardLink(S, chatId, dealId) {
+    const c = S.chats[chatId] || {};
+    const deal = dealId || c.deal;
+    const title = (deal && S.deals[deal]) || c.name || (deal ? "Сделка " + deal : c.lead ? "Лид " + c.lead : "Чат " + chatId);
+    const href = deal ? "/crm/deal/details/" + deal + "/" : c.lead ? "/crm/lead/details/" + c.lead + "/" : c.contact ? "/crm/contact/details/" + c.contact + "/" : null;
+    const main = href ? el("a", { href: portal() + href, target: "_blank", rel: "noopener", text: title }) : el("span", { text: title });
+    const sub = [c.name && c.name !== title ? c.name : null, chatId ? el("a", { href: portal() + "/online/?IM_DIALOG=chat" + chatId, target: "_blank", rel: "noopener", text: "чат" }) : null].filter(Boolean);
+    return el("td", {}, main, sub.length ? el("span", { class: "sub-line" }, ...sub.flatMap((x, i) => i ? [" · ", x] : [x])) : null);
+  }
+  const nameOf = (id) => ((state.data.team || []).find((m) => m.id === id) || {}).name || "Другие";
+
+  function renderFresh() {
+    const f = $("fresh");
+    if (!state.data) { f.className = "fresh dead"; f.textContent = state.error ? "Ошибка: " + state.error : "Первый сбор данных ещё идёт…"; return; }
+    const at = Date.parse(state.data.updatedAt), age = Date.now() - at;
+    f.className = "fresh" + (age > 60 * 60e3 ? " dead" : age > 25 * 60e3 ? " stale" : "");
+    f.textContent = "Обновлено в " + timeFmt.format(new Date(at)) + " МСК" + (state.error ? " · последняя попытка не удалась" : "");
+  }
+
+  function renderControls() {
+    $("period").replaceChildren(...PERIODS.map((p) => el("button", { "aria-pressed": String(state.period === p.key), text: p.name, onclick: () => { state.period = p.key; state.showAll = false; render(); } })));
+    const team = state.data.team || [];
+    $("who").replaceChildren(
+      el("button", { class: "chip-btn", "aria-pressed": String(state.who === null), text: "Все", onclick: () => { state.who = null; render(); } }),
+      ...team.map((m) => el("button", { class: "chip-btn", "aria-pressed": String(state.who === m.id), text: m.name, onclick: () => { state.who = state.who === m.id ? null : m.id; render(); } })));
+  }
+
+  function tile(key, label, val, unit, note, bad, id = key) {
+    return el("button", { class: "m", "aria-pressed": String(state.list === key && (state.tile || key) === id), onclick: () => { state.list = key; state.tile = id; state.showAll = false; render(); $("list").scrollIntoView({ behavior: "smooth", block: "start" }); } },
+      el("span", { class: "m-label", text: label }),
+      el("span", { class: "m-val" + (bad ? " bad" : "") }, String(val), unit ? el("small", { text: unit }) : null),
+      el("span", { class: "m-note" }, ...note));
+  }
+  function renderTiles(S) {
+    const F = figures(S, state.who);
+    const now = state.period === "today" || state.period === "week";
+    const b = (x, cls = "bad") => el("b", { class: x ? cls : "", text: String(x) });
+    $("money").replaceChildren(
+      tile("slow", "Ответ клиенту, в среднем", F.avg === null ? "—" : F.avg < 60 ? F.avg : dur(F.avg), F.avg !== null && F.avg < 60 ? "мин" : "",
+        [F.eps + " " + plural(F.eps, ["обращение", "обращения", "обращений"]), " · до 15 мин ", pct(F.fast, F.answered), now ? [" · ждут сейчас ", b(F.waiting)] : null].flat()),
+      tile("promises", "Обещания не выполнены", F.promBad, "из " + F.prom,
+        ["выполнено ", String(F.promDone), F.promPending ? " · ждут срока " + F.promPending : ""], F.promBad > 0),
+      tile("callback", "Звонков поступило", F.inc, "",
+        ["взял сервис ", String(F.incTeam), " · другие отделы ", String(F.inc - F.incTeam)], false, "calls"),
+      tile("callback", "Не дозвонились", F.missedClients, plural(F.missedClients, ["клиент", "клиента", "клиентов"]),
+        [F.missedCalls + " " + plural(F.missedCalls, ["пропущенный звонок", "пропущенных звонка", "пропущенных звонков"])], F.missedClients > 0, "missed"),
+      tile("callback", "Перезвонили", F.cb, "из " + F.cases,
+        [F.cbAvg === null ? "" : "в среднем через " + dur(F.cbAvg), F.self ? " · сами дозвонились " + F.self : "", " · не перезвонили ", b(F.none)]),
+      tile("tasks", "Просроченные задачи", F.tasks, "сейчас",
+        ["до 1 дня " + F.t1 + " · 1–3 дня " + F.t3 + " · больше 3 дней ", b(F.t9)], F.tasks > 0),
+    );
+  }
+
+  function renderTeam(S) {
+    const team = state.data.team || [];
+    const cell = (v, cls = "") => el("td", { class: "num " + cls + (v === 0 || v === "—" ? " zero" : "") }, String(v));
+    const row = (F, name, id) => el("tr", id === undefined ? {} : { "aria-selected": String(state.who === id), onclick: () => { state.who = state.who === id ? null : id; render(); } },
+      el("td", {}, name),
+      cell(F.eps, "grp"), cell(F.avg === null ? "—" : dur(F.avg)), cell(pct(F.fast, F.answered)), cell(pct(F.hour, F.answered)), cell(F.waiting, F.waiting ? "bad" : ""),
+      cell(F.prom, "grp"), cell(F.promBad, F.promBad ? "bad" : ""),
+      cell(F.inc, "grp"), cell(F.missedClients, F.missedClients ? "bad" : ""), el("td", { class: "num" + (F.cases ? "" : " zero") }, F.cases ? F.cb + " из " + F.cases : "0", F.cbAvg !== null ? el("span", { class: "sub-line", text: "через " + dur(F.cbAvg) }) : null),
+      cell(F.tasks, "grp" + (F.tasks ? " bad" : "")));
+    const head = el("thead", {},
+      el("tr", {}, el("th", { rowspan: 2, text: "Сотрудник" }), el("th", { colspan: 5, class: "grp", text: "Ответ клиенту" }), el("th", { colspan: 2, class: "grp", text: "Обещания" }), el("th", { colspan: 3, class: "grp", text: "Звонки клиентов по сделкам" }), el("th", { rowspan: 2, class: "grp r", text: "Задачи просрочены" })),
+      el("tr", {}, ...[["Обращений", "grp"], ["Среднее"], ["До 15 мин"], ["До 1 часа"], ["Без ответа"], ["Всего", "grp"], ["Не выполнено"], ["Поступило", "grp"], ["Не дозвонились"], ["Перезвонили"]].map(([t, c]) => el("th", { class: "r " + (c || ""), text: t }))));
+    const body = el("tbody", {}, ...team.map((m) => row(figures(S, m.id), m.name, m.id)));
+    const foot = el("tfoot", {}, row(figures(S, null), "Весь отдел"));
+    $("team").replaceChildren(el("table", { class: "team" }, head, body, foot));
+  }
+
+  function more(total) {
+    return total > LIMIT && !state.showAll ? el("div", { class: "more" }, el("button", { class: "link-btn", text: "Показать ещё " + (total - LIMIT), onclick: () => { state.showAll = true; render(); } })) : null;
+  }
+  function table(headers, rows, total) {
+    if (!rows.length) return el("div", { class: "box empty", text: "Нет таких" });
+    return el("div", { class: "box" }, el("div", { class: "tbl-wrap" }, el("table", { class: "list cards" },
+      el("thead", {}, el("tr", {}, ...headers.map(([t, r]) => el("th", { class: r ? "r" : "", text: t })))), el("tbody", {}, ...rows))), more(total));
+  }
+  const cut = (xs) => state.showAll ? xs : xs.slice(0, LIMIT);
+
+  function renderList(S) {
+    const by = (id) => state.who === null || id === state.who;
+    const note = $("list-note");
+    let node;
+    const L = state.list;
+    if (L === "wait" || L === "slow") {
+      const xs = L === "wait"
+        ? S.episodes.filter((e) => !e.reply && by(e.holder)).sort((a, b) => b.min - a.min)
+        : S.episodes.filter((e) => e.reply && e.min > 60 && by(e.holder)).sort((a, b) => b.min - a.min);
+      note.textContent = L === "wait" ? "Клиент написал, ответа ещё нет; время — рабочее, того, на ком диалог" : "Ответили позже чем через час рабочего времени";
+      node = table([["Клиент"], ["Ждёт", 1], ["Написал"], ["На ком"]], cut(xs).map((e) => el("tr", {},
+        cardLink(S, e.chat), el("td", { class: "num lead" + (e.min > 60 ? " bad" : "") }, dur(e.min)),
+        el("td", { "data-l": "Написал" }, when(e.at), e.reply ? el("span", { class: "sub-line", text: "ответ " + when(e.reply) }) : null), el("td", { "data-l": "На ком", text: nameOf(e.holder) }))), xs.length);
+    } else if (L === "promises") {
+      const rank = { missed: 0, late: 1, pending: 2, done: 3 };
+      const xs = S.promises.filter((p) => by(p.user)).sort((a, b) => rank[a.status] - rank[b.status] || a.due - b.due);
+      const ST = { missed: "не выполнено", late: "с опозданием", pending: "ждёт срока", done: "выполнено" };
+      note.textContent = "Сначала невыполненные; найдено по словам — проверяйте по тексту";
+      node = table([["Клиент"], ["Статус", 1], ["Обещание"], ["Срок"], ["Кто"]], cut(xs).map((p) => el("tr", {},
+        cardLink(S, p.chat), el("td", { class: "lead" }, el("span", { class: "st " + p.status, text: ST[p.status] })),
+        el("td", { "data-l": "Обещание" }, el("span", { class: "quote", text: "«" + p.text + "»" }), el("span", { class: "sub-line", text: when(p.at) })),
+        el("td", { "data-l": "Срок" }, when(p.due), p.doneAt ? el("span", { class: "sub-line", text: "связались " + when(p.doneAt) }) : null),
+        el("td", { "data-l": "Кто", text: nameOf(p.user) }))), xs.length);
+    } else if (L === "callback") {
+      const rank = { none: 0, callback: 1, self: 2 };
+      const xs = S.cases.filter((c) => by(c.owner)).sort((a, b) => rank[a.status] - rank[b.status] || b.min - a.min);
+      const ST = { none: "не перезвонили", callback: "перезвонили", self: "дозвонился сам" };
+      note.textContent = "Клиенты сервиса, которые звонили и не дозвонились; сначала те, кому не перезвонили";
+      node = table([["Клиент"], ["Статус", 1], ["Звонил"], ["Через сколько"], ["Ответственный"]], cut(xs).map((c) => el("tr", {},
+        el("td", {}, el("a", { href: portal() + "/crm/deal/details/" + c.deal + "/", target: "_blank", rel: "noopener", text: S.deals[c.deal] || "Сделка " + c.deal }),
+          el("span", { class: "sub-line" }, el("a", { href: portal() + "/crm/contact/details/" + c.contact + "/", target: "_blank", rel: "noopener", text: "контакт" }))),
+        el("td", { class: "lead" }, el("span", { class: "st " + c.status, text: ST[c.status] })),
+        el("td", { "data-l": "Звонил" }, when(c.first), c.calls > 1 ? el("span", { class: "sub-line", text: c.calls + " " + plural(c.calls, ["раз", "раза", "раз"]) }) : null),
+        el("td", { class: "num" + (c.status === "none" ? " bad" : ""), "data-l": c.status === "none" ? "Ждёт" : "Через" }, c.status === "none" && !c.min ? "смена не началась" : dur(c.min), c.at ? el("span", { class: "sub-line", text: when(c.at) }) : null),
+        el("td", { "data-l": "Ответственный", text: nameOf(c.owner) }))), xs.length);
+    } else {
+      const xs = S.tasks.filter((t) => by(t.user));
+      note.textContent = "Открытые задачи сотрудников со сроком в прошлом — по состоянию сейчас";
+      node = table([["Задача"], ["Просрочена на", 1], ["Срок"], ["Чья"]], cut(xs).map((t) => {
+        const late = Date.now() - t.deadline;
+        return el("tr", {},
+          el("td", {}, el("a", { href: portal() + "/company/personal/user/" + t.user + "/tasks/task/view/" + t.id + "/", target: "_blank", rel: "noopener", text: t.title })),
+          el("td", { class: "num lead" + (late >= 3 * DAY ? " bad" : "") }, late < DAY ? Math.max(1, Math.round(late / 3600e3)) + " ч" : Math.floor(late / DAY) + " " + plural(Math.floor(late / DAY), ["день", "дня", "дней"])),
+          el("td", { "data-l": "Срок", text: when(t.deadline) }), el("td", { "data-l": "Чья", text: nameOf(t.user) }));
+      }), xs.length);
+    }
+    $("lists").replaceChildren(...LISTS.map((l) => el("button", { "aria-pressed": String(state.list === l.key), onclick: () => { state.list = l.key; state.tile = null; state.showAll = false; render(); } }, l.name, el("b", { text: String(count(S, l.key)) }))));
+    $("list").replaceChildren(node);
+  }
+  function count(S, key) {
+    const by = (id) => state.who === null || id === state.who;
+    if (key === "wait") return S.episodes.filter((e) => !e.reply && by(e.holder)).length;
+    if (key === "slow") return S.episodes.filter((e) => e.reply && e.min > 60 && by(e.holder)).length;
+    if (key === "promises") return S.promises.filter((p) => by(p.user) && (p.status === "missed" || p.status === "late")).length;
+    if (key === "callback") return S.cases.filter((c) => by(c.owner) && c.status === "none").length;
+    return S.tasks.filter((t) => by(t.user)).length;
+  }
+
+  function render() {
+    renderFresh();
+    if (!state.data) return;
+    try { history.replaceState(null, "", "#" + state.list); } catch {}
+    renderControls();
+    const S = slice();
+    renderTiles(S);
+    renderTeam(S);
+    renderList(S);
+  }
+
+  const fromHash = location.hash.slice(1);
+  if (LISTS.some((l) => l.key === fromHash)) state.list = fromHash;
+  async function load() {
+    try {
+      const r = await fetch("api/service", { cache: "no-store" });
+      const j = await r.json();
+      state.data = j.data || state.data; state.error = j.error || null;
+    } catch (e) { state.error = e.message; }
+    render();
+  }
+  load();
+  setInterval(load, 5 * 60e3);
+})();
+</script>
+</body>
+</html>

@@ -15,16 +15,16 @@ import { SUVVY_ID, WARM_STAGES, stageMoves } from "./weekstats.js";
 const H = 3600e3;
 const DAY = 24 * H;
 const MSK = 3 * H;
-const WAZZUP_SYSTEM = "=== SYSTEM WZ ===";
-const OUTGOING = /^\s*=+\s*Исходящее сообщение/;
+export const WAZZUP_SYSTEM = "=== SYSTEM WZ ===";
+export const OUTGOING = /^\s*=+\s*Исходящее сообщение/;
 export const TRIVIAL = /^(спасибо|спс|благодарю|ок|окей|ok|хорошо|понятно|ясно|да|нет|ага|угу|отлично|супер|класс|принято|договорились|жду)[\s!.,)(:]*$/i;
 // Not a client's question: Instagram «you were mentioned in a story» notices
-const NOT_A_QUESTION = /^(you )?mentioned (you )?in (the|their|your) story$/i;
+export const NOT_A_QUESTION = /^(you )?mentioned (you )?in (the|their|your) story$/i;
 // Our own texts Wazzup also posts under the client (a mass send, a report-ready notice, the copy of a manager's
 // message): the same text shows up as the client's in this many chats of the week, or as ours in the same chat
 const MASS_CHATS = 3;
 const ECHO_MS = 10 * 60e3;
-const clean = (s) => String(s || "").replace(/\[\/?[a-zA-Z]+[^\]]*\]/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+export const clean = (s) => String(s || "").replace(/\[\/?[a-zA-Z]+[^\]]*\]/g, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 const localDay = (ms, tz) => new Date(ms + tz * H).toISOString().slice(0, 10);
 const dayStartLocal = (day, tz) => Date.parse(day + "T00:00:00Z") - tz * H;
 const mskDay = (ms) => localDay(ms, 3);

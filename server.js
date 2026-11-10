@@ -12,6 +12,7 @@ import { collectWeek, weekStart, SUVVY_ID } from "./weekstats.js";
 import { collectUndelivered } from "./undelivered.js";
 import { collectReplies } from "./replies.js";
 import { collectCorp } from "./corp.js";
+import { collectService, collectServiceTasks, serviceCache, SERVICE_TEAM } from "./service.js";
 
 const env = process.env;
 const config = loadConfig(env);
@@ -325,8 +326,59 @@ async function refreshCorp() {
   }
 }
 
+// «Сервис B2C» (service.js, 10.11.2026): the service team's page /service with its own login. The current week is
+// recounted every SERVICE_MINUTES (messages read incrementally through the cache), the previous week once — from disk
+// if it was saved, else collected and saved once it ended 2+ days ago. Current state on disk for restarts.
+const serviceCreds = env.SERVICE_USER && env.SERVICE_PASSWORD ? { user: env.SERVICE_USER, password: env.SERVICE_PASSWORD } : null;
+const service = { data: null, error: null, running: false, cache: serviceCache() };
+const SERVICE_MS = Number(env.SERVICE_MINUTES || 15) * 60e3;
+const serviceFile = env.DATA_DIR ? path.join(env.DATA_DIR, "service.json") : null;
+const serviceWeekFile = (from) => path.join(env.DATA_DIR || ".", `service-${from}.json`);
+if (serviceCreds && serviceFile) {
+  try { service.data = JSON.parse(await readFile(serviceFile, "utf8")); } catch (e) { if (e.code !== "ENOENT") log("service read error:", e.message); }
+}
+async function refreshService() {
+  if (!serviceCreds || service.running || !config.webhook) return;
+  service.running = true;
+  const started = Date.now();
+  try {
+    const bx = createBitrix(config.webhook);
+    const cur = weekStart(started);
+    const prev = new Date(Date.parse(cur + "T00:00:00Z") - 7 * 864e5).toISOString().slice(0, 10);
+    const old = (service.data && service.data.weeks) || {};
+    const weeks = {};
+    if (old[prev] && old[prev].final) weeks[prev] = old[prev];
+    else {
+      try { weeks[prev] = JSON.parse(await readFile(serviceWeekFile(prev), "utf8")); } catch {
+        weeks[prev] = await collectService(bx, { from: prev, now: started, cache: service.cache, log });
+        if (started > Date.parse(prev + "T00:00:00+03:00") + 9 * 864e5) {
+          weeks[prev].final = true;
+          await writeFile(serviceWeekFile(prev) + ".tmp", JSON.stringify(weeks[prev])).then(() => rename(serviceWeekFile(prev) + ".tmp", serviceWeekFile(prev)));
+        }
+      }
+      weeks[prev].final = true;
+    }
+    weeks[cur] = await collectService(bx, { from: cur, now: started, cache: service.cache, log });
+    // keep the cache lean: messages older than the current week's context aren't needed again
+    const keep = Date.parse(cur + "T00:00:00+03:00") - 3 * 864e5;
+    for (const [id, c] of service.cache.chats) { c.messages = c.messages.filter((m) => m.at >= keep); if (!c.messages.length) service.cache.chats.delete(id); }
+    for (const k of Object.keys(service.cache.weeks || {})) if (k !== cur) delete service.cache.weeks[k];
+    const tasks = await collectServiceTasks(bx, { now: started });
+    service.data = { updatedAt: new Date(started).toISOString(), portal: bx.portal, team: SERVICE_TEAM.map(({ id, name }) => ({ id, name })), weeks, tasks };
+    service.error = null;
+    if (serviceFile) await writeFile(serviceFile + ".tmp", JSON.stringify(service.data)).then(() => rename(serviceFile + ".tmp", serviceFile));
+    log(`service ok: ${weeks[cur].episodes.length} requests, ${weeks[cur].promises.length} promises, ${weeks[cur].incoming.length} calls, ${tasks.length} overdue tasks in ${Math.round((Date.now() - started) / 1000)}s`);
+  } catch (e) {
+    service.error = e.message;
+    log("service error:", e.message);
+  } finally {
+    service.running = false;
+  }
+}
+
 const page = await readFile(new URL("./public/index.html", import.meta.url));
 const corpPage = await readFile(new URL("./public/corp.html", import.meta.url));
+const servicePage = await readFile(new URL("./public/service.html", import.meta.url));
 const weekPage = await readFile(new URL("./public/week.html", import.meta.url));
 
 // «Неделя»: computed on request from three lead lists (~5 s), cached 5 min (past weeks — 1 h)
@@ -393,6 +445,17 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/corp") { res.writeHead(200, { ...baseHeaders, "Content-Type": "text/html; charset=utf-8" }); return res.end(corpPage); }
     res.writeHead(200, { ...baseHeaders, "Content-Type": "application/json; charset=utf-8" });
     return res.end(JSON.stringify({ data: corp.data, error: corp.error, running: corp.running }));
+  }
+  if (pathname === "/service" || pathname === "/api/service") {
+    if (!serviceCreds) { res.writeHead(404, { ...baseHeaders, "Content-Type": "text/plain; charset=utf-8" }); return res.end("Страница не настроена"); }
+    if (!basicAuth(req, serviceCreds.user, serviceCreds.password)) {
+      res.writeHead(401, { ...baseHeaders, "WWW-Authenticate": 'Basic realm="Service dashboard", charset="UTF-8"', "Content-Type": "text/plain; charset=utf-8" });
+      return res.end("Нужен логин и пароль");
+    }
+    if (req.method !== "GET") { res.writeHead(405, baseHeaders); return res.end(); }
+    if (pathname === "/service") { res.writeHead(200, { ...baseHeaders, "Content-Type": "text/html; charset=utf-8" }); return res.end(servicePage); }
+    res.writeHead(200, { ...baseHeaders, "Content-Type": "application/json; charset=utf-8" });
+    return res.end(JSON.stringify({ data: service.data, error: service.error, running: service.running }));
   }
   if (!authorized(req)) {
     res.writeHead(401, { ...baseHeaders, "WWW-Authenticate": 'Basic realm="Leads dashboard", charset="UTF-8"', "Content-Type": "text/plain; charset=utf-8" });
@@ -483,8 +546,9 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(config.port, () => log(`listening on ${config.port}, refresh every ${config.refreshMinutes} min`));
-refresh().then(refreshLive).then(refreshUndelivered).then(() => repliesFor(weekStart(Date.now()))).then(refreshCorp);
+refresh().then(refreshLive).then(refreshUndelivered).then(() => repliesFor(weekStart(Date.now()))).then(refreshCorp).then(refreshService);
 setInterval(refreshCorp, CORP_MS);
+setInterval(refreshService, SERVICE_MS);
 setInterval(refresh, config.refreshMinutes * 60e3);
 setInterval(refreshLive, LIVE_MS);
 setInterval(() => saveFeedDay(mskDayStart(Date.now())).catch((e) => log("feed save error:", e.message)), 5 * 60e3);
