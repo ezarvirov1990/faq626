@@ -15,7 +15,7 @@ const OUTGOING_MARK = /^\s*=+\s*Исходящее сообщение/;
 const WAZZUP_SYSTEM_MARK = "=== SYSTEM WZ ===";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Lead stages run by automation (warm-up chain, the AI agent writes, the robot calls) — managers don't work them,
-// so they are left out of «Без касаний 48 часов» and its open counts (user's request 09.11.2026):
+// so they are left out of «Без касаний 24 часа» and its open counts (user's request 09.11.2026):
 // «Прогрев 1/2 неделя», «Робот. попытка 1/2», «Робот. Не дошел до финала», «Робот. Недозвон», «Робот. Отказ»
 export const NO_TOUCH_LEAD_STAGES = new Set(["UC_ZLGN0N", "UC_A30NMX", "UC_8C77HR", "UC_33AW0X", "UC_5ZV4JA", "UC_ZIU6Y3", "UC_I6EXOS"]);
 
@@ -29,7 +29,7 @@ export function loadConfig(env) {
     // Home group of people listed in several DEPARTMENTS (otherwise the first one wins):
     // Самусевич heads both МСК and НСК but works from НСК (21.10.2026)
     homeDepartment: Object.fromEntries((env.HOME_DEPARTMENT ?? "77:198").split(",").map((s) => s.split(":").map((x) => Number(x.trim()))).filter(([u, d]) => u && d)),
-    thresholdHours: Number(env.THRESHOLD_HOURS || 48),
+    thresholdHours: Number(env.THRESHOLD_HOURS || 24), // 48 h until 10.11.2026 (user: «сократим до 24 часов»)
     dealPipelines: parseDealPipelines(env),
     // Чьи переносы сроков задач не показываем (руководитель)
     taskMoveExclude: (env.TASK_MOVE_EXCLUDE ?? "77").split(",").map((s) => Number(s.trim())).filter(Boolean),

@@ -327,7 +327,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
   <header>
     <div>
       <h1 id="title">Лиды без касаний</h1>
-      <p class="sub" id="sub">Группы продаж B2C МСК и НСК · без нашего касания больше 48 часов</p>
+      <p class="sub" id="sub">Группы продаж B2C МСК и НСК · без нашего касания больше 24 часов</p>
     </div>
     <span class="fresh dead" id="fresh">Загружаю данные…</span>
   </header>
@@ -412,7 +412,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
   }
   // Уровни просрочки, часов: с какого срока запись «оранжевая» и «красная»
   const LEVELS = {
-    lead: { h: 72, c: 168, legend: ["2–3 суток", "3–7 суток", "больше 7 суток"], crit: "больше 7 суток", below: "до 7 суток" },
+    lead: { h: 72, c: 168, legend: ["1–3 суток", "3–7 суток", "больше 7 суток"], crit: "больше 7 суток", below: "до 7 суток" },
     deal: { h: 60 * 24, c: 90 * 24, legend: ["30–60 дней", "60–90 дней", "больше 90 дней"], crit: "больше 90 дней", below: "до 90 дней" },
     // «Клиент ждёт ответа»: how long since the client's last message
     wait: { h: 1, c: 4, legend: ["до 1 часа", "1–4 часа", "больше 4 часов"], crit: "больше 4 часов", below: "до 4 часов" },
@@ -1196,7 +1196,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     const waitMode = mode === "wait", undelivMode = mode === "undeliv";
     const modes = [];
     if (rules) modes.push(["rules", "Работа с воронкой", rulesCount + " сегодня"]);
-    else modes.push(["silent", isDealView ? "Без касаний" : "Без касаний 48 часов", items.length]);
+    else modes.push(["silent", isDealView ? "Без касаний" : "Без касаний 24 часа", items.length]);
     if (waitList) modes.push(["wait", "Клиент ждёт ответа", waitList.length]);
     if (undelivList) modes.push(["undeliv", "Ошибка отправки", undelivList.length]);
     const lm = $("lmode");
