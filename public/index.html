@@ -97,7 +97,10 @@ h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.06em
 .mgr-meta .wait { color: var(--crit); font-weight: 600; }
 .idle { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
 .idle b { color: var(--ink); font-weight: 600; }
+.idle .sum { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+.idle .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: 0; }
 .idle-bar { position: relative; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.idle-bar s { position: absolute; top: 0; bottom: 0; background: var(--ok); text-decoration: none; }
 .idle-bar i { position: absolute; top: 0; bottom: 0; background: var(--warn); }
 .idle-bar i.open { background: var(--crit); }
 .idle-bar u { position: absolute; top: 0; bottom: 0; right: 0; background: var(--bg); opacity: .55; }
@@ -619,6 +622,11 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     if (!r.actions && !r.pauses.length) return el("div", { class: "idle" }, el("span", { text: "Действий в смену не было" }));
     const span = r.end - r.start;
     const bar = el("div", { class: "idle-bar", "aria-hidden": "true" });
+    // activity underneath: from the first action to now / the shift end; pauses are drawn over it
+    const until = Math.min(now, r.end);
+    if (r.first != null && until > r.first) {
+      const s = el("s"); s.style.left = ((r.first - r.start) / span) * 100 + "%"; s.style.width = ((until - r.first) / span) * 100 + "%"; bar.append(s);
+    }
     for (const p of r.pauses) {
       const i = el("i", { class: p.open ? "open" : "", title: hm.format(new Date(p.from)) + "–" + hm.format(new Date(p.to)) + " · " + pauseDur(p.ms) });
       i.style.left = ((p.from - r.start) / span) * 100 + "%";
@@ -627,9 +635,12 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
     }
     // the rest of today's shift hasn't happened yet
     if (now < r.end) { const u = el("u"); u.style.width = ((r.end - Math.max(now, r.start)) / span) * 100 + "%"; bar.append(u); }
-    return el("div", { class: "idle", title: "Паузы от 20 минут внутри смены, время МСК" },
-      el("span", {}, "Неактивность ", el("b", { text: r.totalMs ? pauseDur(r.totalMs) : "нет" }),
-        r.pauses.length ? " · " + r.pauses.length + " " + plural(r.pauses.length, ["пауза", "паузы", "пауз"]) : ""),
+    const dot = (c) => { const d = el("i", { class: "dot" }); d.style.background = c; return d; };
+    return el("div", { class: "idle", title: "Активность — от первого действия до конца смены (сегодня — до сейчас) без пауз; неактивность — паузы от 20 минут внутри смены. Время МСК" },
+      el("div", { class: "sum" },
+        el("span", {}, dot("var(--ok)"), "Активность ", el("b", { text: r.activeMs ? pauseDur(r.activeMs) : "0 мин" })),
+        el("span", {}, dot("var(--warn)"), "Неактивность ", el("b", { text: r.totalMs ? pauseDur(r.totalMs) : "нет" }),
+          r.pauses.length ? " · " + r.pauses.length + " " + plural(r.pauses.length, ["пауза", "паузы", "пауз"]) : "")),
       bar, el("div", { class: "idle-ends" }, el("span", { text: hm.format(new Date(r.start)) }), el("span", { text: hm.format(new Date(r.end)) })));
   }
 

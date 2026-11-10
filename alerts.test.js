@@ -102,9 +102,15 @@ test("idleDay: pauses of 20+ min inside the shift, the last one up to now or the
   assert.deepEqual(r.pauses.map((p) => [p.ms / 60e3, p.before, p.after, p.open]), [[30, "msg", "msg", false], [45, "call", "msg", false], [20, "msg", null, true]]);
   assert.equal(r.totalMs, 95 * 60e3);
   assert.equal(r.actions, 4);
+  // activity: from the first action (clipped to the shift start) to now, minus the pauses: 10:00→12:00 = 120 − 95
+  assert.equal(r.first, msk("2026-11-02T10:00:00"));
+  assert.equal(r.activeMs, 25 * 60e3);
   // a past day: the last pause runs to the shift end; the start before the first action isn't counted
   const past = idleDay([ev("11:00:00"), ev("18:30:00")], s52, day, day + 864e5);
   assert.deepEqual(past.pauses.map((p) => p.ms / 60e3), [450, 30]);
+  // 11:00→19:00 = 480 − 480: the time before the first action is neither
+  assert.equal(past.first, msk("2026-11-02T11:00:00"));
+  assert.equal(past.activeMs, 0);
   // weekend for 5/2, a day without actions for 2/2, absent — no inactivity
   assert.equal(idleDay([], s52, msk("2026-11-01T00:00:00"), day), null);
   const s22 = { tz: 3, from: 9, to: 21, weekdays: false };
