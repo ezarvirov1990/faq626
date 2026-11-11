@@ -10,6 +10,12 @@ const DAY = 24 * H;
 const MSK = 3 * H;
 export const SUVVY_ID = 367846;
 export const SERVICE_PIPELINE = 29;
+// User 11.11.2026 (deal 852320): a call to a B2B line taken or missed by a B2B manager isn't the service's call.
+// B2B lines = Beeline cloud PBX (only B2B uses it) and the B2B managers' own Mango numbers; the general 8-800 stays
+// even when a B2B manager happened to pick it up
+export const B2B_DEPARTMENT = 13;
+export const GENERAL_LINES = new Set(["78005009116"]);
+export const isB2bCall = (c, b2b) => b2b.has(c.user) && !GENERAL_LINES.has(c.line);
 
 // The user's list and schedules (10.11.2026); department 21 has other people too — not shown
 const MSK_22 = { tz: 3, from: 10, to: 22, weekdays: false };
@@ -357,7 +363,7 @@ export async function collectService(bx, { from, now = Date.now(), cache = servi
   await sleep(pause);
   const callRow = (k) => ({ at: ms(k.CALL_START_DATE), user: Number(k.PORTAL_USER_ID), phone: k.PHONE_NUMBER, ok: String(k.CALL_FAILED_CODE) === "200" && Number(k.CALL_DURATION) > 0,
     type: Number(k.CALL_TYPE), contact: k.CRM_ENTITY_TYPE === "CONTACT" ? Number(k.CRM_ENTITY_ID) : null, lead: k.CRM_ENTITY_TYPE === "LEAD" ? Number(k.CRM_ENTITY_ID) : null,
-    deal: k.CRM_ENTITY_TYPE === "DEAL" ? Number(k.CRM_ENTITY_ID) : null });
+    deal: k.CRM_ENTITY_TYPE === "DEAL" ? Number(k.CRM_ENTITY_ID) : null, line: String(k.PORTAL_NUMBER || "") });
   const inc = (await listAll(bx, "voximplant.statistic.get", callBody({ CALL_TYPE: 2 }), pause)).map(callRow);
   await sleep(pause);
   const teamCalls = (await listAll(bx, "voximplant.statistic.get", callBody({ PORTAL_USER_ID: ids }), pause)).map(callRow);
@@ -380,7 +386,13 @@ export async function collectService(bx, { from, now = Date.now(), cache = servi
     const prev = owners[d.CONTACT_ID];
     if (!prev || Number(d.ID) > prev.deal) owners[d.CONTACT_ID] = { deal: Number(d.ID), owner: Number(d.ASSIGNED_BY_ID) };
   }
-  const incoming = inc.filter((c) => c.contact && owners[c.contact]);
+  // B2B sales staff, re-read every 6 h: calls to their own lines aren't the service's business
+  if (!cache.b2b || Date.now() - cache.b2b.at > 6 * H) {
+    await sleep(pause);
+    const rows = (await bx.call("user.get", { FILTER: { UF_DEPARTMENT: B2B_DEPARTMENT, ACTIVE: true } })).result || [];
+    cache.b2b = { at: Date.now(), ids: new Set(rows.map((u) => Number(u.ID))) };
+  }
+  const incoming = inc.filter((c) => c.contact && owners[c.contact] && !isB2bCall(c, cache.b2b.ids));
   const outgoing = teamCalls.filter((c) => c.type === 1);
   const allCalls = inc.concat(teamCalls.filter((c) => c.type !== 2));
 

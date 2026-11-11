@@ -174,3 +174,12 @@ test("missedCases: a call-back by a colleague outside the team counts and names 
   });
   assert.deepEqual(c.map((x) => [x.status, x.by, x.min]), [["callback", 333210, 1]]);
 });
+
+test("isB2bCall: a B2B manager's line is out, the general 8-800 stays", async () => {
+  const { isB2bCall } = await import("./service.js");
+  const b2b = new Set([333210]);
+  assert.equal(isB2bCall({ user: 333210, line: "REST_APP:278" }, b2b), true);
+  assert.equal(isB2bCall({ user: 333210, line: "89658228110" }, b2b), true);
+  assert.equal(isB2bCall({ user: 333210, line: "78005009116" }, b2b), false);
+  assert.equal(isB2bCall({ user: 194956, line: "REST_APP:278" }, b2b), false);
+});
