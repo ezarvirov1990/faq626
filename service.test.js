@@ -152,3 +152,14 @@ test("serviceEpisodes: forwarded to another department or closed by a colleague 
   const e = serviceEpisodes({ chat, team, shifts, now: msk("2026-11-02T21:00:00") });
   assert.deepEqual(e.map((x) => [x.holder, x.min]), [[BIR, 2]]);
 });
+
+test("serviceEpisodes: a chat on someone outside the team waits for the team only from the forward (lead 642448)", () => {
+  const chat = chatOf([
+    ["16:05:00", 0, `Обращение направлено на ${U(77, "Самусевич")} (ответственного в CRM)`],
+    ["16:05:30", 900, "Пришлите, пожалуйста, расшифровку по второму тесту"],
+    ["21:40:00", 0, `${U(77, "Самусевич")} переадресовал диалог на ${U(BIR, "Бирюкова")}`],
+    ["21:50:00", BIR, "Добрый вечер! Запросили у генетиков"],
+  ]);
+  const e = serviceEpisodes({ chat, team, shifts, now: msk("2026-11-02T22:00:00") });
+  assert.deepEqual(e.map((x) => [x.holder, x.min]), [[BIR, 10]]);
+});

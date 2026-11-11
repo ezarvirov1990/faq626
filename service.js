@@ -73,7 +73,11 @@ const isRequest = (m) => {
 export function serviceEpisodes({ chat, team, shifts, talks = [], now, mass = () => false }) {
   const teamIds = new Set(team.map((m) => m.id));
   const out = [];
-  let holder = null, open = null, pending = null; // pending: the client wrote while the bot held the chat
+  // pending: the client wrote while the chat was away from the team — with Suvvy or with someone of another department
+  // (user 11.11.2026, lead 642448: a chat on Самусевич overnight, forwarded to Бирюкова in the morning — her wait
+  // starts at the forward, not at the client's message)
+  let holder = null, open = null, pending = null;
+  const away = () => holder === "bot" || (typeof holder === "number" && !teamIds.has(holder));
   const close = (at, by) => { open.reply = at; open.by = by; out.push(open); open = null; };
   const startOpen = (at) => { open = { at, holder: teamIds.has(holder) ? holder : null, reply: null, by: null }; };
   const ours = [];
@@ -85,7 +89,6 @@ export function serviceEpisodes({ chat, team, shifts, talks = [], now, mass = ()
     if (role === "system") {
       const ev = holderEvent(m.text);
       if (!ev) continue;
-      const wasBot = holder === "bot";
       holder = ev.kind === "to" ? ev.user : ev.kind === "bot" ? "bot" : ev.kind === "queue" ? "queue" : holder;
       if (ev.kind === "closed") holder = null;
       // a team member closing the dialog decided it needs no more answer (Suvvy explained it, the client said thanks):
@@ -94,13 +97,13 @@ export function serviceEpisodes({ chat, team, shifts, talks = [], now, mass = ()
       if (ev.kind === "closed" && ev.user && ev.user !== SUVVY_ID) { if (open) close(m.at, teamIds.has(ev.user) ? ev.user : null); pending = null; continue; }
       // handed over to someone outside the team (upsell, sales): the service member routed it — the team's wait ends
       if (open && open.holder !== null && ev.kind === "to" && !teamIds.has(ev.user)) { close(m.at, null); continue; }
-      if (wasBot && holder !== "bot" && pending !== null && !open) { startOpen(m.at); pending = null; }
+      if (pending !== null && !open && !away() && holder !== null) { startOpen(m.at); pending = null; }
       if (open && open.holder === null && ev.kind === "to" && teamIds.has(ev.user)) open.holder = ev.user;
       continue;
     }
     if (role === "client") {
       if (open || !isRequest(m) || echo(m) || mass(clean(m.text).toLowerCase())) continue;
-      if (holder === "bot") { if (pending === null) pending = m.at; } else startOpen(m.at);
+      if (away()) { if (pending === null) pending = m.at; } else startOpen(m.at);
       continue;
     }
     if (role === "staff") {
