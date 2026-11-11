@@ -176,6 +176,18 @@ export function promiseStatus({ at, due, laterTeam = [], teamCalls = [], now }) 
 
 // ---- missed calls (user 10.11.2026: service clients' calls, whoever took them; any team member calls back) ----
 const digits = (p) => String(p || "").replace(/\D/g, "").slice(-10);
+// One incoming call that rang several operators comes as one leg per operator (deal 916982: Ермолова answered, Бурцева's
+// leg «304» at the same second). Legs from the same number starting within a minute = one call, answered if any leg was.
+export function mergeLegs(calls) {
+  const out = [];
+  for (const c of [...calls].sort((a, b) => a.at - b.at)) {
+    const p = digits(c.phone), prev = p && out.findLast((x) => digits(x.phone) === p && c.at - x.at <= 60e3);
+    if (!prev) { out.push({ ...c }); continue; }
+    if (c.ok && !prev.ok) Object.assign(prev, { ...c, at: prev.at });
+  }
+  return out;
+}
+
 // incoming: [{ at, contact, phone, ok }], outgoing: our calls (anyone) [{ at, contact, phone, user }], owners: contact → { deal, owner }
 export function missedCases({ incoming, outgoing, owners, shifts, now }) {
   const byPhone = new Map();
@@ -364,7 +376,7 @@ export async function collectService(bx, { from, now = Date.now(), cache = servi
   const callRow = (k) => ({ at: ms(k.CALL_START_DATE), user: Number(k.PORTAL_USER_ID), phone: k.PHONE_NUMBER, ok: String(k.CALL_FAILED_CODE) === "200" && Number(k.CALL_DURATION) > 0,
     type: Number(k.CALL_TYPE), contact: k.CRM_ENTITY_TYPE === "CONTACT" ? Number(k.CRM_ENTITY_ID) : null, lead: k.CRM_ENTITY_TYPE === "LEAD" ? Number(k.CRM_ENTITY_ID) : null,
     deal: k.CRM_ENTITY_TYPE === "DEAL" ? Number(k.CRM_ENTITY_ID) : null, line: String(k.PORTAL_NUMBER || "") });
-  const inc = (await listAll(bx, "voximplant.statistic.get", callBody({ CALL_TYPE: 2 }), pause)).map(callRow);
+  const inc = mergeLegs((await listAll(bx, "voximplant.statistic.get", callBody({ CALL_TYPE: 2 }), pause)).map(callRow));
   await sleep(pause);
   const teamCalls = (await listAll(bx, "voximplant.statistic.get", callBody({ PORTAL_USER_ID: ids }), pause)).map(callRow);
 

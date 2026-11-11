@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { holderEvent, serviceEpisodes, findPromise, promiseDue, promiseStatus, missedCases, teamShifts, SERVICE_TEAM, SUVVY_ID } from "./service.js";
+import { holderEvent, serviceEpisodes, findPromise, promiseDue, promiseStatus, missedCases, mergeLegs, teamShifts, SERVICE_TEAM, SUVVY_ID } from "./service.js";
 
 const msk = (s) => Date.parse(s + "+03:00");
 const MIN = 60e3;
@@ -182,4 +182,18 @@ test("isB2bCall: a B2B manager's line is out, the general 8-800 stays", async ()
   assert.equal(isB2bCall({ user: 333210, line: "89658228110" }, b2b), true);
   assert.equal(isB2bCall({ user: 333210, line: "78005009116" }, b2b), false);
   assert.equal(isB2bCall({ user: 194956, line: "REST_APP:278" }, b2b), false);
+});
+
+test("legs of one call that rang several operators merge into one answered call (deal 916982)", () => {
+  const at = Date.parse("2026-11-11T06:39:12Z");
+  const legs = [
+    { at, phone: "+79990003415", contact: 397490, user: 194956, ok: false },
+    { at, phone: "+79990003415", contact: 397490, user: 318154, ok: true },
+    { at: at + 30 * 60e3, phone: "+79990003415", contact: 397490, user: 194956, ok: false },
+  ];
+  const m = mergeLegs(legs);
+  assert.equal(m.length, 2);
+  assert.equal(m[0].ok, true);
+  assert.equal(m[0].user, 318154);
+  assert.equal(m[1].ok, false);
 });
