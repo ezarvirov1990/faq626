@@ -218,10 +218,11 @@ table.list { min-width: 780px; }
     const weeks = Object.values(D.weeks || {});
     const chats = Object.assign({}, ...weeks.map((w) => w.chats || {}));
     const deals = Object.assign({}, ...weeks.map((w) => w.deals || {}));
+    const people = Object.assign({}, ...weeks.map((w) => w.people || {}));
     const mine = (id) => state.who === null || id === state.who;
     const all = (k) => weeks.flatMap((w) => w[k] || []);
     return {
-      chats, deals,
+      chats, deals, people,
       episodes: all("episodes").filter((e) => inR(e.at)),
       promises: all("promises").filter((p) => inR(p.at)),
       incoming: all("incoming").filter((c) => inR(c.at)),
@@ -366,7 +367,7 @@ table.list { min-width: 780px; }
           el("span", { class: "sub-line" }, el("a", { href: portal() + "/crm/contact/details/" + c.contact + "/", target: "_blank", rel: "noopener", text: "контакт" }))),
         el("td", { class: "lead" }, el("span", { class: "st " + c.status, text: ST[c.status] })),
         el("td", { "data-l": "Звонил" }, when(c.first), c.calls > 1 ? el("span", { class: "sub-line", text: c.calls + " " + plural(c.calls, ["раз", "раза", "раз"]) }) : null),
-        el("td", { class: "num" + (c.status === "none" ? " bad" : ""), "data-l": c.status === "none" ? "Ждёт" : "Через" }, c.status === "none" && !c.min ? "смена не началась" : dur(c.min), c.at ? el("span", { class: "sub-line", text: when(c.at) }) : null),
+        el("td", { class: "num" + (c.status === "none" ? " bad" : ""), "data-l": c.status === "none" ? "Ждёт" : "Через" }, c.status === "none" && !c.min ? "смена не началась" : dur(c.min), c.at ? el("span", { class: "sub-line", text: when(c.at) + (c.by ? " · " + (S.people[c.by] || nameOf(c.by)) : "") }) : null),
         el("td", { "data-l": "Ответственный", text: nameOf(c.owner) }))), xs.length);
     } else {
       const xs = S.tasks.filter((t) => by(t.user));

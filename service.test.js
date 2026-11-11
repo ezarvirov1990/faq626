@@ -163,3 +163,14 @@ test("serviceEpisodes: a chat on someone outside the team waits for the team onl
   const e = serviceEpisodes({ chat, team, shifts, now: msk("2026-11-02T22:00:00") });
   assert.deepEqual(e.map((x) => [x.holder, x.min]), [[BIR, 10]]);
 });
+
+test("missedCases: a call-back by a colleague outside the team counts and names who called (deal 852320)", () => {
+  const owners = { 21: { deal: 852320, owner: BUR } };
+  const sh = new Map([[BUR, [[msk("2026-11-02T09:00:00"), msk("2026-11-02T19:00:00")]]]]);
+  const c = missedCases({
+    incoming: [{ at: msk("2026-11-02T13:49:00"), contact: 21, phone: "79000000021", ok: false, user: 333210 }],
+    outgoing: [{ at: msk("2026-11-02T13:49:40"), contact: 21, phone: "79000000021", user: 333210 }],
+    owners, shifts: sh, now: msk("2026-11-02T18:00:00"),
+  });
+  assert.deepEqual(c.map((x) => [x.status, x.by, x.min]), [["callback", 333210, 1]]);
+});

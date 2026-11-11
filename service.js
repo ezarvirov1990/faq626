@@ -170,7 +170,7 @@ export function promiseStatus({ at, due, laterTeam = [], teamCalls = [], now }) 
 
 // ---- missed calls (user 10.11.2026: service clients' calls, whoever took them; any team member calls back) ----
 const digits = (p) => String(p || "").replace(/\D/g, "").slice(-10);
-// incoming: [{ at, contact, phone, ok }], outgoing: team calls [{ at, contact, phone }], owners: contact → { deal, owner }
+// incoming: [{ at, contact, phone, ok }], outgoing: our calls (anyone) [{ at, contact, phone, user }], owners: contact → { deal, owner }
 export function missedCases({ incoming, outgoing, owners, shifts, now }) {
   const byPhone = new Map();
   for (const c of incoming) if (c.contact && digits(c.phone)) byPhone.set(digits(c.phone), c.contact);
@@ -185,6 +185,7 @@ export function missedCases({ incoming, outgoing, owners, shifts, now }) {
     if (e.kind === "missed") { if (c) c.calls++; else open.set(e.key, { contact: e.key, ...owners[e.key], first: e.at, calls: 1, status: "none", at: null }); continue; }
     if (!c) continue;
     c.status = e.kind === "out" ? "callback" : "self";
+    if (e.kind === "out") c.by = e.user || null;
     c.at = e.at;
     cases.push(c);
     open.delete(e.key);
@@ -423,15 +424,32 @@ export async function collectService(bx, { from, now = Date.now(), cache = servi
     promises.push(...prom);
   }
 
-  // 7. Missed calls of service clients and call-backs
-  const cases = missedCases({ incoming, outgoing, owners, shifts, now: until }).filter((x) => x.first >= weekStart && x.first < weekEnd);
+  // 7. Missed calls of service clients and call-backs. A call-back by anyone of ours counts (user 11.11.2026, deal
+  // 852320: an event client called Вяткина of B2B sales directly, she called back the same minute): outgoing calls of
+  // the whole portal to the clients with a missed call, by contact
+  const missedContacts = [...new Set(incoming.filter((c) => !c.ok).map((c) => c.contact))];
+  const others = [];
+  for (let i = 0; i < missedContacts.length; i += 50) {
+    await sleep(pause);
+    others.push(...(await listAll(bx, "voximplant.statistic.get", callBody({ CALL_TYPE: 1, CRM_ENTITY_TYPE: "CONTACT", CRM_ENTITY_ID: missedContacts.slice(i, i + 50) }), pause)).map(callRow));
+  }
+  const seenCall = new Set(outgoing.map((c) => c.at + ":" + c.user));
+  const allOut = outgoing.concat(others.filter((c) => !seenCall.has(c.at + ":" + c.user)));
+  const cases = missedCases({ incoming, outgoing: allOut, owners, shifts, now: until }).filter((x) => x.first >= weekStart && x.first < weekEnd);
+  // names of colleagues outside the team who called back
+  const outsiders = [...new Set(cases.map((c) => c.by).filter((u) => u && !teamIds.has(u)))];
+  const people = {};
+  if (outsiders.length) {
+    await sleep(pause);
+    for (const u of (await bx.call("user.get", { FILTER: { ID: outsiders } })).result || []) people[u.ID] = `${u.NAME || ""} ${u.LAST_NAME || ""}`.trim();
+  }
   const dealTitles = {};
   for (const x of cases) if (titles[x.deal]) dealTitles[x.deal] = titles[x.deal];
   for (const ci of Object.values(chatInfo)) if (ci.deal && titles[ci.deal]) dealTitles[ci.deal] = titles[ci.deal];
 
   log(`service ${from}: ${sessions.length} sessions, ${chats.length} chats, ${episodes.length} episodes, ${promises.length} promises, ${incoming.length} incoming, ${cases.length} missed cases`);
   return {
-    from, updatedAt: iso(now), chats: chatInfo, deals: dealTitles, episodes, promises, cases,
+    from, updatedAt: iso(now), chats: chatInfo, deals: dealTitles, episodes, promises, cases, people,
     incoming: incoming.map((c) => ({ at: c.at, contact: c.contact, deal: owners[c.contact].deal, ok: c.ok, team: teamIds.has(c.user), owner: owners[c.contact].owner })),
   };
 }
