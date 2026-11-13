@@ -17,7 +17,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Lead stages run by automation (warm-up chain, the AI agent writes, the robot calls) — managers don't work them,
 // so they are left out of «Без касаний 24 часа» and its open counts (user's request 09.11.2026):
 // «Прогрев 1/2 неделя», «Робот. попытка 1/2», «Робот. Не дошел до финала», «Робот. Недозвон», «Робот. Отказ»
-export const NO_TOUCH_LEAD_STAGES = new Set(["UC_ZLGN0N", "UC_A30NMX", "UC_8C77HR", "UC_33AW0X", "UC_5ZV4JA", "UC_ZIU6Y3", "UC_I6EXOS"]);
+export const NO_TOUCH_LEAD_STAGES = new Set(["PROCESSED", "1", "UC_ZLGN0N", "UC_A30NMX", "UC_8C77HR", "UC_33AW0X", "UC_5ZV4JA", "UC_ZIU6Y3", "UC_I6EXOS"]);
 
 export function loadConfig(env) {
   return {
