@@ -146,3 +146,15 @@ test("заметки в карточке — только менеджеров �
   ], ids, since);
   assert.deepEqual(ev.map((e) => e.key), ["comment:1"]);
 });
+
+test("AI agent («Авто Изменения», user 7) and robot follow-ups after a manual stage move are not the manager's; echoes carry a text key", () => {
+  const ix = managerIndex([{ id: 5, name: "Алсу Муртазина" }, { id: 7, name: "Авто Изменения" }]);
+  const ev = messageEvents(dialog([
+    msg(1, 7, "Добрый день! Это Алсу, MyGenetics"),
+    msg(2, 5, "Писали Вам ранее, но не получили ответ. Напишу Вам ещё раз"),
+    msg(3, 5, "К сожалению, не получил от вас ответ :( Напишите, как появятся вопросы"),
+    msg(4, 900, "=== Исходящее сообщение, автор: Битрикс24 (Алсу Муртазина) ===\nЗдравствуйте! В MyGenetics стартовала распродажа"),
+    msg(5, 5, "Подобрала вам тест"),
+  ]), ix, since);
+  assert.deepEqual(ev.map((e) => [e.managerId, Boolean(e.tpl)]), [[5, true], [5, false]]);
+});

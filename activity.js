@@ -6,7 +6,9 @@ import { mskDayStart, MOVE_GRACE_MS } from "./tasks.js";
 const OUTGOING_AUTHOR = /^\s*=+\s*Исходящее сообщение, автор:\s*Битрикс24\s*\(([^)]+)\)/;
 const WAZZUP_SYSTEM_MARK = "=== SYSTEM WZ ===";
 // Шаблонные дожимы роботов стадий: пишутся от имени ответственного, но это не действие менеджера
-export const ROBOT_TEXT = /Актуально ли для Вас получить информацию по ДНК|Мне важно получить хоть какой-то ответ|Очень жду (от вас )?ваш ответ|не смогли до вас дозвониться|Два дня не получаю от вас ответа|Буду благодарна за обратную связь|Вдруг вы пропустили моё прошлое сообщение|хотели бы узнать о ваших впечатлениях от ДНК-тестирования/i;
+export const ROBOT_TEXT = /Актуально ли для Вас получить информацию по ДНК|Мне важно получить хоть какой-то ответ|Очень жду (от вас )?ваш ответ|не смогли до вас дозвониться|Два дня не получаю от вас ответа|Буду благодарна за обратную связь|Вдруг вы пропустили моё прошлое сообщение|хотели бы узнать о ваших впечатлениях от ДНК-тестирования|Писали Вам ранее, но не получили ответ|К сожалению, не получил(а)? от вас ответ/i;
+// «Авто Изменения» (user 7): the webhook account — the AI agent of «Пинги Клиентов» writes as it (user, 25.11.2026)
+export const AGENT_USER = 7;
 // Задачи, которые роботы ставят на ответственного при появлении лида и смене стадии; роботы же их часто и закрывают
 // Upsell pipeline: «Первая допродажа» appears 3–4 s after a move to «Первая попытка допродать», «Вторая попытка допродать» — in a batch at 08:00
 export const ROBOT_TASK = /^(Первые сутки|Вторые сутки|Третьи сутки|Оказать консультацию|Контроль |Первая допродажа|Вторая попытка допродать)/i;
@@ -17,6 +19,14 @@ export const AUTO_LEAD_STAGES = new Set(["1", "UC_PAXFX3", "UC_8C77HR", "UC_33AW
 export const ASSIGN_LEAD_STAGE = "IN_PROCESS";
 const TASK_DONE = "5";
 const CREATED_SAME_MS = 10e3;
+
+// short key of a message text (no client text is stored): FNV-1a of the first 60 normalised characters
+export function textKey(text) {
+  const s = String(text || "").replace(/^\s*=+\s*Исходящее сообщение[^=]*=+\s*/, "").replace(/\[[^\]]*\]/g, "").replace(/\s+/g, " ").trim().toLowerCase().slice(0, 60);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return h.toString(36);
+}
 
 const normName = (s) => String(s || "").toLowerCase().replace(/ё/g, "е").replace(/\s+/g, " ").trim();
 
@@ -29,7 +39,7 @@ export function managerIndex(managers) {
 export function messageAuthor(msg, isClient, index) {
   const author = Number(msg.author_id);
   const text = msg.text || "";
-  if (!author || text.includes(WAZZUP_SYSTEM_MARK) || ROBOT_TEXT.test(text)) return null;
+  if (!author || author === AGENT_USER || text.includes(WAZZUP_SYSTEM_MARK) || ROBOT_TEXT.test(text)) return null;
   if (isClient.get(String(author))) {
     const m = OUTGOING_AUTHOR.exec(text);
     return m ? index.byName.get(normName(m[1])) ?? null : null;
@@ -47,7 +57,12 @@ export function messageEvents(dialog, index, since, auto = false) {
     const at = Date.parse(x.date);
     if (!(at >= since)) continue;
     const managerId = messageAuthor(x, isClient, index);
-    if (managerId) out.push({ key: "msg:" + x.id, at, managerId, kind: "msg" });
+    if (!managerId) continue;
+    const e = { key: "msg:" + x.id, at, managerId, kind: "msg" };
+    // Wazzup echo of a message sent from Bitrix24: a template sent by a robot or a mass send if the same text
+    // goes out under several managers that day — hourly.js leaves such ones out (user, 25.11.2026: no auto messages)
+    if (OUTGOING_AUTHOR.test(x.text || "")) e.tpl = textKey(x.text);
+    out.push(e);
   }
   return out;
 }
