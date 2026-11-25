@@ -14,6 +14,7 @@
   --ok: #276B43; --ok-soft: #E2F2E8; --warn: #A86A12; --warn-soft: #FBF1DE; --crit: #B42318; --crit-soft: #FBE4E2;
   /* chart series (validated: lightness band, chroma, CVD ΔE ≥ 8) */
   --s-came: #4F5FD0; --s-qual: #2F8A55; --s-bad: #D2551A; --grid: #E8ECF0;
+  --s-call: #4F5FD0; --s-msg: #2E93AD; --s-pay: #2F8A55;
   --font: "Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   color-scheme: light;
@@ -24,6 +25,7 @@
     --accent: #62B4D0; --accent-soft: #17313B; --on-accent: #0F151C;
     --ok: #6BCB92; --ok-soft: #173325; --warn: #E3A948; --warn-soft: #3A2E17; --crit: #F27272; --crit-soft: #401D1E;
     --s-came: #7F8BE6; --s-qual: #44A86F; --s-bad: #DE6C30; --grid: #222D38;
+    --s-call: #7F8BE6; --s-msg: #4FB3CC; --s-pay: #44A86F;
     color-scheme: dark;
   }
 }
@@ -32,6 +34,7 @@
   --accent: #62B4D0; --accent-soft: #17313B; --on-accent: #0F151C;
   --ok: #6BCB92; --ok-soft: #173325; --warn: #E3A948; --warn-soft: #3A2E17; --crit: #F27272; --crit-soft: #401D1E;
   --s-came: #7F8BE6; --s-qual: #44A86F; --s-bad: #DE6C30; --grid: #222D38;
+  --s-call: #7F8BE6; --s-msg: #4FB3CC; --s-pay: #44A86F;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -117,6 +120,14 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
 .who small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
 .note { color: var(--muted); font-size: 13px; margin: 0; max-width: 72ch; }
 .msg { padding: 24px; text-align: center; color: var(--muted); }
+.hr-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 8px; }
+.hr-head h2 { margin: 0; }
+.hr-days { overflow-x: auto; max-width: 100%; }
+.hr-days button { font-size: 13px; padding: 6px 10px; white-space: nowrap; }
+.hr-sum { display: flex; flex-wrap: wrap; gap: 4px 22px; font-size: 14px; margin-bottom: 8px; }
+.hr-sum b { font: 600 15px var(--mono); font-variant-numeric: tabular-nums; }
+.hr-sum .warn { color: var(--warn); }
+.chart .band { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
 </style>
 </head>
 <body>
@@ -178,6 +189,20 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     </section>
   </div>
 
+  <section class="panel" id="hr">
+    <div class="hr-head">
+      <h2 id="hr-h">Активность и оплаты по часам</h2>
+      <div class="seg hr-days" id="hr-days" role="group" aria-label="День"></div>
+    </div>
+    <div class="hr-sum" id="hr-sum"></div>
+    <div class="legend">
+      <span><i style="background:var(--s-call)"></i>Исходящие звонки</span>
+      <span><i style="background:var(--s-msg)"></i>Сообщения клиентам</span>
+      <span><i style="background:var(--s-pay)"></i>Оплаты</span>
+    </div>
+    <div class="chart" id="hr-chart"><div class="msg">Загружаю…</div></div>
+  </section>
+
   <section class="panel">
     <h2>По менеджерам за неделю <span class="dim" style="text-transform:none;letter-spacing:0;font-weight:400">· нажмите на строку, чтобы отфильтровать</span></h2>
     <div class="tbl-wrap" id="owners"></div>
@@ -203,6 +228,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
   const state = { from: null, data: null, grp: "", owner: null, error: null, loadedAt: 0 };
   try { const s = JSON.parse(localStorage.getItem("ldash-week") || "{}"); state.grp = s.grp || ""; } catch (e) {}
   const m = /from=(\d{4}-\d{2}-\d{2})/.exec(location.hash); if (m) state.from = m[1];
+  const md = /day=(\d{4}-\d{2}-\d{2})/.exec(location.hash); if (md) state.hday = md[1];
 
   function el(tag, attrs, ...kids) {
     const n = document.createElement(tag);
@@ -267,7 +293,8 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
       const msg = () => state.error
         ? el("div", { class: "msg" }, "Не удалось загрузить неделю: " + state.error + ".", el("button", { type: "button", text: "Повторить" }))
         : el("div", { class: "msg", text: "Загружаю неделю…" });
-      for (const id of ["chart", "days", "owners", "replies"]) $(id).replaceChildren(msg());
+      for (const id of ["chart", "days", "owners", "replies", "hr-chart"]) $(id).replaceChildren(msg());
+      $("hr-days").replaceChildren(); $("hr-sum").replaceChildren();
       for (const b of document.querySelectorAll(".msg button")) b.addEventListener("click", () => { state.error = null; render(); load(); });
       return;
     }
@@ -382,6 +409,114 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
       el("tbody", {}, ...orow.map(tr)),
       el("tfoot", {}, ...foot)));
     renderReplies(list, ids);
+    renderHourly(ids, Boolean(sel || state.grp));
+  }
+
+  // ---- activity and payments by hour of one day (25.11.2026) ----
+  const FEED_FIRST = "2026-11-02"; // «Лента событий» keeps actions from this day on
+  function hourDays() {
+    const D = state.data, today = D.today || (D.from === D.current ? D.days[D.days.length - 1] : null);
+    return Array.from({ length: 7 }, (_, i) => addDays(D.from, i)).map((d, i) => ({ d, i, off: d < FEED_FIRST || (today ? d > today : D.from > D.current) }));
+  }
+  function pickedDay() {
+    const days = hourDays().filter((x) => !x.off);
+    if (state.hday && days.some((x) => x.d === state.hday)) return state.hday;
+    return days.length ? days[days.length - 1].d : null;
+  }
+  const H24 = Array.from({ length: 24 }, (_, h) => h);
+  const rub = (n) => n >= 1e6 ? (n / 1e6).toFixed(2).replace(".", ",") + " млн ₽" : num(Math.round(n / 1000)) + " тыс. ₽";
+  function renderHourly(ids, filtered) {
+    const day = pickedDay(), box = $("hr-chart");
+    $("hr-days").replaceChildren(...hourDays().map(({ d, i, off }) => {
+      const b = el("button", { type: "button", "aria-pressed": String(d === day), text: WD[i] + " " + dm(d), title: off && d < FEED_FIRST ? "История действий есть с 2 ноября" : null });
+      if (off) b.disabled = true;
+      b.addEventListener("click", () => { state.hday = d; renderHourly(ids, filtered); loadHourly(); });
+      return b;
+    }));
+    if (!day) { $("hr-sum").replaceChildren(); return box.replaceChildren(el("div", { class: "msg", text: "За эту неделю истории действий нет — она ведётся со 2 ноября" })); }
+    const R = state.hr && state.hr.day === day ? state.hr : null;
+    if (!R || !R.data) {
+      $("hr-sum").replaceChildren();
+      return box.replaceChildren(el("div", { class: "msg", text: R && R.error ? "Не удалось загрузить: " + R.error : "Загружаю день…" }));
+    }
+    const A = R.data.activity, want = new Set(ids.map(String));
+    const calls = Array(24).fill(0), msgs = Array(24).fill(0), pay = Array(24).fill(0), sum = Array(24).fill(0);
+    for (const [id, a] of Object.entries(A)) if (want.has(id)) for (const h of H24) { calls[h] += a.calls[h]; msgs[h] += a.msgs[h]; }
+    // «Все»: every «В2С Продажа» payment, site orders included (user's choice); a group or a person — their deals only
+    for (const p of R.data.payments) if (!filtered || want.has(String(p.owner))) { pay[p.h]++; sum[p.h] += p.sum; }
+    const tot = (a) => a.reduce((x, y) => x + y, 0), TC = tot(calls), TM = tot(msgs), TP = tot(pay), TS = tot(sum);
+    const mgrPaid = filtered ? null : R.data.payments.filter((p) => want.has(String(p.owner))).length;
+    const peak = (a) => { const m = Math.max(...a); return m ? a.indexOf(m) : -1; };
+    const hh = (h) => String(h).padStart(2, "0") + ":00";
+    $("hr-sum").replaceChildren(...[
+      el("span", {}, "Звонков ", el("b", { text: num(TC) })), el("span", {}, "Сообщений ", el("b", { text: num(TM) })),
+      el("span", {}, "Оплат ", el("b", { text: num(TP) }), TS ? " на " + rub(TS) : "", mgrPaid != null ? el("span", { class: "dim", text: " · по сделкам менеджеров " + num(mgrPaid) }) : null,
+        R.data.promoSkipped ? el("span", { class: "dim", title: "Промокоды вида BKL50050, LYH250100, PRTN-…", text: " · без " + num(R.data.promoSkipped) + " по партнёрским промокодам" }) : null),
+      TC + TM && peak(calls.map((c, h) => c + msgs[h])) >= 0 ? el("span", { class: "dim", text: "Пик активности " + hh(peak(calls.map((c, h) => c + msgs[h]))) + (TP ? " · пик оплат " + hh(peak(pay)) : "") }) : null,
+      !TC && TM ? el("span", { class: "warn", text: "Звонки за этот день Bitrix24 не отдал" }) : null].filter(Boolean));
+    if (!TC && !TM && !TP) return box.replaceChildren(el("div", { class: "msg", text: "За этот день действий и оплат нет" }));
+    drawHourly(box, { calls, msgs, pay, sum, day });
+  }
+
+  function drawHourly(box, { calls, msgs, pay, sum, day }) {
+    const W = Math.max(300, Math.round(box.clientWidth || 640)), L = 38, R = 6, Tp = 18, A = 170, GAP = 30, P = 80, B = 24, H = Tp + A + GAP + P + B;
+    const scale = (max) => { const step = max <= 5 ? 1 : max <= 10 ? 2 : max <= 25 ? 5 : max <= 50 ? 10 : max <= 100 ? 20 : max <= 250 ? 50 : max <= 500 ? 100 : 200; return { step, top: Math.max(step, Math.ceil(max / step) * step) }; };
+    const sa = scale(Math.max(...calls, ...msgs)), sp = scale(Math.max(...pay));
+    const ya = (v) => Tp + A * (1 - v / sa.top), y0p = Tp + A + GAP, yp = (v) => y0p + P * (1 - v / sp.top);
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "По часам дня: исходящие звонки и сообщения менеджеров сверху, оплаты снизу" });
+    const text = (x, y, s, attrs = {}) => { const t = svgEl("text", { x, y, ...attrs }); t.textContent = s; svg.append(t); };
+    const grid = (s, y) => { for (let v = 0; v <= s.top; v += s.step) { svg.append(svgEl("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: v ? "var(--grid)" : "var(--line)", "stroke-width": 1 })); text(L - 6, y(v) + 4, num(v), { "text-anchor": "end" }); } };
+    grid(sa, ya); grid(sp, yp);
+    text(L, Tp - 6, "Звонки и сообщения", { class: "band" }); text(L, y0p - 6, "Оплаты", { class: "band" });
+    const gw = (W - L - R) / 24, bw = Math.max(2, Math.min(12, (gw - 4) / 2 - 1));
+    const bar = (x, y1, y2, fill, w = bw) => { const h = y2 - y1; if (h <= 0) return; const r = Math.min(3, w / 2, h);
+      svg.append(svgEl("path", { d: `M${x},${y2} V${y1 + r} Q${x},${y1} ${x + r},${y1} H${x + w - r} Q${x + w},${y1} ${x + w},${y1 + r} V${y2} Z`, fill: `var(${fill})`, "pointer-events": "none" })); };
+    const tip = el("div", { class: "tip", hidden: "" });
+    const now = state.hr.data.today === day ? new Date(state.hr.data.now + 3 * 3600e3).getUTCHours() : 24;
+    for (const h of H24) {
+      const x0 = L + h * gw;
+      const hit = svgEl("rect", { class: "hit", x: x0 + 1, y: Tp, width: gw - 2, height: A + GAP + P, rx: 4 });
+      svg.append(hit);
+      if (h % (gw < 22 ? 3 : 2) === 0) text(x0 + gw / 2, H - 6, String(h).padStart(2, "0"), { "text-anchor": "middle" });
+      if (h > now) continue;
+      const gx = x0 + (gw - (bw * 2 + 2)) / 2, hgt = (v, y, y0) => (v ? Math.max(2, y0 - y(v)) : 0);
+      const hc = hgt(calls[h], ya, ya(0)), hm = hgt(msgs[h], ya, ya(0)), hp = hgt(pay[h], yp, yp(0));
+      if (hc) bar(gx, ya(0) - hc, ya(0), "--s-call");
+      if (hm) bar(gx + bw + 2, ya(0) - hm, ya(0), "--s-msg");
+      if (hp) bar(gx, yp(0) - hp, yp(0), "--s-pay", bw * 2 + 2);
+      const show = () => {
+        hit.classList.add("on");
+        tip.replaceChildren(el("b", { text: String(h).padStart(2, "0") + ":00–" + String(h + 1).padStart(2, "0") + ":00 МСК" }),
+          el("div", {}, el("span", {}, el("i", { style: "background:var(--s-call)" }), "Исходящие звонки"), el("span", { text: num(calls[h]) })),
+          el("div", {}, el("span", {}, el("i", { style: "background:var(--s-msg)" }), "Сообщения"), el("span", { text: num(msgs[h]) })),
+          el("div", {}, el("span", {}, el("i", { style: "background:var(--s-pay)" }), "Оплаты"), el("span", { text: num(pay[h]) + (sum[h] ? " · " + rub(sum[h]) : "") })));
+        tip.hidden = false;
+        const bx = box.getBoundingClientRect(), sx = bx.width / W, left = (x0 + gw) * sx + 8;
+        tip.style.left = (left + 220 > bx.width ? x0 * sx - 228 : left) + "px";
+        tip.style.top = "8px";
+      };
+      hit.addEventListener("mouseenter", show);
+      hit.addEventListener("mouseleave", () => { hit.classList.remove("on"); tip.hidden = true; });
+    }
+    box.replaceChildren(svg, tip);
+  }
+
+  async function loadHourly() {
+    if (!state.data || state.data.from !== state.from) return;
+    const day = pickedDay();
+    if (!day) return;
+    if (state.hr && state.hr.day === day && state.hr.data && !(day === state.hr.data.today && Date.now() - state.hr.at > 5 * 60e3)) return;
+    state.hr = { day, data: state.hr && state.hr.day === day ? state.hr.data : null, error: null, at: Date.now() };
+    try {
+      const res = await fetch("api/hourly?day=" + day, { cache: "no-store" });
+      const body = await res.json().catch(() => ({}));
+      if (!state.hr || state.hr.day !== day) return;
+      if (!res.ok) throw new Error(body.error || "сервер ответил " + res.status);
+      state.hr.data = body;
+    } catch (e) {
+      if (state.hr && state.hr.day === day) state.hr.error = e.message === "Failed to fetch" ? "нет связи с сервером" : e.message;
+    }
+    if (state.data && state.data.from === state.from) render();
   }
 
   function renderReplies(list, ids) {
@@ -498,10 +633,11 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     }
     state.loading = false;
     render();
+    loadHourly();
   }
   let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (state.data && state.data.from === state.from) render(); }, 150); });
   function go(k) {
-    state.from = addDays(state.from, 7 * k); state.data = null; state.rep = null;
+    state.from = addDays(state.from, 7 * k); state.data = null; state.rep = null; state.hday = null;
     history.replaceState(null, "", state.from === state.cur ? location.pathname : "#from=" + state.from);
     render(); load(); loadReplies();
   }

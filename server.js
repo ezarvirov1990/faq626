@@ -10,6 +10,7 @@ import { mskDayStart } from "./tasks.js";
 import { decideAlerts, alertText, createMattermost, alertRecipient, BACKUP_ID, SCHEDULES, idleDay } from "./alerts.js";
 import { collectWeek, weekStart, SUVVY_ID } from "./weekstats.js";
 import { collectUndelivered } from "./undelivered.js";
+import { activityByHour, collectPayments } from "./hourly.js";
 import { collectReplies } from "./replies.js";
 import { collectCorp } from "./corp.js";
 import { collectService, collectServiceTasks, serviceCache, SERVICE_TEAM } from "./service.js";
@@ -397,6 +398,24 @@ function weekData(from) {
   promise.catch(() => weekCache.delete(from));
   return promise;
 }
+// «Неделя» → activity and payments by hour of one day (hourly.js): events from the feed (today live, past days from
+// DATA_DIR/feed), payments from Bitrix stage history; cached 5 min (today) / 1 h (past days)
+const hourlyCache = new Map();
+function hourlyData(dayIso, today) {
+  const now = Date.now(), hit = hourlyCache.get(dayIso);
+  if (hit && now - hit.at < (dayIso === today ? 5 * 60e3 : 3600e3)) return hit.promise;
+  const day = Date.parse(dayIso + "T00:00:00+03:00"), ids = state.snapshot.managers.map((m) => m.id);
+  const events = dayIso === today ? Promise.resolve(dayEvents(day))
+    : readFile(path.join(feedDir || ".", dayIso + ".json"), "utf8").then((t) => JSON.parse(t).events);
+  const promise = Promise.all([events, collectPayments(createBitrix(config.webhook), day)]).then(([ev, pay]) => ({
+    day: dayIso, today, now, activity: activityByHour(ev, ids), ...pay,
+  }));
+  hourlyCache.set(dayIso, { at: now, promise });
+  promise.catch(() => hourlyCache.delete(dayIso));
+  for (const [k, v] of hourlyCache) if (now - v.at > 6 * 3600e3) hourlyCache.delete(k);
+  return promise;
+}
+
 // «Неделя» → reply speed: every chat of the week paged through (~2 min), so it is never computed inside a request.
 // The current week is recounted in the background every REPLIES_MINUTES (30) and served from memory meanwhile;
 // a past week is computed on first request and, once it ended 2+ days ago (late answers are in), kept on disk for good.
@@ -507,6 +526,15 @@ const server = http.createServer(async (req, res) => {
     weekData(from).then(
       (d) => json(200, { ...d, current: weekStart(now), weeksBack: WEEKS_BACK }),
       (e) => { log("week error:", e.message); json(502, { error: "Bitrix24 не ответил, попробуйте через минуту" }); });
+    return;
+  }
+  if (pathname === "/api/hourly") {
+    const now = Date.now(), today = isoDay(mskDayStart(now));
+    const dayIso = new URL(req.url, "http://localhost").searchParams.get("day") || today;
+    const json = (code, body) => { res.writeHead(code, { ...baseHeaders, "Content-Type": "application/json; charset=utf-8" }); res.end(JSON.stringify(body)); };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dayIso) || dayIso > today) return json(400, { error: "день вне диапазона" });
+    if (!state.snapshot) return json(503, { error: "первый сбор данных ещё идёт" });
+    hourlyData(dayIso, today).then((d) => json(200, d), (e) => { log("hourly error:", e.message); json(502, { error: e.code === "ENOENT" ? "за этот день нет истории действий" : "Bitrix24 не ответил, попробуйте через минуту" }); });
     return;
   }
   if (pathname === "/api/replies") {
