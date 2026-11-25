@@ -475,7 +475,7 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
       const x0 = L + h * gw;
       const hit = svgEl("rect", { class: "hit", x: x0 + 1, y: Tp, width: gw - 2, height: A + GAP + P, rx: 4 });
       svg.append(hit);
-      if (h % (gw < 22 ? 3 : 2) === 0) text(x0 + gw / 2, H - 6, String(h).padStart(2, "0"), { "text-anchor": "middle" });
+      text(x0 + gw / 2, H - 6, gw < 20 ? String(h) : String(h).padStart(2, "0"), { "text-anchor": "middle", ...(gw < 16 ? { "font-size": 9 } : {}) });
       if (h > now) continue;
       const gx = x0 + (gw - (bw * 2 + 2)) / 2, hgt = (v, y, y0) => (v ? Math.max(2, y0 - y(v)) : 0);
       const hc = hgt(calls[h], ya, ya(0)), hm = hgt(msgs[h], ya, ya(0)), hp = hgt(pay[h], yp, yp(0));
