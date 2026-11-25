@@ -445,13 +445,11 @@ tr.today td:first-child::after { content: " · сегодня"; color: var(--mut
     // «Все»: every «В2С Продажа» payment, site orders included (user's choice); a group or a person — their deals only
     for (const p of R.data.payments) if (!filtered || want.has(String(p.owner))) { pay[p.h]++; sum[p.h] += p.sum; }
     const tot = (a) => a.reduce((x, y) => x + y, 0), TC = tot(calls), TM = tot(msgs), TP = tot(pay), TS = tot(sum);
-    const mgrPaid = filtered ? null : R.data.payments.filter((p) => want.has(String(p.owner))).length;
     const peak = (a) => { const m = Math.max(...a); return m ? a.indexOf(m) : -1; };
     const hh = (h) => String(h).padStart(2, "0") + ":00";
     $("hr-sum").replaceChildren(...[
       el("span", {}, "Звонков ", el("b", { text: num(TC) })), el("span", {}, "Сообщений ", el("b", { text: num(TM) })),
-      el("span", {}, "Оплат ", el("b", { text: num(TP) }), TS ? " на " + rub(TS) : "", mgrPaid != null ? el("span", { class: "dim", text: " · по сделкам менеджеров " + num(mgrPaid) }) : null,
-        R.data.promoSkipped ? el("span", { class: "dim", title: "Промокоды вида BKL50050, LYH250100, PRTN-…", text: " · без " + num(R.data.promoSkipped) + " по партнёрским промокодам" }) : null),
+      el("span", {}, "Оплат ", el("b", { text: num(TP) }), TS ? " на " + rub(TS) : ""),
       TC + TM && peak(calls.map((c, h) => c + msgs[h])) >= 0 ? el("span", { class: "dim", text: "Пик активности " + hh(peak(calls.map((c, h) => c + msgs[h]))) + (TP ? " · пик оплат " + hh(peak(pay)) : "") }) : null,
       !TC && TM ? el("span", { class: "warn", text: "Звонки за этот день Bitrix24 не отдал" }) : null].filter(Boolean));
     if (!TC && !TM && !TP) return box.replaceChildren(el("div", { class: "msg", text: "За этот день действий и оплат нет" }));
