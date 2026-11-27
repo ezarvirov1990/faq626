@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { managerIndex, messageEvents, taskHistoryEvents, cardEvents, callEvent, commentEvents, sessionOwners, updateWatch, WATCH_MS } from "./activity.js";
+import { managerIndex, messageEvents, taskHistoryEvents, cardEvents, callEvent, dialStats, phoneKey, commentEvents, sessionOwners, updateWatch, WATCH_MS } from "./activity.js";
 
 const t = (s) => Date.parse(s);
 
@@ -157,4 +157,11 @@ test("AI agent («Авто Изменения», user 7) and robot follow-ups af
     msg(5, 5, "Подобрала вам тест"),
   ]), ix, since);
   assert.deepEqual(ev.map((e) => [e.managerId, Boolean(e.tpl)]), [[5, true], [5, false]]);
+});
+test("dialled numbers: one key per number in any notation, 2+ outgoing calls count as repeated, incoming skipped", () => {
+  assert.equal(phoneKey("+7 (912) 345-67-89"), phoneKey("89123456789"));
+  assert.equal(phoneKey(""), null);
+  const c = (n, type = 1, code = "603") => callEvent({ CALL_ID: String(Math.random()), CALL_TYPE: type, CALL_FAILED_CODE: code, CALL_START_DATE: "2026-11-27T10:00:00+03:00", PORTAL_USER_ID: "5", PHONE_NUMBER: n });
+  const ev = [c("+79123456789"), c("89123456789", 1, "200"), c("79001112233"), c("79005556677", 2, "200")];
+  assert.deepEqual(dialStats(ev), { numbers: 2, repeated: 1 });
 });

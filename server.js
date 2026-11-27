@@ -5,7 +5,7 @@ import path from "node:path";
 import { timingSafeEqual } from "node:crypto";
 import { createBitrix, collectSnapshot, loadConfig, mergeDealPipelines } from "./collector.js";
 import { mergeHints } from "./hints.js";
-import { collectLive } from "./activity.js";
+import { collectLive, dialStats } from "./activity.js";
 import { mskDayStart } from "./tasks.js";
 import { decideAlerts, alertText, createMattermost, alertRecipient, BACKUP_ID, SCHEDULES, idleDay } from "./alerts.js";
 import { collectWeek, weekStart, SUVVY_ID } from "./weekstats.js";
@@ -266,12 +266,14 @@ if (feedDir) {
   } catch (e) { if (e.code !== "ENOENT") log("feed read error:", e.message); }
 }
 
+// per manager: distinct numbers dialled and numbers dialled 2+ times that day
+const dialOf = (events) => { const by = {}; for (const e of events) if (e.kind === "call") (by[e.managerId] ||= []).push(e); return Object.fromEntries(Object.entries(by).map(([id, ls]) => [id, dialStats(ls)])); };
 async function pastActivity(dayIso) {
   const day = Date.parse(dayIso + "T00:00:00+03:00");
   const saved = JSON.parse(await readFile(path.join(feedDir, dayIso + ".json"), "utf8"));
   return {
     day: dayIso, past: true, updatedAt: saved.savedAt, messagesUpdatedAt: null, error: null, managers: saved.managers, online: {},
-    events: saved.events, idle: idleOf(saved.managers, saved.events, day, day + DAY_MS, saved.absent || {}), days: await feedDays(),
+    events: saved.events, idle: idleOf(saved.managers, saved.events, day, day + DAY_MS, saved.absent || {}), dial: dialOf(saved.events), days: await feedDays(),
   };
 }
 
@@ -281,7 +283,7 @@ async function activityPayload() {
   const events = dayEvents(day);
   const managers = feedManagers() || [];
   return {
-    day: isoDay(day), idle: idleOf(managers, events, day, now, live.absent), days: await feedDays(),
+    day: isoDay(day), idle: idleOf(managers, events, day, now, live.absent), dial: dialOf(events), days: await feedDays(),
     updatedAt: live.updatedAt,
     messagesUpdatedAt: state.snapshot ? state.snapshot.updatedAt : null,
     error: live.error,

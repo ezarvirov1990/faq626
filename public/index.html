@@ -158,6 +158,9 @@ table.moves { min-width: 900px; }
 .dot::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
 .dot.on { color: var(--ok); } .dot.off { color: var(--muted); }
 .mgr-last { font-size: 13px; }
+.dial { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dial span { white-space: nowrap; }
+.dial b { color: var(--ink); font-weight: 600; }
 .counts { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .ev { display: grid; grid-template-columns: 52px 180px minmax(0, 1fr); gap: 12px; padding: 8px 16px; border-top: 1px solid var(--line); font-size: 14px; align-items: baseline; }
 .ev-time { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--muted); }
@@ -653,7 +656,7 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
       return;
     }
     if (past) managers = A.managers.filter(inGrp);
-    const idle = A.idle || {};
+    const idle = A.idle || {}, dial = A.dial || {};
     const dayName = past ? dayFmt.format(new Date(state.feedDay + "T12:00:00+03:00")) : "сегодня";
     const evs = A.events.filter((e) => inGrp(mgrById.get(e.managerId)));
     const on = (id) => A.online[id] || {};
@@ -712,7 +715,9 @@ html.glass .bar, html.glass .tabs .cnt { background: var(--line); }
         el("div", { class: "mgr-meta", text: "Последняя активность: " + (last ? hm.format(new Date(last.at)) + (past ? "" : " · " + ago(now - last.at)) : past ? "не было" : "сегодня не было") }),
         last ? el("div", { class: "mgr-last", text: evText(last) }) : null,
         idle[m.id] ? idleBlock(idle[m.id], past ? Infinity : now) : null,
-        parts.length ? el("div", { class: "counts" }, ...parts.map(([i, n, t]) => el("span", { title: t, text: i + " " + n }))) : null);
+        parts.length ? el("div", { class: "counts" }, ...parts.map(([i, n, t]) => el("span", { title: t, text: i + " " + n }))) : null,
+        dial[m.id] && dial[m.id].numbers ? el("div", { class: "dial", title: "Исходящие звонки за день: на сколько разных номеров звонил менеджер и на сколько из них — два раза и больше" },
+          el("span", {}, "Набрано номеров ", el("b", { text: dial[m.id].numbers })), el("span", {}, "звонили 2+ раза ", el("b", { text: dial[m.id].repeated }))) : null);
       b.addEventListener("click", () => { state.manager = state.manager === m.id ? null : m.id; state.feedLimit = 200; render(); });
       box.append(b);
     }

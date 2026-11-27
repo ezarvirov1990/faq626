@@ -115,7 +115,24 @@ export function callEvent(c) {
   const ok = String(c.CALL_FAILED_CODE) === "200";
   if (!outgoing && !ok) return null;
   const at = Date.parse(c.CALL_START_DATE);
-  return { key: "call:" + (c.CALL_ID || c.ID), at, managerId: Number(c.PORTAL_USER_ID), kind: "call", outgoing, ok, seconds: Number(c.CALL_DURATION) || 0 };
+  const e = { key: "call:" + (c.CALL_ID || c.ID), at, managerId: Number(c.PORTAL_USER_ID), kind: "call", outgoing, ok, seconds: Number(c.CALL_DURATION) || 0 };
+  // dialled number as a hash (no phone stored): «набрано номеров» / «звонили 2+ раза» on the feed cards (user, 27.11.2026)
+  const to = phoneKey(c.PHONE_NUMBER);
+  if (to) e.to = to;
+  return e;
+}
+
+// last 10 digits of a phone → short hash; the same number written as +7…, 8… or 7… gives one key
+export function phoneKey(phone) {
+  const d = String(phone || "").replace(/\D/g, "").slice(-10);
+  return d.length >= 6 ? textKey(d) : null;
+}
+
+// outgoing calls of one manager: distinct numbers dialled and how many of them were dialled 2+ times
+export function dialStats(events) {
+  const n = new Map();
+  for (const e of events) if (e.kind === "call" && e.outgoing && e.to) n.set(e.to, (n.get(e.to) || 0) + 1);
+  return { numbers: n.size, repeated: [...n.values()].filter((x) => x >= 2).length };
 }
 
 // Cards (lead/deal) of Open Lines sessions (CRM activity IMOPENLINES_SESSION): its LAST_UPDATED moves
